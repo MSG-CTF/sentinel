@@ -28,7 +28,7 @@ sentinel = 감지 + 판단 + 신호 전달 + 이벤트 기록
 - Logging: `Microsoft.Extensions.Logging`
 - Test: xUnit
 
-## 초기 프로젝트 구조
+## 프로젝트 구조
 
 ```text
 sentinel/
@@ -111,13 +111,3 @@ fix/#10-health-check
 - session cookie
 
 외부 응답은 그대로 기록하지 않고, 필요한 필드만 추출해 event, signal, alert로 변환합니다.
-
-## 다음 작업
-
-1. .NET 솔루션 기본 구조 생성
-2. Sentinel 계약 모델 정의
-3. ctf-mock 연동 클라이언트 구현
-4. Django 서버 Health Check Worker 구현
-5. 문제 인스턴스 Health Check Worker 구현
-6. Scheduler Signal 및 Admin Alert 연동 구현
-7. Timeout 및 Resource Risk 감시 구현
