@@ -1,0 +1,48 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sentinel.Api", "src\Sentinel.Api\Sentinel.Api.csproj", "{A1DCBC68-86AC-431F-931F-8237A72C541A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sentinel.Contracts", "src\Sentinel.Contracts\Sentinel.Contracts.csproj", "{ECEA467A-3E9B-47A2-A1DD-656CE96A9F8D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sentinel.Monitor", "src\Sentinel.Monitor\Sentinel.Monitor.csproj", "{A4F7E8B4-3A90-438C-9E6F-F581E81EF391}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sentinel.Infrastructure", "src\Sentinel.Infrastructure\Sentinel.Infrastructure.csproj", "{CA3EBB73-0BC3-4E9A-9F46-5A0EB1EB9FBF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sentinel.Tests", "tests\Sentinel.Tests\Sentinel.Tests.csproj", "{811240CF-1A75-49E4-98B0-19D669ABBB3A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sentinel.IntegrationTests", "tests\Sentinel.IntegrationTests\Sentinel.IntegrationTests.csproj", "{026C079A-9197-452F-A73D-6CDFF58232C0}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A1DCBC68-86AC-431F-931F-8237A72C541A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1DCBC68-86AC-431F-931F-8237A72C541A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1DCBC68-86AC-431F-931F-8237A72C541A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1DCBC68-86AC-431F-931F-8237A72C541A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ECEA467A-3E9B-47A2-A1DD-656CE96A9F8D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ECEA467A-3E9B-47A2-A1DD-656CE96A9F8D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ECEA467A-3E9B-47A2-A1DD-656CE96A9F8D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ECEA467A-3E9B-47A2-A1DD-656CE96A9F8D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A4F7E8B4-3A90-438C-9E6F-F581E81EF391}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A4F7E8B4-3A90-438C-9E6F-F581E81EF391}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A4F7E8B4-3A90-438C-9E6F-F581E81EF391}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A4F7E8B4-3A90-438C-9E6F-F581E81EF391}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CA3EBB73-0BC3-4E9A-9F46-5A0EB1EB9FBF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CA3EBB73-0BC3-4E9A-9F46-5A0EB1EB9FBF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CA3EBB73-0BC3-4E9A-9F46-5A0EB1EB9FBF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CA3EBB73-0BC3-4E9A-9F46-5A0EB1EB9FBF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{811240CF-1A75-49E4-98B0-19D669ABBB3A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{811240CF-1A75-49E4-98B0-19D669ABBB3A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{811240CF-1A75-49E4-98B0-19D669ABBB3A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{811240CF-1A75-49E4-98B0-19D669ABBB3A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{026C079A-9197-452F-A73D-6CDFF58232C0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{026C079A-9197-452F-A73D-6CDFF58232C0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{026C079A-9197-452F-A73D-6CDFF58232C0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{026C079A-9197-452F-A73D-6CDFF58232C0}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
