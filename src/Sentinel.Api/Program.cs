@@ -1,6 +1,8 @@
 using Sentinel.Contracts.Health;
+using Sentinel.Infrastructure.CtfMock;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddCtfMockClient(builder.Configuration);
 
 var app = builder.Build();
 
