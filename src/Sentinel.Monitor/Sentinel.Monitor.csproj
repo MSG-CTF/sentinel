@@ -1,5 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="..\Sentinel.Contracts\Sentinel.Contracts.csproj" />
+    <ProjectReference Include="..\Sentinel.Infrastructure\Sentinel.Infrastructure.csproj" />
   </ItemGroup>
 </Project>
