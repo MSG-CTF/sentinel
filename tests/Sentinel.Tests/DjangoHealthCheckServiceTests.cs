@@ -59,7 +59,8 @@ public sealed class DjangoHealthCheckServiceTests
                 },
                 checkedAt),
         };
-        var service = new DjangoHealthCheckService(client);
+        var metrics = new FakeDjangoHealthMetrics();
+        var service = new DjangoHealthCheckService(client, metrics);
 
         var result = await service.CheckAsync();
 
@@ -68,6 +69,7 @@ public sealed class DjangoHealthCheckServiceTests
         Assert.Empty(result.AdminAlertCandidates);
         Assert.Equal(1, client.HealthCallCount);
         Assert.Equal(1, client.ApiStatusCallCount);
+        Assert.Same(result, metrics.LastRecordedResult);
     }
 
     [Fact]
@@ -84,7 +86,8 @@ public sealed class DjangoHealthCheckServiceTests
                 checkedAt),
             ApiStatus = HealthyApiStatus(checkedAt),
         };
-        var service = new DjangoHealthCheckService(client);
+        var metrics = new FakeDjangoHealthMetrics();
+        var service = new DjangoHealthCheckService(client, metrics);
 
         var result = await service.CheckAsync();
 
@@ -94,6 +97,7 @@ public sealed class DjangoHealthCheckServiceTests
         Assert.Equal("django-server-monitor", alert.Source);
         Assert.Equal("database_unavailable", alert.Metadata["reason"]);
         Assert.Equal("Unhealthy", alert.Metadata["databaseStatus"]);
+        Assert.Same(result, metrics.LastRecordedResult);
     }
 
     [Fact]
@@ -118,7 +122,8 @@ public sealed class DjangoHealthCheckServiceTests
                 },
                 checkedAt),
         };
-        var service = new DjangoHealthCheckService(client);
+        var metrics = new FakeDjangoHealthMetrics();
+        var service = new DjangoHealthCheckService(client, metrics);
 
         var result = await service.CheckAsync();
 
@@ -127,6 +132,7 @@ public sealed class DjangoHealthCheckServiceTests
         Assert.Equal(EventSeverity.Warning, alert.Severity);
         Assert.Equal("django_api_timeout", alert.Metadata["reason"]);
         Assert.Equal("login,scoreboard", alert.Metadata["unhealthyApis"]);
+        Assert.Same(result, metrics.LastRecordedResult);
     }
 
     private static CtfMockApiStatus HealthyApiStatus(DateTimeOffset checkedAt)
@@ -201,6 +207,16 @@ public sealed class DjangoHealthCheckServiceTests
             CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
+        }
+    }
+
+    private sealed class FakeDjangoHealthMetrics : IDjangoHealthMetrics
+    {
+        public DjangoHealthCheckResult? LastRecordedResult { get; private set; }
+
+        public void Record(DjangoHealthCheckResult result)
+        {
+            LastRecordedResult = result;
         }
     }
 }

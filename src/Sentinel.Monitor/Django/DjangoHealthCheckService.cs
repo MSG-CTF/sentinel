@@ -8,10 +8,14 @@ namespace Sentinel.Monitor.Django;
 public sealed class DjangoHealthCheckService : IDjangoHealthCheckService
 {
     private readonly ICtfMockClient _ctfMockClient;
+    private readonly IDjangoHealthMetrics _metrics;
 
-    public DjangoHealthCheckService(ICtfMockClient ctfMockClient)
+    public DjangoHealthCheckService(
+        ICtfMockClient ctfMockClient,
+        IDjangoHealthMetrics? metrics = null)
     {
         _ctfMockClient = ctfMockClient;
+        _metrics = metrics ?? NullDjangoHealthMetrics.Instance;
     }
 
     public async Task<DjangoHealthCheckResult> CheckAsync(
@@ -21,11 +25,14 @@ public sealed class DjangoHealthCheckService : IDjangoHealthCheckService
         var apiStatus = await _ctfMockClient.GetApiStatusAsync(cancellationToken);
         var alerts = BuildAdminAlertCandidates(healthEvent, apiStatus);
 
-        return new DjangoHealthCheckResult(
+        var result = new DjangoHealthCheckResult(
             IsHealthy: alerts.Count == 0,
             HealthEvent: healthEvent,
             ApiStatus: apiStatus,
             AdminAlertCandidates: alerts);
+        _metrics.Record(result);
+
+        return result;
     }
 
     private static IReadOnlyList<AdminAlert> BuildAdminAlertCandidates(

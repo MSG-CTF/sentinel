@@ -1,3 +1,4 @@
+using Prometheus;
 using Sentinel.Contracts.Health;
 using Sentinel.Infrastructure.CtfMock;
 using Sentinel.Monitor.Django;
@@ -7,6 +8,7 @@ builder.Services.AddCtfMockClient(builder.Configuration);
 builder.Services.AddDjangoHealthMonitor(builder.Configuration);
 
 var app = builder.Build();
+app.UseHttpMetrics();
 
 // 운영팀과 모니터링 시스템이 sentinel 자체 상태를 빠르게 확인하는 최소 엔드포인트입니다.
 app.MapGet("/health", () =>
@@ -18,6 +20,7 @@ app.MapGet("/health", () =>
 
     return Results.Ok(response);
 });
+app.MapMetrics();
 
 app.Run();
 

@@ -11,6 +11,7 @@ public static class DjangoHealthMonitorServiceCollectionExtensions
     {
         services.Configure<DjangoHealthMonitorOptions>(
             configuration.GetSection(DjangoHealthMonitorOptions.SectionName));
+        services.AddSingleton<IDjangoHealthMetrics, PrometheusDjangoHealthMetrics>();
         services.AddSingleton<IDjangoHealthCheckService, DjangoHealthCheckService>();
         services.AddHostedService<DjangoHealthCheckWorker>();
 
