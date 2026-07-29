@@ -1,8 +1,10 @@
 using Sentinel.Contracts.Health;
 using Sentinel.Infrastructure.CtfMock;
+using Sentinel.Monitor.Django;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddCtfMockClient(builder.Configuration);
+builder.Services.AddDjangoHealthMonitor(builder.Configuration);
 
 var app = builder.Build();
 
