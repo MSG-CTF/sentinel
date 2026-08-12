@@ -8,24 +8,42 @@ namespace Sentinel.Monitor.Django;
 public sealed class DjangoHealthCheckService : IDjangoHealthCheckService
 {
     private readonly ICtfMockClient _ctfMockClient;
+    private readonly IDjangoHealthMetrics _metrics;
 
-    public DjangoHealthCheckService(ICtfMockClient ctfMockClient)
+    public DjangoHealthCheckService(
+        ICtfMockClient ctfMockClient,
+        IDjangoHealthMetrics? metrics = null)
     {
         _ctfMockClient = ctfMockClient;
+        _metrics = metrics ?? NullDjangoHealthMetrics.Instance;
     }
 
     public async Task<DjangoHealthCheckResult> CheckAsync(
         CancellationToken cancellationToken = default)
     {
-        var healthEvent = await _ctfMockClient.GetDjangoHealthAsync(cancellationToken);
-        var apiStatus = await _ctfMockClient.GetApiStatusAsync(cancellationToken);
-        var alerts = BuildAdminAlertCandidates(healthEvent, apiStatus);
+        DjangoHealthEvent healthEvent;
+        CtfMockApiStatus apiStatus;
 
-        return new DjangoHealthCheckResult(
+        try
+        {
+            healthEvent = await _ctfMockClient.GetDjangoHealthAsync(cancellationToken);
+            apiStatus = await _ctfMockClient.GetApiStatusAsync(cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            _metrics.RecordFailure(exception);
+            throw;
+        }
+
+        var alerts = BuildAdminAlertCandidates(healthEvent, apiStatus);
+        var result = new DjangoHealthCheckResult(
             IsHealthy: alerts.Count == 0,
             HealthEvent: healthEvent,
             ApiStatus: apiStatus,
             AdminAlertCandidates: alerts);
+        _metrics.Record(result);
+
+        return result;
     }
 
     private static IReadOnlyList<AdminAlert> BuildAdminAlertCandidates(
