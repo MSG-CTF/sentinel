@@ -5,6 +5,10 @@ namespace Sentinel.Monitor.Django;
 
 public sealed class PrometheusDjangoHealthMetrics : IDjangoHealthMetrics
 {
+    private static readonly Gauge DjangoHealthCheckSuccessGauge = Metrics.CreateGauge(
+        "sentinel_django_health_check_success",
+        "Last Django health check execution result. 1 means the check completed, 0 means the check failed before a result was recorded.");
+
     private static readonly Gauge DjangoHealthStatusGauge = Metrics.CreateGauge(
         "sentinel_django_health_status",
         "Django health status by component. 1 means healthy, 0 means unhealthy.",
@@ -39,6 +43,7 @@ public sealed class PrometheusDjangoHealthMetrics : IDjangoHealthMetrics
 
     public void Record(DjangoHealthCheckResult result)
     {
+        DjangoHealthCheckSuccessGauge.Set(1);
         DjangoHealthStatusGauge.WithLabels("django").Set(ToMetricValue(result.HealthEvent.Status));
         DjangoHealthStatusGauge.WithLabels("database").Set(ToMetricValue(result.HealthEvent.DatabaseStatus));
         DjangoHealthStatusGauge.WithLabels("cache").Set(ToMetricValue(result.HealthEvent.CacheStatus));
@@ -58,6 +63,11 @@ public sealed class PrometheusDjangoHealthMetrics : IDjangoHealthMetrics
                 .WithLabels(MonitorDefaults.DjangoServerMonitorName)
                 .Inc(result.AdminAlertCandidates.Count);
         }
+    }
+
+    public void RecordFailure(Exception exception)
+    {
+        DjangoHealthCheckSuccessGauge.Set(0);
     }
 
     private static double ToMetricValue(HealthStatus status)

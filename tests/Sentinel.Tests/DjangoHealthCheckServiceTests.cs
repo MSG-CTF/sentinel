@@ -135,6 +135,22 @@ public sealed class DjangoHealthCheckServiceTests
         Assert.Same(result, metrics.LastRecordedResult);
     }
 
+    [Fact]
+    public async Task CheckAsync_ShouldRecordFailureMetricWhenCtfMockCallFails()
+    {
+        var client = new FakeCtfMockClient
+        {
+            HealthException = new InvalidOperationException("ctf-mock unavailable"),
+        };
+        var metrics = new FakeDjangoHealthMetrics();
+        var service = new DjangoHealthCheckService(client, metrics);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CheckAsync());
+
+        Assert.Equal("InvalidOperationException", metrics.LastFailureType);
+        Assert.Null(metrics.LastRecordedResult);
+    }
+
     private static CtfMockApiStatus HealthyApiStatus(DateTimeOffset checkedAt)
     {
         return new CtfMockApiStatus(
@@ -158,6 +174,10 @@ public sealed class DjangoHealthCheckServiceTests
 
         public CtfMockApiStatus ApiStatus { get; init; } = HealthyApiStatus(DateTimeOffset.UtcNow);
 
+        public Exception? HealthException { get; init; }
+
+        public Exception? ApiStatusException { get; init; }
+
         public int HealthCallCount { get; private set; }
 
         public int ApiStatusCallCount { get; private set; }
@@ -166,6 +186,11 @@ public sealed class DjangoHealthCheckServiceTests
             CancellationToken cancellationToken = default)
         {
             HealthCallCount++;
+            if (HealthException is not null)
+            {
+                throw HealthException;
+            }
+
             return Task.FromResult(DjangoHealth);
         }
 
@@ -173,6 +198,11 @@ public sealed class DjangoHealthCheckServiceTests
             CancellationToken cancellationToken = default)
         {
             ApiStatusCallCount++;
+            if (ApiStatusException is not null)
+            {
+                throw ApiStatusException;
+            }
+
             return Task.FromResult(ApiStatus);
         }
 
@@ -214,9 +244,16 @@ public sealed class DjangoHealthCheckServiceTests
     {
         public DjangoHealthCheckResult? LastRecordedResult { get; private set; }
 
+        public string? LastFailureType { get; private set; }
+
         public void Record(DjangoHealthCheckResult result)
         {
             LastRecordedResult = result;
+        }
+
+        public void RecordFailure(Exception exception)
+        {
+            LastFailureType = exception.GetType().Name;
         }
     }
 }

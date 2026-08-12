@@ -11,4 +11,8 @@ public sealed class NullDjangoHealthMetrics : IDjangoHealthMetrics
     public void Record(DjangoHealthCheckResult result)
     {
     }
+
+    public void RecordFailure(Exception exception)
+    {
+    }
 }

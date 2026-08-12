@@ -8,9 +8,60 @@
   "panels": [
     {
       "type": "stat",
-      "title": "Django Components",
+      "title": "Health Check Execution",
       "gridPos": {
         "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "expr": "sentinel_django_health_check_success",
+          "legendFormat": "last check"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "text": "Failed"
+                },
+                "1": {
+                  "text": "Completed"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Django Components",
+      "gridPos": {
+        "x": 12,
         "y": 0,
         "w": 12,
         "h": 8
@@ -61,8 +112,8 @@
       "type": "timeseries",
       "title": "Django API Status",
       "gridPos": {
-        "x": 12,
-        "y": 0,
+        "x": 0,
+        "y": 8,
         "w": 12,
         "h": 8
       },
@@ -81,7 +132,7 @@
       "type": "stat",
       "title": "Admin Alert Candidates",
       "gridPos": {
-        "x": 0,
+        "x": 12,
         "y": 8,
         "w": 12,
         "h": 8

@@ -21,10 +21,21 @@ public sealed class DjangoHealthCheckService : IDjangoHealthCheckService
     public async Task<DjangoHealthCheckResult> CheckAsync(
         CancellationToken cancellationToken = default)
     {
-        var healthEvent = await _ctfMockClient.GetDjangoHealthAsync(cancellationToken);
-        var apiStatus = await _ctfMockClient.GetApiStatusAsync(cancellationToken);
-        var alerts = BuildAdminAlertCandidates(healthEvent, apiStatus);
+        DjangoHealthEvent healthEvent;
+        CtfMockApiStatus apiStatus;
 
+        try
+        {
+            healthEvent = await _ctfMockClient.GetDjangoHealthAsync(cancellationToken);
+            apiStatus = await _ctfMockClient.GetApiStatusAsync(cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            _metrics.RecordFailure(exception);
+            throw;
+        }
+
+        var alerts = BuildAdminAlertCandidates(healthEvent, apiStatus);
         var result = new DjangoHealthCheckResult(
             IsHealthy: alerts.Count == 0,
             HealthEvent: healthEvent,

@@ -58,9 +58,16 @@ public sealed class MetricsEndpointTests
         var response = await client.GetStringAsync("/metrics");
 
         Assert.Contains("sentinel_django_health_status", response, StringComparison.Ordinal);
+        Assert.Contains("sentinel_django_health_check_success 1", response, StringComparison.Ordinal);
         Assert.Contains("component=\"database\"} 0", response, StringComparison.Ordinal);
         Assert.Contains("sentinel_django_api_status", response, StringComparison.Ordinal);
         Assert.Contains("api=\"login\",path=\"/api/auth/login\"} 0", response, StringComparison.Ordinal);
         Assert.Contains("sentinel_django_admin_alert_candidates", response, StringComparison.Ordinal);
+
+        metrics.RecordFailure(new InvalidOperationException("ctf-mock unavailable"));
+
+        var failureResponse = await client.GetStringAsync("/metrics");
+
+        Assert.Contains("sentinel_django_health_check_success 0", failureResponse, StringComparison.Ordinal);
     }
 }

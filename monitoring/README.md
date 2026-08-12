@@ -47,6 +47,7 @@ curl -X POST http://localhost:8000/api/scenarios \
 Prometheus query 예시:
 
 ```promql
+sentinel_django_health_check_success
 sentinel_django_health_status
 sentinel_django_api_status
 sentinel_django_admin_alert_candidates
