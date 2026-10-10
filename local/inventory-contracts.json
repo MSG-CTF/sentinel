@@ -1,0 +1,62 @@
+{
+  "reviewed_date": "2026-10-11",
+  "execution": "local_control_queries_and_fixed_runtime_fixture_connected",
+  "mode": "observe_only",
+  "scope": "scheduler_and_runtime_inventory",
+  "local_recovery": {
+    "profile": "local-recovery",
+    "asset_id": "internal-backend",
+    "executor_id": "local-docker",
+    "action": "start_stopped_service",
+    "contract_file": "local/recovery-contract.json",
+    "production_enabled": false
+  },
+  "scheduler": {
+    "local_execution": "authenticated_recent_query",
+    "local_url": "http://scheduler:8080/api/instances/recent",
+    "source_sha": "5c695142871a5a926b96d7befcaf0832c691933f",
+    "method": "GET",
+    "path": "/api/instances/recent",
+    "authentication": "Bearer service token",
+    "response_envelope": "code=SUCCESS, data=array",
+    "coverage": "latest_20_by_created_at",
+    "complete_inventory": false,
+    "fields": ["instance_id", "status", "runtime_target_id", "runtime_workload_id", "registry_revision", "updated_at", "expires_at"],
+    "missing_fields": ["runtime_operation_id", "track", "healthcheck_result"],
+    "required_inputs": ["base_url", "service_token_reference", "approved_track_mapping", "complete_inventory_or_pagination_contract"]
+  },
+  "runtime": {
+    "local_execution": "fixed_nginx_fixture_on_local_k3s_with_postgres_store",
+    "local_instance_id": "a716671b-48a3-4fcb-813a-1b9a2280463e",
+    "local_target_id": "sentinel-local-k3s",
+    "local_url": "http://runtime:8080",
+    "operation_mapping": "private_local_connection_receipt",
+    "scheduler_creation_flow_verified": false,
+    "competition_challenge_verified": false,
+    "status_contract": "phase_READY_all_containers_RUNNING_and_ready_endpoint_ready_node_ready_no_pressure_observed_within_60_seconds",
+    "source_sha": "19d2fdffef753bb9415861c4a6b382b6408455ea",
+    "authentication": "Bearer service token",
+    "status_path": "/internal/v1/instances/{instance_id}/runtime-status",
+    "operation_path": "/internal/v1/operations/{operation_id}",
+    "method": "GET",
+    "fields": ["instance_id", "target_id", "runtime_workload_id", "phase", "endpoint_ready", "observed_at", "node.ready", "containers[].ready", "containers[].state"],
+    "missing_fields": ["pod_ready_condition", "challenge_healthcheck_result"],
+    "production_required_inputs": ["base_url", "service_token_reference", "runtime_operation_id_mapping", "k3s_registry_with_real_target_binding", "pod_ready_observation_contract", "challenge_healthcheck_observation_contract"]
+  },
+  "comparison": {
+    "join_key": "instance_id",
+    "binding_checks": ["runtime_target_id=target_id", "runtime_workload_id=runtime_workload_id"],
+    "independent_signals": ["scheduler_request_status", "runtime_operation_status", "runtime_phase", "pod_ready", "challenge_healthcheck"],
+    "missing_signal_status": "UNVERIFIED",
+    "missing_auth_status": "UNCONFIGURED",
+    "stale_signal_status": "STALE",
+    "forbidden_inferences": ["RUNNING implies problem healthy", "READY implies healthcheck passed", "containers ready implies Pod Ready condition", "HTTP receipt time replaces observed_at", "recent 20 means full inventory", "unmapped track becomes INTERNAL or EXTERNAL"],
+    "public_output_policy": "Allow only validated IDs, enums, booleans, counts and observation times; omit tokens, flags, response bodies, error messages and workload URLs"
+  },
+  "recovery": {
+    "enabled": false,
+    "receiver": null,
+    "required_contracts": ["authenticated_receiver", "idempotency_key", "attempt_limit", "expires_at", "ownership_and_track_scope", "acknowledgement_and_result"],
+    "participant_reset_is_recovery": false
+  }
+}

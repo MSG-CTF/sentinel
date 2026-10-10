@@ -1,0 +1,160 @@
+name: msg-sla-real-local
+
+x-backend: &backend
+  image: msg-sla-backend:a045ceff
+  build:
+    context: ../../msg-backend
+  volumes:
+    - ./backend_settings.py:/local/backend_settings.py:ro
+  read_only: true
+  tmpfs:
+    - /tmp
+  security_opt:
+    - no-new-privileges:true
+  cap_drop: [ALL]
+  mem_limit: 512m
+  cpus: 1.0
+  restart: unless-stopped
+
+services:
+  postgres-internal:
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    environment:
+      POSTGRES_DB: msg_internal
+      POSTGRES_USER: msg_internal
+      POSTGRES_PASSWORD: local-internal-db-only
+    volumes:
+      - internal_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U msg_internal -d msg_internal"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
+    mem_limit: 384m
+    networks: [internal_data]
+
+  postgres-external:
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    environment:
+      POSTGRES_DB: msg_external
+      POSTGRES_USER: msg_external
+      POSTGRES_PASSWORD: local-external-db-only
+    volumes:
+      - external_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U msg_external -d msg_external"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
+    mem_limit: 384m
+    networks: [external_data]
+
+  redis-internal:
+    image: redis:8-alpine@sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0
+    command: [redis-server, --appendonly, "yes", --requirepass, local-internal-cache-only]
+    volumes:
+      - internal_redis:/data
+    mem_limit: 128m
+    networks: [internal_data]
+
+  redis-external:
+    image: redis:8-alpine@sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0
+    command: [redis-server, --appendonly, "yes", --requirepass, local-external-cache-only]
+    volumes:
+      - external_redis:/data
+    mem_limit: 128m
+    networks: [external_data]
+
+  backend-internal:
+    <<: *backend
+    labels:
+      io.msgctf.sentinel.recovery: local-internal-backend
+    environment:
+      PYTHONPATH: /local:/app
+      DJANGO_SETTINGS_MODULE: backend_settings
+      GUNICORN_CMD_ARGS: --control-socket /tmp/gunicorn.ctl
+      DJANGO_SECRET_KEY: local-internal-django-not-for-production-1007
+      JWT_SECRET: local-internal-jwt-not-for-production-1007
+      KOTH_TEAM_TOKEN_SECRET: local-internal-koth-not-for-production-1007
+      DJANGO_DEBUG: "False"
+      DJANGO_ALLOWED_HOSTS: backend-internal,localhost,127.0.0.1
+      POSTGRES_DB: msg_internal
+      POSTGRES_USER: msg_internal
+      POSTGRES_PASSWORD: local-internal-db-only
+      POSTGRES_HOST: postgres-internal
+      POSTGRES_PORT: "5432"
+      REDIS_URL: redis://:local-internal-cache-only@redis-internal:6379/1
+    ports: ["127.0.0.1:58180:8080"]
+    depends_on:
+      postgres-internal: {condition: service_healthy}
+      redis-internal: {condition: service_started}
+    networks: [internal_data, monitoring, egress]
+
+  backend-external:
+    <<: *backend
+    labels:
+      io.msgctf.sentinel.recovery: local-external-backend
+    environment:
+      PYTHONPATH: /local:/app
+      DJANGO_SETTINGS_MODULE: backend_settings
+      GUNICORN_CMD_ARGS: --control-socket /tmp/gunicorn.ctl
+      DJANGO_SECRET_KEY: local-external-django-not-for-production-1007
+      JWT_SECRET: local-external-jwt-not-for-production-1007
+      KOTH_TEAM_TOKEN_SECRET: local-external-koth-not-for-production-1007
+      DJANGO_DEBUG: "False"
+      DJANGO_ALLOWED_HOSTS: backend-external,localhost,127.0.0.1
+      POSTGRES_DB: msg_external
+      POSTGRES_USER: msg_external
+      POSTGRES_PASSWORD: local-external-db-only
+      POSTGRES_HOST: postgres-external
+      POSTGRES_PORT: "5432"
+      REDIS_URL: redis://:local-external-cache-only@redis-external:6379/1
+    ports: ["127.0.0.1:58181:8080"]
+    depends_on:
+      postgres-external: {condition: service_healthy}
+      redis-external: {condition: service_started}
+    networks: [external_data, monitoring, egress]
+
+  sentinel:
+    image: msg-sla-sentinel:real-platform
+    build: {context: ..}
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      SENTINEL_PROFILE_FILE: /config/profile.json
+    env_file:
+      - path: ./.assets/monitor.env
+        required: false
+    ports: ["127.0.0.1:58240:8080"]
+    volumes:
+      - ../src/Sentinel.Api/profiles/${SLA_PROFILE:-local}.json:/config/profile.json:ro
+      - ../src/Sentinel.Api/wwwroot:/app/wwwroot:ro
+      - ./.recovery/secrets:/run/sentinel-secrets:ro
+      - monitor_events:/app/data
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 256m
+    cpus: 0.5
+    restart: unless-stopped
+    networks: [monitoring, egress]
+
+networks:
+  internal_data:
+    internal: true
+    ipam: {config: [{subnet: "10.246.241.0/24"}]}
+  external_data:
+    internal: true
+    ipam: {config: [{subnet: "10.246.242.0/24"}]}
+  monitoring:
+    internal: true
+    ipam: {config: [{subnet: "10.246.240.0/24"}]}
+  egress:
+    ipam: {config: [{subnet: "10.246.243.0/24"}]}
+
+volumes:
+  internal_postgres:
+  external_postgres:
+  internal_redis:
+  external_redis:
+  monitor_events:

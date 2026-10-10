@@ -1,0 +1,18 @@
+{
+  "platform_monitor": {
+    "profile": "deployed",
+    "poll_interval_seconds": 60,
+    "event_file": "data/deployed-events.jsonl",
+    "targets": [
+      { "target_id": "public-site", "name": "대회 사이트", "role": "FRONTEND", "track": "PUBLIC", "kind": "http", "url": "https://msgctf.kr/", "expected_text": "MSG CTF 2026" },
+      { "target_id": "public-backend", "name": "배포 백엔드 상태", "role": "BACKEND", "track": "PUBLIC", "kind": "backend_healthz", "url": "https://msgctf.kr/healthz" },
+      { "target_id": "internal-backend", "name": "내부 백엔드", "role": "BACKEND", "track": "INTERNAL", "kind": "backend_healthz", "enabled": false },
+      { "target_id": "external-backend", "name": "외부 백엔드", "role": "BACKEND", "track": "EXTERNAL", "kind": "backend_healthz", "enabled": false },
+      { "target_id": "scheduler", "name": "인스턴스 스케줄러", "role": "SCHEDULER", "track": "CONTROL", "kind": "http", "enabled": false },
+      { "target_id": "broker", "name": "리소스 브로커", "role": "BROKER", "track": "CONTROL", "kind": "http", "enabled": false },
+      { "target_id": "runtime", "name": "문제 런타임", "role": "RUNTIME", "track": "RUNTIME", "kind": "http", "enabled": false },
+      { "target_id": "koth", "name": "KoTH 서버", "role": "KOTH", "track": "RUNTIME", "kind": "http", "enabled": false },
+      { "target_id": "windows", "name": "Windows 문제 서버", "role": "WINDOWS", "track": "RUNTIME", "kind": "http", "enabled": false }
+    ]
+  }
+}

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0c1319">
+  <title>MSG CLOUD | 운영 아키텍처</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/dashboard.css">
+  <link rel="stylesheet" href="/architecture.css">
+  <script src="/asset-model.js" defer></script>
+  <script src="/architecture-model.js" defer></script>
+  <script src="/topology.js" defer></script>
+  <script src="/data-recovery.js" defer></script>
+  <script src="/dashboard.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">본문으로 이동</a>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="/" aria-label="MSG CLOUD 운영 아키텍처">
+        <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M5 29V11l15 9 15-9v18M5 11l15-8 15 8M20 20v17M5 29l15 8 15-8"/></svg>
+        <span>MSG CLOUD</span><small>SENTINEL</small>
+      </a>
+      <nav class="view-tabs" role="tablist" aria-label="대시보드 보기">
+        <button id="architecture-tab" type="button" role="tab" aria-selected="true" aria-controls="architecture-view">전체 구조</button>
+        <button id="status-tab" type="button" role="tab" aria-selected="false" aria-controls="status-view" tabindex="-1">자산 상태</button>
+        <button id="connections-tab" type="button" role="tab" aria-selected="false" aria-controls="connections-view" tabindex="-1">연결 검토</button>
+      </nav>
+      <div class="header-tools">
+        <span id="profile" class="profile-label">연결 중</span>
+        <button id="refresh" class="icon-button" type="button" aria-label="최신 점검 결과 가져오기" title="새로고침">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M19 11a7 7 0 0 0-12-4L4 10m1 3a7 7 0 0 0 12 4l3-3"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+  <main id="main" class="main" tabindex="-1">
+    <div id="connection-warning" class="warning" role="alert" hidden></div>
+      <div class="page-heading">
+        <div><h1 id="page-title">MSG CTF 운영 구조</h1><p id="status-caption">실제 서버의 점검 결과를 불러오는 중</p></div>
+        <div class="update-note"><span id="last-update">점검 대기</span><small id="policy"></small></div>
+      </div>
+    <section id="architecture-view" role="tabpanel" aria-labelledby="architecture-tab">
+      <div class="map-toolbar">
+        <div class="map-legend" aria-label="연결선 확인 범위"><span class="legend-live">실측 연결</span><span class="legend-source">소스 확인</span><span class="legend-design">설계</span><span class="legend-blocked">계약 불일치</span></div>
+        <div class="map-tools">
+          <button id="map-secondary" class="text-button" type="button" aria-pressed="false">보조 연결</button>
+          <div class="map-zoom" role="group" aria-label="구조도 확대 축소"><button id="map-minus" type="button" aria-label="구조도 축소">−</button><button id="map-fit" type="button" aria-label="구조도 기본 배율로 돌아가기" title="데스크톱은 너비 맞춤 · 모바일은 읽기 좋은 원본 배율">맞춤</button><button id="map-plus" type="button" aria-label="구조도 확대">+</button></div>
+        </div>
+      </div>
+      <p class="map-pan-hint">지도를 좌우로 밀어서 전체 구조 보기</p>
+      <div id="map-viewport" class="map-viewport" tabindex="0" role="region" aria-label="MSG CTF 전체 아키텍처 지도 · 자산과 연결선을 눌러 상세 확인"><div id="map-size" class="map-size"><div id="architecture-map" class="architecture-map"></div></div></div>
+      <div class="map-caption"><span>내부·외부 데이터 분리 · 보조 연결: 관리자 리소스 목록과 트랙별 팀 토큰 검증</span><span>운영 배치안 · 로컬은 컨테이너 실행 · 소스 확인은 실연동 성공을 뜻하지 않음</span></div>
+    </section>
+    <section id="status-view" role="tabpanel" aria-labelledby="status-tab" hidden>
+      <div class="status-summary" aria-label="감시 대상 상태 요약">
+        <div class="summary-item healthy"><span>정상</span><strong id="healthy-count">-</strong></div>
+        <div class="summary-item incident"><span>장애·저하</span><strong id="incident-count">-</strong></div>
+        <div class="summary-item unknown"><span>확인 불가</span><strong id="unknown-count">-</strong></div>
+        <div class="summary-item pending"><span>미연결</span><strong id="pending-count">-</strong></div>
+        <div class="summary-total">감시 대상 <strong id="total-count">-</strong><small id="measurement-note"></small></div>
+      </div>
+      <div class="assets-heading"><h2>자산별 상태</h2><button id="issues-only" class="text-button" type="button" aria-pressed="false">문제만 보기</button></div>
+      <div id="asset-groups" class="asset-groups"><p class="loading-message">점검 결과를 불러오는 중</p></div>
+      <p id="empty-filter" class="empty-filter" hidden>현재 확인된 장애·상태 불명 없음 · 미연결 자산은 판정 대상에서 제외</p>
+      <p class="scope-note">DB·Redis는 서비스의 연결 점검으로 확인 · VM 전원은 미연결</p>
+      <section class="recovery-panel" aria-labelledby="recovery-title">
+        <div class="section-heading"><h2 id="recovery-title">자동 복구</h2><span id="recovery-mode">확인 중</span></div>
+        <p id="recovery-scope" class="scope-note"></p>
+        <p id="recovery-executor" class="scope-note"></p>
+        <ol id="recovery-feed" class="recovery-feed"></ol>
+      </section>
+      <section class="data-recovery-panel" aria-labelledby="data-recovery-title">
+        <div class="section-heading"><h2 id="data-recovery-title">데이터 복원 검증</h2><span id="data-recovery-state">검증 기록 미확인</span></div>
+        <p id="data-recovery-caption" class="scope-note">마지막 로컬 검증 기록을 불러오는 중</p>
+        <ul id="data-recovery-assets" class="data-recovery-assets"></ul>
+        <p id="service-cutover-caption" class="scope-note">서비스 전환 검증 기록을 불러오는 중</p>
+        <p class="scope-note">완료 조건 · 새 볼륨에 격리 복원 · 실제 앱 조회 · 원본 서비스 유지 · 검증용 자원 정리</p>
+        <p class="scope-note">저장소별 백업 시점은 다를 수 있음 · Redis 시험 값은 격리 환경에만 생성 · 운영 데이터 자동 복원 미연결</p>
+      </section>
+      <section class="recent-events" aria-labelledby="events-title">
+        <div class="section-heading"><h2 id="events-title">최근 상태 변경</h2><button id="event-expand" class="text-button" type="button" aria-expanded="false">전체 기록</button></div>
+        <ol id="event-feed" class="event-feed"><li class="empty-message">기록을 불러오는 중</li></ol>
+      </section>
+    </section>
+    <section id="connections-view" role="tabpanel" aria-labelledby="connections-tab" hidden>
+      <div class="section-heading connections-heading"><h2>역할별 연결 근거</h2><span id="audit-date" class="audit-date"></span></div>
+      <div class="connections-toolbar">
+        <div class="connection-legend"><span class="stage-verified">실측 <strong id="verified-links">-</strong></span><span class="stage-code">소스 확인 <strong id="code-links">-</strong></span><span class="stage-design">설계·미확인 <strong id="unverified-links">-</strong></span><span class="stage-blocked">불일치 <strong id="blocked-links">-</strong></span></div>
+        <label class="connection-filter">영역 <select id="connection-filter"><option value="ALL">전체</option><option value="INTERNAL">내부 트랙</option><option value="EXTERNAL">외부 트랙</option><option value="CONTROL">공통 제어</option><option value="RUNTIME">문제 실행·채점</option><option value="DELIVERY">문제 발행</option></select></label>
+      </div>
+      <details class="audit-notes"><summary>소스에서 확인한 차이 <span id="finding-count"></span></summary><div id="findings-list" class="findings-list"></div><p>고정 SHA 기준 · 열린 PR 반영 여부나 운영 배포 상태는 별도 확인</p></details>
+      <div class="contract-table" aria-label="팀별 연결과 검증 근거">
+        <div class="contract-table-heading" aria-hidden="true"><span>연결 경로</span><span>역할</span><span>확인 범위</span><span>담당</span></div>
+        <div id="contracts-list"></div>
+      </div>
+      <details class="audit-notes operations-notes"><summary>운영 전 확인할 항목 <span id="gate-count"></span></summary><div id="gates-list" class="gates-list"></div></details>
+      <details class="audit-notes operations-notes"><summary>자산별 접속·복구 계획</summary><p>운영 연결은 주소·자격 증명·서비스 매핑을 확정한 뒤 연결 · 자산을 눌러 조건 확인</p><div id="access-plan-list" class="access-plan-list"></div></details>
+      <p id="audit-scope" class="scope-note">소스 기준 확인 중</p>
+    </section>
+  </main>
+  <footer class="site-footer"><span id="operation-mode">운영 모드 확인 중</span><div><a href="/metrics">Metrics</a><a href="/api/status">상태 JSON</a><a href="/api/events">변경 기록</a><a href="/api/recovery">복구 기록</a></div></footer>
+  <dialog id="inspector" class="inspector" aria-labelledby="detail-title">
+    <div class="inspector-header"><span id="detail-group"></span><button id="detail-close" class="icon-button" type="button" aria-label="상세 닫기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+    <div class="inspector-content">
+      <div class="detail-identity"><div id="detail-icon" aria-hidden="true"></div><h2 id="detail-title">자산 상세</h2></div>
+      <p id="detail-status" class="detail-status"></p>
+      <p id="detail-reason" class="detail-reason"></p>
+      <dl id="detail-metrics" class="detail-metrics"></dl>
+      <section id="detail-access-section" class="detail-source" hidden><h3>접속과 복구</h3><p id="detail-access-state"></p><dl id="detail-access" class="detail-metrics"></dl><p id="detail-access-note"></p></section>
+      <section class="detail-source"><h3>확인 근거</h3><p id="detail-source"></p><p id="detail-source-note"></p><div id="detail-links" class="detail-links"></div></section>
+      <details id="related-section" class="related-section"><summary id="related-title">연결 관계</summary><div id="related-links"></div></details>
+      <section id="detail-events-section" class="detail-events"><h3 id="detail-events-title">이 자산의 상태 변경</h3><ol id="detail-events"></ol></section>
+    </div>
+  </dialog>
+</body>
+</html>
