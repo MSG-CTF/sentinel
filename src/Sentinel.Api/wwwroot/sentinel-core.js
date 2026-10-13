@@ -1,70 +1,86 @@
-/* The illustrated mechanism carries no telemetry. All readings remain in the DOM. */
+/* Progressive enhancement: monitoring and authentication do not depend on WebGL. */
 (function () {
   "use strict";
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
-  const finePointer = matchMedia("(hover: hover) and (pointer: fine)");
-  const mechanisms = [...document.querySelectorAll("[data-sentinel-core]")];
-  const frames = new Map();
-  let paused = false;
-  try { paused = localStorage.getItem("sentinel-motion") === "off"; } catch { /* Optional preference storage. */ }
+  const elements = [...document.querySelectorAll("[data-sentinel-core]")];
+  const controllers = new Map(elements.map(element => [element, {scene:null, loading:false, visible:false, view:"auto"}]));
+  let paused = false, sceneModule, disposed = false;
+  try { paused = localStorage.getItem("sentinel-motion") === "off"; } catch { /* Storage is optional. */ }
 
-  function reset(element) {
-    cancelAnimationFrame(frames.get(element));
-    frames.delete(element);
-    element.dataset.interacting = "false";
-    for (const property of ["--tilt-x", "--tilt-y", "--shift-x", "--shift-y", "--light-x", "--light-y"])
-      element.style.removeProperty(property);
-  }
+  // This facade is available synchronously, before the optional renderer loads.
+  window.SentinelCore = {setState(element, state) {
+    element.dataset.state = ["standby", "healthy", "attention", "incident", "offline"].includes(state) ? state : "standby";
+    controllers.get(element)?.scene?.setState(element.dataset.state);
+  }};
 
-  for (const element of mechanisms) {
-    let pointer = null;
-    element.addEventListener("pointermove", event => {
-      if (paused || reduced.matches || !finePointer.matches || document.hidden) return;
-      pointer = {x:event.clientX, y:event.clientY};
-      if (frames.has(element)) return;
-      frames.set(element, requestAnimationFrame(() => {
-        frames.delete(element);
-        if (!pointer || paused || reduced.matches || document.hidden) return;
-        const box = element.getBoundingClientRect();
-        if (!box.width || !box.height) return;
-        const x = Math.max(-.5, Math.min(.5, (pointer.x - box.left) / box.width - .5));
-        const y = Math.max(-.5, Math.min(.5, (pointer.y - box.top) / box.height - .5));
-        element.style.setProperty("--tilt-x", `${(-y * 3).toFixed(2)}deg`);
-        element.style.setProperty("--tilt-y", `${(x * 4).toFixed(2)}deg`);
-        element.style.setProperty("--shift-x", `${(x * 4).toFixed(2)}px`);
-        element.style.setProperty("--shift-y", `${(y * 3).toFixed(2)}px`);
-        element.style.setProperty("--light-x", `${((x + .5) * 100).toFixed(1)}%`);
-        element.style.setProperty("--light-y", `${((y + .5) * 100).toFixed(1)}%`);
-        element.dataset.interacting = "true";
-      }));
-    });
-    element.addEventListener("pointerleave", () => {pointer = null; reset(element);});
-    element.addEventListener("pointercancel", () => {pointer = null; reset(element);});
-  }
-
-  function syncControls() {
+  function sync() {
     const stopped = paused || reduced.matches;
     document.documentElement.classList.toggle("motion-paused", stopped);
     document.querySelectorAll("[data-motion-toggle]").forEach(button => {
       button.setAttribute("aria-pressed", String(stopped));
-      button.setAttribute("aria-label", reduced.matches ? "기기 설정에 따라 모션 꺼짐" : stopped ? "모션 켜기" : "모션 끄기");
-      button.title = reduced.matches ? "기기의 동작 줄이기 설정 적용 중" : stopped ? "모션 켜기" : "모션 끄기";
-      const label = button.querySelector("span");
-      if (label) label.textContent = stopped ? "MOTION OFF" : "MOTION ON";
+      const label = reduced.matches ? "기기 설정에 따라 모션 꺼짐" : stopped ? "모션 켜기" : "모션 끄기";
+      button.setAttribute("aria-label", label);
+      button.title = label;
+      const text = button.querySelector("span");
+      if (text) text.textContent = stopped ? "MOTION OFF" : "MOTION ON";
     });
-    mechanisms.forEach(reset);
+    controllers.forEach(controller => controller.scene?.setRunning(!stopped && controller.visible && !document.hidden));
   }
+
+  async function load(element, controller) {
+    if (controller.loading || controller.scene || disposed) return;
+    controller.loading = true;
+    try {
+      sceneModule ??= import("/sentinel-scene.js");
+      const {createMechanismScene} = await sceneModule;
+      if (disposed) return;
+      const scene = await createMechanismScene(element, {still:paused || reduced.matches});
+      if (disposed) { scene.dispose(); return; }
+      controller.scene = scene;
+      scene.setState(element.dataset.state || "standby");
+      scene.setView(controller.view);
+      document.querySelectorAll(`[data-core-controls="${element.dataset.sentinelCore}"]`).forEach(controls => controls.hidden = false);
+      sync();
+    } catch {
+      // The original artwork remains visible on devices without a usable GPU.
+      element.dataset.renderer = "fallback";
+    }
+  }
+
+  const observer = new IntersectionObserver(entries => {
+    for (const entry of entries) {
+      const controller = controllers.get(entry.target);
+      controller.visible = entry.isIntersecting;
+      if (entry.isIntersecting) load(entry.target, controller);
+    }
+    sync();
+  }, {threshold:0.02});
+  elements.forEach(element => observer.observe(element));
+
   document.querySelectorAll("[data-motion-toggle]").forEach(button => button.addEventListener("click", () => {
     if (reduced.matches) return;
     paused = !paused;
-    try { localStorage.setItem("sentinel-motion", paused ? "off" : "on"); } catch { /* Optional preference storage. */ }
-    syncControls();
+    try { localStorage.setItem("sentinel-motion", paused ? "off" : "on"); } catch { /* Storage is optional. */ }
+    sync();
   }));
-  reduced.addEventListener("change", syncControls);
-  finePointer.addEventListener("change", () => mechanisms.forEach(reset));
-  document.addEventListener("visibilitychange", () => {if (document.hidden) mechanisms.forEach(reset);});
-  syncControls();
-  window.SentinelCore = {setState(element, state) {
-    element.dataset.state = ["standby", "healthy", "attention", "incident", "offline"].includes(state) ? state : "standby";
-  }};
+  document.querySelectorAll("[data-core-view]").forEach(button => button.addEventListener("click", () => {
+    const controls = button.closest("[data-core-controls]");
+    const element = elements.find(candidate => candidate.dataset.sentinelCore === controls.dataset.coreControls);
+    const controller = controllers.get(element);
+    if (!controller) return;
+    controller.view = button.dataset.coreView;
+    controls.querySelectorAll("[data-core-view]").forEach(candidate => candidate.setAttribute("aria-pressed", String(candidate === button)));
+    controller.scene?.setView(controller.view);
+  }));
+  reduced.addEventListener("change", sync);
+  document.addEventListener("visibilitychange", sync);
+  window.addEventListener("pagehide", event => {
+    controllers.forEach(controller => controller.scene?.setRunning(false));
+    if (event.persisted) return;
+    disposed = true;
+    observer.disconnect();
+    controllers.forEach(controller => controller.scene?.dispose());
+  });
+  window.addEventListener("pageshow", sync);
+  sync();
 })();

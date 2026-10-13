@@ -1,0 +1,11 @@
+Three.js 0.186.1 (MIT)
+https://github.com/mrdoob/three.js/tree/r186
+https://registry.npmjs.org/three/-/three-0.186.1.tgz
+
+Verified npm tarball integrity:
+sha512-blFeqb49wRCSGUGj7gtpfnSGHy2lwDk94RhUmS1c/hTby70kvChbWpkJ4Pm1390LqzzvTmzgXKHPEafJwCb8jA==
+
+build/three.module.js and build/three.core.js are minified with esbuild 0.28.2:
+esbuild three.module.js three.core.js --minify --format=esm --legal-comments=inline --outdir=dist
+No runtime CDN, import map, external textures, or external model requests.
+The original MIT license is included in LICENSE.

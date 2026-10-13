@@ -1,0 +1,28 @@
+SENTINEL / KINETIC CORE
+Implementation brief and reusable authoring prompt
+
+Build the existing Sentinel administrator login and observability dashboard around an original, precision-machined 3D instrument using Three.js. The desired character is a cinematic mechanical transformation combined with the restrained finish of a high-end watch movement. The instrument must feel assembled from manufactured parts. Keep the application's Korean typography and working authentication and telemetry.
+
+Art direction
+Use cool satin titanium, small polished edge highlights, graphite ceramic inserts, subdued brass gears and a blue-white central optic. Distinguish materials through roughness, reflection and surface detail. Give parts real thickness, bevels, recesses, socket heads, fine fluting and machining grooves. Compose the mechanism as the focal object with open space around it. Supporting controls should feel quiet and deliberate.
+
+Geometry and motion
+Model the chassis, exposed gear carrier, spoke rotor, segmented armor, iris plates and optic as independent meshes. Give each layer an assembled pose and a deliberately authored separation path. Unlock the outer sections, extend the inner layers, open the iris and reveal the optic. Use staggered acceleration and deceleration with a readable pause, then reverse the sequence without a loop seam. Counter-rotate gear groups. Articulated rods should follow both moving anchors. Provide automatic, exploded and assembled views, plus a persistent motion toggle.
+
+Lighting and camera
+Use physically based metallic materials and a filtered studio environment. Large softbox reflections should reveal edge curvature. Preserve dark recesses and inter-part shadows without crushing the entire model to black or bleaching the metal white. Frame the full extended assembly with a perspective camera and restrained pointer response. Keep the object clear at the actual login and dashboard sizes; inspect rendered screenshots after changes.
+
+Engineering constraints
+Self-host the pinned Three.js runtime and license. Preserve the current CSP and exact public-file allowlist. Make the renderer optional: authentication, monitoring and semantic HTML controls must work if WebGL fails. Suspend animation when hidden or out of view. Honor reduced motion. Cap pixel density and frame rate; remove the extra transmission pass on mobile. Dispose GPU resources on navigation. Never turn the decorative scene into fabricated infrastructure telemetry.
+
+Acceptance
+Confirm that the canvas renders real geometry and advances between observations; compare assembled and exploded views. Verify pause/resume, page transitions, mobile framing and GPU failure behavior. Inspect real server telemetry after deployment. Ship through the existing PR and automated deployment, with screenshots and test evidence.
+
+Research used as guidance, not copied as runtime instructions or a claimed secret prompt:
+- OpenAI, Frontend prompt instructions: https://developers.openai.com/api/docs/guides/frontend-prompt
+- Anthropic, frontend-design reference: https://github.com/anthropics/skills/blob/main/skills/frontend-design/SKILL.md
+- Canberk Polat, Chasing the Moment: https://tympanus.net/codrops/2026/10/12/chasing-the-moment/
+- Three.js physical materials: https://threejs.org/docs/pages/MeshPhysicalMaterial.html
+- Three.js filtered environment lighting: https://threejs.org/docs/pages/PMREMGenerator.html
+
+This brief is specific to Sentinel and was synthesized from the user's direction and the references above. It is not a verbatim third-party prompt.

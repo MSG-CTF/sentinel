@@ -109,7 +109,9 @@ public static class AdminAccessRegistration
         {
             var path = context.Request.Path;
             var publicFile = path.Value is "/login" or "/login.html" or "/login.css" or "/login.js"
-                or "/sentinel-core.js" or "/mechanism.css" or "/assets/sentinel-metal-core.webp" or "/favicon.svg";
+                or "/sentinel-core.js" or "/sentinel-scene.js" or "/mechanism.css"
+                or "/vendor/three/three.module.js" or "/vendor/three/three.core.js"
+                or "/assets/sentinel-metal-core.webp" or "/favicon.svg";
             var ownAuthentication = path.Value is "/auth/csrf" or "/auth/login" or "/internal/readiness"
                 || path.StartsWithSegments("/internal/recovery") || path.StartsWithSegments("/ingest/heartbeat");
             if (access.Enabled && !publicFile && !ownAuthentication && context.User.Identity?.IsAuthenticated != true)
