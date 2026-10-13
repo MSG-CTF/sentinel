@@ -1,22 +1,22 @@
-SENTINEL / KINETIC CORE
+SENTINEL / OPTICAL INSTRUMENT
 Implementation brief and reusable authoring prompt
 
-Build the existing Sentinel administrator login and observability dashboard around an original, precision-machined 3D instrument using Three.js. The desired character is a cinematic mechanical transformation combined with the restrained finish of a high-end watch movement. The instrument must feel assembled from manufactured parts. Keep the application's Korean typography and working authentication and telemetry.
+Build the existing Sentinel administrator login and observability dashboard around an original, machined optical instrument using Three.js. Keep the application's Korean typography, working authentication and live telemetry. The latest user feedback calls for convincing material, weight and light instead of a decorative stack of shiny rings.
 
 Art direction
-Use cool satin titanium, small polished edge highlights, graphite ceramic inserts, subdued brass gears and a blue-white central optic. Distinguish materials through roughness, reflection and surface detail. Give parts real thickness, bevels, recesses, socket heads, fine fluting and machining grooves. Compose the mechanism as the focal object with open space around it. Supporting controls should feel quiet and deliberate.
+Use a thick, dark, chamfered square housing with a recessed lens. Let broad studio reflections reveal the satin metal; reserve bright steel for small bevels and fasteners. Keep surface machining subtle and filtered at distance. Distinguish the optical glass, coated barrel, rubber seals, wiring and steel guide rods through their materials. Use a cold white/cyan aperture light and reflected spill, with deep shadows underneath the case. Avoid gold trim, large background rings and floating HUD decoration. Neutral typography and a quiet login form sit beside the instrument.
 
 Geometry and motion
-Model the chassis, exposed gear carrier, spoke rotor, segmented armor, iris plates and optic as independent meshes. Give each layer an assembled pose and a deliberately authored separation path. Unlock the outer sections, extend the inner layers, open the iris and reveal the optic. Use staggered acceleration and deceleration with a readable pause, then reverse the sequence without a loop seam. Counter-rotate gear groups. Articulated rods should follow both moving anchors. Provide automatic, exploded and assembled views, plus a persistent motion toggle.
+A fixed rear housing supports a guided split cover, optical cartridge and independent lens. Unlock before lifting; separate the cover, carriage and optic in sequence. Keep guides attached and stop rods inside their seats. The iris opens gently. Closing follows the same path in reverse. Retain the damped master travel so reversing mid-travel preserves velocity. Use held endpoints and no camera jump at loop boundaries. Automatic, exploded and assembled controls plus a persistent motion toggle remain available.
 
 Lighting and camera
-Use physically based metallic materials and a filtered studio environment. Large softbox reflections should reveal edge curvature. Preserve dark recesses and inter-part shadows without crushing the entire model to black or bleaching the metal white. Frame the full extended assembly with a perspective camera and restrained pointer response. Keep the object clear at the actual login and dashboard sizes; inspect rendered screenshots after changes.
+Use the self-hosted CC0 photographic HDR environment and large rectangular softboxes for continuous metal highlights. One directional key supplies shadows because Three.js rectangular lights do not cast them. Depth contact shading clarifies gaps. Thresholded, blurred HDR bloom stays around bright sources; subtle depth-occluded scattering originates at the moving lens. Use a low oblique camera that shows housing thickness, a small pointer response and restrained focus falloff. Do not claim browser rasterization has achieved offline film quality.
 
 Engineering constraints
-Self-host the pinned Three.js runtime and license. Preserve the current CSP and exact public-file allowlist. Make the renderer optional: authentication, monitoring and semantic HTML controls must work if WebGL fails. Suspend animation when hidden or out of view. Honor reduced motion. Cap pixel density and frame rate; remove the extra transmission pass on mobile. Dispose GPU resources on navigation. Never turn the decorative scene into fabricated infrastructure telemetry.
+Self-host pinned Three.js and its HDR/LTC helpers with source and license notices. Preserve CSP and the exact public-file allowlist. Authentication and monitoring must work without WebGL. The fallback poster is captured from the actual current geometry, not the earlier concept artwork. Suspend animation when hidden or offscreen and honor reduced motion. Cap pixel density and frame rate, reduce mobile samples and omit glass transmission there. Dispose scene resources and all postprocessing render targets on navigation. Never present the decorative animation as infrastructure telemetry.
 
 Acceptance
-Confirm that the canvas renders real geometry and advances between observations; compare assembled and exploded views. Verify pause/resume, page transitions, mobile framing and GPU failure behavior. Inspect real server telemetry after deployment. Ship through the existing PR and automated deployment, with screenshots and test evidence.
+Inspect assembled and exploded states at 1280x720, 390x844 and a tablet breakpoint. Verify changing frames, pause/resume, page transitions, no horizontal overflow, fallback loading and real server telemetry. Ship through the existing PR and automated deployment with actual screenshots and test evidence.
 
 Research used as guidance, not copied as runtime instructions or a claimed secret prompt:
 - OpenAI, Frontend prompt instructions: https://developers.openai.com/api/docs/guides/frontend-prompt
@@ -27,46 +27,7 @@ Research used as guidance, not copied as runtime instructions or a claimed secre
 
 This brief is specific to Sentinel and was synthesized from the user's direction and the references above. It is not a verbatim third-party prompt.
 
-
-Cinematic composition revision
-Reference supplied by the user: https://www.youtube.com/watch?v=mFgRGSOGNPM
-The opening 0-5 seconds show a large, close-framed metallic watch and an
-exploded movement integrated with the page typography. The tutorial uses
-image/video assets for its scroll animation. Those assets are not copied.
-
-For Sentinel, keep the actual articulated Three.js model but make the whole
-login screen one scene. A close perspective camera, permanent machined
-housing, inner spring-loaded spindle, gear bridges, background support arcs
-and recessed hardware give the core a setting. Let the silhouette fill the
-left two-thirds while the login remains quiet and readable on the right.
-Use one restrained warm metal accent against charcoal and cool steel.
-
-Use the CC0 photographic studio environment from Poly Haven for reflections,
-with a procedural lighting fallback. Finish the scene with multisampling,
-restrained highlight bloom, shallow depth-dependent blur and fine grain.
-Mobile uses fewer samples and omits the depth blur and transmission pass.
-Mode changes also move the camera smoothly. Do not equate these browser
-rendering techniques with the fidelity of an offline film render.
-
-Verify the full scene at 1280x720, 390x844 and a tablet breakpoint, including
-text legibility over geometry, animation pause, viewport switching, missing
-HDR behavior, missing renderer behavior and authenticated asset access.
-
-Precision finishing and mechanical timing revision
-Separate turned titanium, linear satin brushing, perlage on the movement
-plate, polished bevels, dark coated metal and small ruby bearings. Add
-derivative-filtered object-space machining to surface roughness and normals;
-keep marks subtle enough that the metal still reads as maintained hardware.
-Use curved bevel profiles, involute-style gear flanks with cutout spokes,
-rolling-element bearings, locking pins and curved case engravings. Contact
-shading should clarify small gaps without outlining the whole silhouette.
-
-Anchor the chassis to its case. Use a reversible cam sequence: unlock,
-clear the cover, open the iris, raise the carriage, extend the gear carrier
-and then present the optic. Closing follows the same path in reverse. Avoid
-independent spinning of the structural plates. Gear pairs counter-rotate at
-their tooth ratio; the spring changes pitch without stretching its wire.
-Manual reversal preserves velocity through a critically damped controller.
-Test endpoint clearance, loop continuity, reversal and frame-rate independence.
-Batch stationary hardware within each animated part and hide fine physical
-grooves at mobile sizes. Verify the actual scene after those optimizations.
+Additional references
+- User's visual reference: https://www.youtube.com/watch?v=mFgRGSOGNPM (opening seconds); no video or tutorial assets are copied
+- Three.js rectangular lights and limitations: https://threejs.org/docs/pages/RectAreaLight.html
+- Three.js LTC implementation: pinned 0.186.1 examples/jsm/lights, see wwwroot/vendor/three/NOTICE.txt

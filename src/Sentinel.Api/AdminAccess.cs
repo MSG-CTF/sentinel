@@ -112,7 +112,8 @@ public static class AdminAccessRegistration
                 or "/sentinel-core.js" or "/sentinel-scene.js" or "/mechanism.css"
                 or "/vendor/three/three.module.js" or "/vendor/three/three.core.js"
                 or "/vendor/three/HDRLoader.js" or "/assets/studio-small-09.hdr"
-                or "/assets/sentinel-metal-core.webp" or "/favicon.svg";
+                or "/vendor/three/RectAreaLightUniformsLib.js" or "/vendor/three/RectAreaLightTexturesLib.js"
+                or "/assets/sentinel-metal-core.webp" or "/assets/sentinel-optic-poster.jpg" or "/favicon.svg";
             var ownAuthentication = path.Value is "/auth/csrf" or "/auth/login" or "/internal/readiness"
                 || path.StartsWithSegments("/internal/recovery") || path.StartsWithSegments("/ingest/heartbeat");
             if (access.Enabled && !publicFile && !ownAuthentication && context.User.Identity?.IsAuthenticated != true)

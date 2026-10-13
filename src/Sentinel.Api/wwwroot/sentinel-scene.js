@@ -1,5 +1,6 @@
 import * as THREE from "./vendor/three/three.module.js";
 import { HDRLoader } from "./vendor/three/HDRLoader.js";
+import { RectAreaLightUniformsLib } from "./vendor/three/RectAreaLightUniformsLib.js";
 
 // A procedural product model, not asset telemetry. Dimensions are scene units.
 const TAU = Math.PI * 2;
@@ -90,7 +91,7 @@ function machinedMaterial(parameters, grain, {style=0, strength=1} = {}) {
         float grain = texture2D(uMachining, vec2(p.x * .21 + p.z * .17, along * 5.0)).r - .72;
         float variation = texture2D(uMachining, p.xz * .07 + .31).r - .72;
         float score = pow(max(0.0, filteredToolLine(along * 21.0 + p.x * .035)), 20.0);
-        return vec3((fine * .25 + cut * .38 + grain * .7 - score * .35) * .0008,
+        return vec3((fine * .12 + cut * .10 + grain * .25 - score * .18) * .00016,
           grain * .18 + fine * .022 + cut * .025 + variation * .06, score);
       }
       vec3 machiningNormal(vec3 position, vec3 n, float height) {
@@ -107,7 +108,7 @@ function machinedMaterial(parameters, grain, {style=0, strength=1} = {}) {
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         normal = machiningNormal(-vViewPosition, normal, toolFinish.x);`);
   };
-  material.customProgramCacheKey = () => 'sentinel-machining-v1';
+  material.customProgramCacheKey = () => 'sentinel-machining-v2';
   return material;
 }
 
@@ -135,55 +136,6 @@ function arcGeometry(inner, outer, start, end, height, bevel = .025) {
   geometry.rotateX(-Math.PI / 2);
   geometry.translate(0, -height / 2, 0);
   return geometry;
-}
-
-function gearGeometry(radius, teeth, depth) {
-  const shape = new THREE.Shape();
-  const pitch = radius * teeth / (teeth + 2), module = 2 * pitch / teeth;
-  const base = pitch * Math.cos(20 * Math.PI / 180), root = pitch - module * 1.15;
-  const involute = r => {const a=Math.acos(Math.min(1,base/r));return Math.tan(a)-a;};
-  const half = Math.PI/(2*teeth)+involute(pitch);
-  let first = true;
-  const point = (r,a) => {const x=Math.cos(a)*r,y=Math.sin(a)*r;first ? shape.moveTo(x,y) : shape.lineTo(x,y);first=false;};
-  for (let i = 0; i < teeth; i++) {
-    const angle = i / teeth * TAU;
-    point(root, angle - Math.PI/teeth);
-    point(root, angle - half);
-    for(let j=0;j<=4;j++){const r=base+(radius-base)*j/4;point(r,angle-half+involute(r));}
-    for(let j=4;j>=0;j--){const r=base+(radius-base)*j/4;point(r,angle+half-involute(r));}
-    point(root, angle + half);
-    point(root, angle + Math.PI/teeth);
-  }
-  shape.closePath();
-  const hole = new THREE.Path();
-  hole.absarc(0, 0, radius * .16, 0, TAU, true);
-  shape.holes.push(hole);
-  for(let i=0;i<5;i++) {
-    const a=i/5*TAU+.18, b=(i+1)/5*TAU-.18, cutout=new THREE.Path();
-    cutout.moveTo(Math.cos(a)*radius*.35,Math.sin(a)*radius*.35);
-    cutout.absarc(0,0,radius*.35,a,b,false);
-    cutout.lineTo(Math.cos(b)*radius*.66,Math.sin(b)*radius*.66);
-    cutout.absarc(0,0,radius*.66,b,a,true);cutout.closePath();shape.holes.push(cutout);
-  }
-  const geometry = new THREE.ExtrudeGeometry(shape, {depth, bevelEnabled:true, bevelThickness:.003, bevelSize:.003, bevelSegments:2, curveSegments:16});
-  geometry.rotateX(-Math.PI / 2);
-  geometry.translate(0, -depth / 2, 0);
-  return geometry;
-}
-
-function bridgeGeometry() {
-  const plate=new THREE.Shape();plate.absarc(0,0,1.90,0,TAU,false);
-  const center=new THREE.Path();center.absarc(0,0,.70,0,TAU,true);plate.holes.push(center);
-  for(let i=0;i<6;i++){
-    const a=i/6*TAU+.12,b=(i+1)/6*TAU-.12;
-    const window=new THREE.Path();
-    window.moveTo(Math.cos(a)*.99,Math.sin(a)*.99);
-    window.absarc(0,0,.99,a,b,false);
-    window.lineTo(Math.cos(b)*1.62,Math.sin(b)*1.62);
-    window.absarc(0,0,1.62,b,a,true);window.closePath();plate.holes.push(window);
-  }
-  const geometry=new THREE.ExtrudeGeometry(plate,{depth:.065,bevelEnabled:true,bevelThickness:.022,bevelSize:.022,bevelSegments:3,curveSegments:56});
-  geometry.rotateX(-Math.PI/2);geometry.translate(0,-.0325,0);return geometry;
 }
 
 function studioEnvironment(renderer) {
@@ -233,432 +185,238 @@ async function photographicEnvironment(renderer,element) {
 }
 
 function makeModel() {
-  const root = new THREE.Group();
-  const grain = surfaceTexture();
-  const materials = {
-    titanium:machinedMaterial({color:0xaeb7bd, metalness:1, roughness:.32, anisotropy:.38, envMapIntensity:1.1},grain),
-    satin:machinedMaterial({color:0xb7bfc5, metalness:1, roughness:.37, anisotropy:.55, envMapIntensity:1.05},grain,{style:1,strength:1.2}),
-    perlage:machinedMaterial({color:0x7f878d, metalness:1, roughness:.36, anisotropy:.3},grain,{style:2,strength:1.5}),
-    edge:machinedMaterial({color:0xd8dde0, metalness:1, roughness:.14, envMapIntensity:1.15},grain,{strength:.25}),
-    dark:machinedMaterial({color:0x242b33, metalness:1, roughness:.36, envMapIntensity:1.1},grain,{style:1,strength:.7}),
-    ceramic:new THREE.MeshPhysicalMaterial({color:0x080e15, metalness:.25, roughness:.24, clearcoat:.55, clearcoatRoughness:.13}),
-    brass:machinedMaterial({color:0xb99c64, metalness:1, roughness:.28, anisotropy:.28},grain,{strength:.65}),
-    jewel:new THREE.MeshPhysicalMaterial({color:0x4b081c, metalness:.3, roughness:.15, clearcoat:1, clearcoatRoughness:.08}),
-    socket:new THREE.MeshStandardMaterial({color:0x06090d, metalness:.3, roughness:.48}),
-    light:new THREE.MeshStandardMaterial({color:0xb6f4ff, metalness:.15, roughness:.19, emissive:0x5ad9ff, emissiveIntensity:2.5}),
-    status:new THREE.MeshStandardMaterial({color:0xa6d6de, metalness:.2, roughness:.3, emissive:0x63bbc9, emissiveIntensity:1.3}),
-    lens:new THREE.MeshPhysicalMaterial({color:0x1f343e, metalness:.1, roughness:.10, clearcoat:1, transmission:.45, thickness:.16, ior:1.52}),
+  const root=new THREE.Group(), resources=new Set(), textures=new Set();
+  const grain=surfaceTexture();textures.add(grain);
+  const materials={
+    body:machinedMaterial({color:0x48515b,metalness:1,roughness:.32,anisotropy:.22,envMapIntensity:.88},grain,{style:1,strength:.38}),
+    face:machinedMaterial({color:0x63707b,metalness:1,roughness:.28,anisotropy:.32,envMapIntensity:.95},grain,{style:1,strength:.48}),
+    edge:machinedMaterial({color:0xa2adb5,metalness:1,roughness:.20,envMapIntensity:1.1},grain,{strength:.18}),
+    bore:machinedMaterial({color:0x252e36,metalness:1,roughness:.40,anisotropy:.18},grain,{strength:.30}),
+    ceramic:new THREE.MeshPhysicalMaterial({color:0x080c10,metalness:.25,roughness:.27,clearcoat:.24,clearcoatRoughness:.18}),
+    rubber:new THREE.MeshStandardMaterial({color:0x080b0e,roughness:.76,metalness:0}),
+    copper:machinedMaterial({color:0x655548,metalness:1,roughness:.29},grain,{strength:.4}),
+    glass:new THREE.MeshPhysicalMaterial({color:0x0b2431,metalness:.05,roughness:.12,envMapIntensity:.32,clearcoat:1,clearcoatRoughness:.09,transmission:.25,thickness:.22,ior:1.52}),
+    emitter:new THREE.MeshStandardMaterial({color:0xcceeff,emissive:0x7bd7ff,emissiveIntensity:6.5,roughness:.22,metalness:.05}),
+    seam:new THREE.MeshStandardMaterial({color:0xc8edff,emissive:0x58bce9,emissiveIntensity:3.0,roughness:.28,metalness:.1}),
+    status:new THREE.MeshStandardMaterial({color:0xbee9ff,emissive:0x73c9ed,emissiveIntensity:2.6,roughness:.25}),
   };
-  const resources = new Set();
-  const detailGroups = [];
-  const keep = geometry => {resources.add(geometry); return geometry;};
-  function mesh(parent, geometry, material, x=0, y=0, z=0, shadow=true) {
-    keep(geometry);
-    const object = new THREE.Mesh(geometry, material);
-    object.position.set(x, y, z);
-    object.castShadow = shadow;
-    object.receiveShadow = true;
-    parent.add(object);
+  const keep=g=>{resources.add(g);return g;};
+  function mesh(parent,geometry,material,x=0,y=0,z=0,shadow=true){
+    keep(geometry);const object=new THREE.Mesh(geometry,material);
+    object.position.set(x,y,z);object.castShadow=shadow;object.receiveShadow=true;parent.add(object);return object;
+  }
+  function ring(parent,inner,outer,height,y,material=materials.body){return mesh(parent,ringGeometry(inner,outer,height,.018),material,0,y);}
+  function torus(parent,radius,tube,y,material=materials.edge){
+    const object=mesh(parent,new THREE.TorusGeometry(radius,tube,8,128),material,0,y);
+    object.rotation.x=Math.PI/2;
+    if(material===materials.emitter||material===materials.seam){object.castShadow=false;object.receiveShadow=false;}
     return object;
   }
-  function ring(parent, inner, outer, height, y, material=materials.titanium) {
-    return mesh(parent, ringGeometry(inner, outer, height), material, 0, y);
+  function instance(parent,geometry,material,transforms){
+    keep(geometry);const object=new THREE.InstancedMesh(geometry,material,transforms.length),dummy=new THREE.Object3D();
+    transforms.forEach((transform,index)=>{
+      dummy.position.set(...transform.position);dummy.rotation.set(...(transform.rotation||[0,0,0]));dummy.scale.set(1,1,1);dummy.updateMatrix();object.setMatrixAt(index,dummy.matrix);
+    });object.instanceMatrix.needsUpdate=true;object.castShadow=object.receiveShadow=true;parent.add(object);return object;
   }
-  function torus(parent, radius, tube, y, material=materials.edge) {
-    const object = mesh(parent, new THREE.TorusGeometry(radius, tube, 8, 128), material, 0, y);
-    object.rotation.x = Math.PI / 2;
-    return object;
+  function radial(parent,geometry,material,count,radius,y,offset=0){
+    return instance(parent,geometry,material,Array.from({length:count},(_,i)=>{
+      const a=i/count*TAU+offset;return {position:[Math.cos(a)*radius,y,Math.sin(a)*radius],rotation:[0,-a,0]};
+    }));
   }
-  function array(parent, geometry, material, count, radius, y, angleOffset=0, orient=true) {
-    keep(geometry);
-    const object = new THREE.InstancedMesh(geometry, material, count);
-    const transform = new THREE.Object3D();
-    for (let i=0; i<count; i++) {
-      const angle = angleOffset + i / count * TAU;
-      transform.position.set(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
-      transform.rotation.y = orient ? -angle : 0;
-      transform.updateMatrix();
-      object.setMatrixAt(i, transform.matrix);
-    }
-    object.instanceMatrix.needsUpdate = true;
-    object.castShadow = object.receiveShadow = true;
-    parent.add(object);
-    return object;
+  function extrude(shape,depth,bevel=.025){
+    const geometry=new THREE.ExtrudeGeometry(shape,{depth,bevelEnabled:true,bevelThickness:bevel,bevelSize:bevel,bevelSegments:4,curveSegments:40,steps:1});
+    geometry.rotateX(-Math.PI/2);geometry.translate(0,-depth/2,0);return geometry;
   }
-  function fasteners(parent, count, radius, y, size=.055) {
-    array(parent, new THREE.CylinderGeometry(size*1.45,size*1.45,.018,24), materials.dark, count, radius, y);
-    array(parent, new THREE.CylinderGeometry(size,size,.035,24), materials.edge, count, radius, y+.019);
-    array(parent, new THREE.CylinderGeometry(size*.48,size*.48,.003,6), materials.socket, count, radius, y+.038);
+  function frameGeometry(width,depth,height,holeRadius){
+    const x=width/2,z=depth/2,c=.40,shape=new THREE.Shape();
+    shape.moveTo(-x+c,-z);shape.lineTo(x-c,-z);shape.lineTo(x,-z+c);shape.lineTo(x,z-c);shape.lineTo(x-c,z);
+    shape.lineTo(-x+c,z);shape.lineTo(-x,z-c);shape.lineTo(-x,-z+c);shape.closePath();
+    const hole=new THREE.Path();hole.absarc(0,0,holeRadius,0,TAU,true);shape.holes.push(hole);
+    return extrude(shape,height,.028);
   }
-  function machiningLines(parent, inner, outer, y, count=9) {
-    const group = new THREE.Group(); parent.add(group);
-    detailGroups.push(group);
-    // Real fine grooves catch a raking light even when texture detail minifies.
-    for(let i=0;i<count;i++) torus(group,inner+(outer-inner)*i/(count-1),.0017,y,materials.dark);
-    return group;
-  }
-  function race(parent, radius, y, count=36) {
-    ring(parent,radius-.105,radius+.105,.045,y,materials.dark);
-    torus(parent,radius-.085,.016,y+.035,materials.edge);
-    torus(parent,radius+.085,.016,y+.035,materials.edge);
-    array(parent,new THREE.SphereGeometry(.041,12,8),materials.edge,count,radius,y+.025);
-    array(parent,new THREE.BoxGeometry(.024,.025,.14),materials.brass,count,radius,y+.018,Math.PI/count);
-  }
-  const chassis = new THREE.Group(); root.add(chassis);
-  ring(chassis, .79, 2.21, .25, -.10);
-  ring(chassis, 1.94, 2.23, .08, .072, materials.edge);
-  ring(chassis, .8, 2.10, .055, .137, materials.dark);
-  ring(chassis, 1.9, 2.18, .06, -.285, materials.dark);
-  ring(chassis, .86, 2.20, .10, -.365);
-  torus(chassis, 2.11, .018, -.224);
-  for (const y of [-.19,-.155,-.12]) torus(chassis, 2.216, .004, y, materials.edge);
-  torus(chassis, 1.85, .015, .174, materials.light);
-  array(chassis, new THREE.BoxGeometry(.06,.19,.023), materials.dark, 96, 2.19, -.09);
-  array(chassis, new THREE.BoxGeometry(.032,.02,.105), materials.edge, 72, 2.055, .18);
-  fasteners(chassis, 12, 1.94, .18);
-  ring(chassis, .59, .80, .25, .17, materials.brass);
-  ring(chassis, .58, .67, .1, .35, materials.dark);
-  race(chassis,1.62,.158,42);
-  machiningLines(chassis,1.96,2.02,.211,5);
-
-  const movement = new THREE.Group(); root.add(movement);
-  ring(movement, .69, 1.95, .085, 0, materials.perlage);
-  ring(movement, 1.81, 1.97, .035, .075, materials.brass);
-  ring(movement, .57, .79, .12, .06);
-  fasteners(movement, 8, 1.78, .07, .037);
-  const gears = [];
-  // Alternating 30/18-tooth wheels share a module and pitch-circle distance.
-  const pitchDistance=Math.sqrt(1.29**2+1.41**2-2*1.29*1.41*Math.cos(Math.PI/8));
-  const gearModule=pitchDistance/24;
-  const largeGear = keep(gearGeometry(gearModule*16, 30, .062));
-  const smallGear = keep(gearGeometry(gearModule*10, 18, .058));
-  const bearing = keep(ringGeometry(.056,.115,.07,.01));
-  const jewel = keep(new THREE.CylinderGeometry(.051,.051,.03,16));
-  for (let i=0; i<8; i++) {
-    const angle = i / 8 * TAU;
-    const group = new THREE.Group();
-    group.position.set(Math.cos(angle)*1.29,.15,Math.sin(angle)*1.29);
-    movement.add(group);
-    const wheel = mesh(group, largeGear, i%2 ? materials.titanium : materials.brass);
-    gears.push({wheel,speed:.19,phase:angle});
-    mesh(group,bearing,materials.edge,0,.06);
-    mesh(group,jewel,materials.jewel,0,.10);
-    ring(group,.112,.135,.014,.069,materials.brass);
-    const a = angle + Math.PI / 8;
-    const small = mesh(movement,smallGear,materials.edge,Math.cos(a)*1.41,.15,Math.sin(a)*1.41);
-    gears.push({wheel:small,speed:-.19*30/18,phase:a+Math.PI/18});
-    mesh(movement,bearing,materials.brass,small.position.x,.21,small.position.z);
+  function quarterGeometry(){
+    const shape=new THREE.Shape(),inner=1.53,edge=2.31;
+    shape.moveTo(inner,.045);shape.lineTo(edge-.15,.045);shape.lineTo(edge,.20);shape.lineTo(edge,edge-.42);
+    shape.lineTo(edge-.42,edge);shape.lineTo(.20,edge);shape.lineTo(.045,edge-.15);shape.lineTo(.045,inner);
+    shape.absarc(0,0,inner,Math.PI/2-.03,.03,true);shape.closePath();return extrude(shape,.27,.034);
   }
 
-  const rotor = new THREE.Group(); root.add(rotor);
-  mesh(rotor,bridgeGeometry(),[materials.satin,materials.edge],0,.018);
-  ring(rotor, 1.63, 1.91, .08, 0);
-  ring(rotor, .67, .9, .12, .02, materials.edge);
-  torus(rotor, 1.83, .022, .065, materials.brass);
-  array(rotor, new THREE.BoxGeometry(.48,.012,.025), materials.dark, 6, 1.31, .086);
-  fasteners(rotor, 6, 1.77, .075, .046);
-  fasteners(rotor, 6, .81, .102, .038);
-  array(rotor, new THREE.BoxGeometry(.04,.035,.018), materials.brass, 84, 1.93, -.015);
-  machiningLines(rotor,1.67,1.74,.055,5);
-  race(rotor,.99,-.075,28);
-
-  // Articulated rods keep the separated layers visually connected. Each rod
-  // follows two moving anchor points instead of stretching along a fixed axis.
-  const actuators = [];
-  const rodGeometry = keep(new THREE.CylinderGeometry(.027,.027,1,12));
-  const sleeveGeometry = keep(new THREE.CylinderGeometry(.060,.060,.29,20));
-  const jointGeometry = keep(new THREE.SphereGeometry(.072,16,12));
-  for (let i=0; i<6; i++) {
-    const collar=mesh(root,ringGeometry(.028,.071,.045,.008),materials.brass);
-    actuators.push({angle:i/6*TAU,rod:mesh(root,rodGeometry,materials.edge),sleeve:mesh(root,sleeveGeometry,materials.dark),collar,a:mesh(root,jointGeometry,materials.brass),b:mesh(root,jointGeometry,materials.brass)});
+  // A serviceable optical module: a solid rear housing, four guide columns,
+  // one lens cartridge and a split access cover. The case carries the weight.
+  const chassis=new THREE.Group();root.add(chassis);chassis.position.y=-1.08;
+  mesh(chassis,frameGeometry(4.82,4.82,.55,1.15),[materials.body,materials.bore]);
+  mesh(chassis,frameGeometry(4.91,4.91,.08,1.15),[materials.bore,materials.body],0,-.31);
+  mesh(chassis,frameGeometry(4.77,4.77,.055,1.48),materials.rubber,0,.295);
+  ring(chassis,1.18,1.44,.39,.04,materials.bore);
+  ring(chassis,1.12,1.23,.07,.27,materials.edge);
+  const coolingFins=[];
+  for(let side=0;side<4;side++) for(let i=0;i<18;i++) {
+    const a=side/4*TAU,along=(i-8.5)*.125;
+    coolingFins.push({position:[Math.cos(a)*2.425+Math.sin(a)*along,-.045,Math.sin(a)*2.425-Math.cos(a)*along],rotation:[0,-a,0]});
   }
-  const up = new THREE.Vector3(0,1,0), direction = new THREE.Vector3();
+  instance(chassis,new THREE.BoxGeometry(.018,.31,.034),materials.bore,coolingFins);
 
-  const crown = new THREE.Group(); root.add(crown);
-  ring(crown, 1.79, 1.93, .07, -.08, materials.dark);
-  torus(crown, 1.87, .019, -.031, materials.status);
-  const armor = [];
-  const armorGeometry = keep(arcGeometry(1.94,2.32,-.48,.48,.19,.035));
-  const inlayGeometry = keep(arcGeometry(2.065,2.20,-.35,.35,.015,.008));
-  const fastenerGeometry = keep(new THREE.CylinderGeometry(.054,.054,.028,24));
-  const socketGeometry = keep(new THREE.CylinderGeometry(.022,.022,.004,6));
-  for (let i=0; i<6; i++) {
-    const pivot = new THREE.Group();
-    pivot.rotation.y = i / 6 * TAU;
-    const part = new THREE.Group(); pivot.add(part); crown.add(pivot);
-    mesh(part,armorGeometry,[materials.satin,materials.edge]);
-    mesh(part,inlayGeometry,materials.ceramic,0,.136);
-    mesh(part,new THREE.BoxGeometry(.21,.012,.019),materials.edge,2.13,.158,0);
-    for (const sign of [-1,1]) {
-      const a = sign*.36;
-      mesh(part,fastenerGeometry,materials.edge,Math.cos(a)*2.12,.143,Math.sin(a)*2.12);
-      mesh(part,socketGeometry,materials.socket,Math.cos(a)*2.12,.159,Math.sin(a)*2.12);
-    }
-    const lock=new THREE.Group();part.add(lock);
-    mesh(lock,new THREE.CylinderGeometry(.040,.04,.105,20),materials.edge,2.12,-.13,0);
-    mesh(lock,new THREE.CylinderGeometry(.065,.065,.025,32),materials.brass,2.12,-.19,0);
-    mesh(part,arcGeometry(1.985,2.01,-.36,.36,.011,.003),materials.edge,0,.125);
-    mesh(part,arcGeometry(2.26,2.265,-.39,.39,.005,.001),materials.socket,0,.128);
-    const hinge=mesh(part,new THREE.CylinderGeometry(.052,.052,.26,24),materials.brass,1.995,-.12,0);
-    hinge.rotation.x=Math.PI/2;
-    armor.push({part,lock,index:i});
+  const cover=new THREE.Group();root.add(cover);
+  const covers=[],quarter=keep(quarterGeometry());
+  for(let i=0;i<4;i++){
+    const pivot=new THREE.Group();cover.add(pivot);pivot.rotation.y=i/4*TAU;
+    const panel=new THREE.Group();pivot.add(panel);
+    mesh(panel,quarter,[materials.face,materials.body]);
+    const channel=mesh(panel,new THREE.BoxGeometry(.83,.009,.011),materials.bore,1.70,.176,1.89);channel.rotation.y=.0;
+    mesh(panel,new THREE.BoxGeometry(.29,.008,.010),i===0?materials.status:materials.bore,1.91,.180,1.89);
+    // Countersunk steel hardware stays small relative to the thick billet.
+    const bolts=[[1.91,1.61],[1.61,1.91]];
+    instance(panel,new THREE.CylinderGeometry(.053,.069,.034,28),materials.bore,bolts.map(([x,z])=>({position:[x,.172,z]})));
+    instance(panel,new THREE.CylinderGeometry(.036,.045,.023,28),materials.edge,bolts.map(([x,z])=>({position:[x,.194,z]})));
+    instance(panel,new THREE.CylinderGeometry(.016,.016,.003,6),materials.ceramic,bolts.map(([x,z])=>({position:[x,.207,z]})));
+    const latch=mesh(panel,new THREE.CylinderGeometry(.036,.036,.16,20),materials.edge,1.68,-.19,1.68);
+    covers.push({panel,latch});
   }
 
-  const iris = new THREE.Group(); root.add(iris);
-  const petals = [];
-  const petalGeometry = keep(arcGeometry(.64,1.63,-.315,.315,.09,.024));
-  const petalInlay = keep(arcGeometry(.97,1.51,-.23,.23,.012,.008));
-  for (let i=0; i<8; i++) {
-    const pivot = new THREE.Group(); pivot.rotation.y = i / 8 * TAU;
-    const part = new THREE.Group(); pivot.add(part); iris.add(pivot);
-    mesh(part,petalGeometry,[materials.satin,materials.edge]);
-    mesh(part,petalInlay,materials.dark,0,.074);
-    mesh(part,new THREE.BoxGeometry(.32,.016,.017),materials.brass,1.25,.098);
-    const pin = mesh(part,new THREE.CylinderGeometry(.04,.04,.18,20),materials.edge,1.56,-.01,0);
-    pin.rotation.x = Math.PI/2;
-    mesh(part,fastenerGeometry,materials.edge,.82,.093,0);
-    mesh(part,socketGeometry,materials.socket,.82,.109,0);
-    petals.push({part,index:i});
+  const cartridge=new THREE.Group();root.add(cartridge);
+  const barrelProfile=[[1.15,-.40],[1.37,-.40],[1.43,-.35],[1.43,-.14],[1.36,-.10],[1.34,.09],[1.26,.16],[1.19,.16],[1.15,.10],[1.15,-.40]];
+  mesh(cartridge,new THREE.LatheGeometry(barrelProfile.map(p=>new THREE.Vector2(...p)),160),materials.bore);
+  ring(cartridge,1.33,1.42,.035,-.10,materials.edge);
+  ring(cartridge,1.25,1.35,.035,.125,materials.body);
+  radial(cartridge,new THREE.BoxGeometry(.038,.17,.025),materials.body,64,1.403,-.245);
+  torus(cartridge,1.265,.009,.16,materials.seam);
+  radial(cartridge,new THREE.BoxGeometry(.018,.02,.055),materials.ceramic,48,1.31,.149);
+
+  const optic=new THREE.Group();root.add(optic);
+  ring(optic,.89,1.14,.35,-.035,materials.body);
+  ring(optic,.91,1.08,.055,.19,materials.bore);
+  ring(optic,.93,.968,.029,.216,materials.edge);
+  torus(optic,.918,.012,.219,materials.emitter);
+  mesh(optic,new THREE.CylinderGeometry(.90,.90,.026,96),materials.ceramic,0,-.12);
+  ring(optic,.32,.72,.028,-.08,materials.bore);
+  torus(optic,.48,.008,-.06,materials.seam);
+  mesh(optic,new THREE.CylinderGeometry(.105,.105,.012,48),materials.emitter,0,-.06,0,false);
+  const glass=mesh(optic,new THREE.SphereGeometry(2.42,96,36,0,TAU,0,.384),materials.glass,0,-2.185);
+  glass.castShadow=false;glass.receiveShadow=false;
+  radial(optic,new THREE.CylinderGeometry(.013,.013,.009,12),materials.bore,24,1.055,.20);
+
+  const iris=new THREE.Group();cartridge.add(iris);iris.position.y=.24;
+  const blades=[],bladeGeometry=keep(arcGeometry(.38,1.08,-.31,.33,.012,.004));
+  for(let i=0;i<10;i++){
+    const pivot=new THREE.Group();pivot.rotation.y=i/10*TAU;iris.add(pivot);
+    const blade=mesh(pivot,bladeGeometry,[materials.bore,materials.body]);blades.push(blade);
+  }
+  const guidePosts=[];
+  for(let i=0;i<4;i++){
+    const a=Math.PI/4+i/4*TAU,r=2.16,x=Math.cos(a)*r,z=Math.sin(a)*r;
+    mesh(chassis,new THREE.CylinderGeometry(.103,.103,.21,32),materials.bore,x,.24,z);
+    const rod=mesh(root,new THREE.CylinderGeometry(.045,.045,1,20),materials.edge,x,0,z);
+    const sleeve=mesh(root,new THREE.CylinderGeometry(.077,.077,.14,28),materials.body,x,0,z);
+    const collar=mesh(root,ringGeometry(.047,.083,.035,.006),materials.bore,x,0,z);
+    guidePosts.push({rod,sleeve,collar,x,z});
+  }
+  // Sparse harnesses and connectors give the hidden side a mechanical purpose.
+  for(const sign of [-1,1]){
+    const curve=new THREE.CatmullRomCurve3([new THREE.Vector3(sign*1.10,-.90,-1.25),new THREE.Vector3(sign*1.50,-.77,-1.55),new THREE.Vector3(sign*1.74,-.38,-1.47),new THREE.Vector3(sign*1.81,-.34,-1.30)]);
+    mesh(root,new THREE.TubeGeometry(curve,40,.051,10,false),materials.rubber);
+    const connector=mesh(chassis,new THREE.CylinderGeometry(.094,.094,.20,32),materials.bore,sign*1.83,.39,-1.56);connector.rotation.x=Math.PI/2;
+    mesh(chassis,new THREE.BoxGeometry(.22,.07,.19),materials.body,sign*1.80,.32,-1.66);
   }
 
-  const core = new THREE.Group(); root.add(core);
-  ring(core,.37,.6,.11,0,materials.edge);
-  ring(core,.60,.78,.09,-.024,materials.titanium);
-  fasteners(core,8,.70,.04,.025);
-  ring(core,.40,.53,.12,-.10,materials.dark);
-  torus(core,.47,.035,.092,materials.light);
-  mesh(core,new THREE.CylinderGeometry(.398,.398,.075,96),materials.lens,0,.09);
-  mesh(core,new THREE.CylinderGeometry(.32,.32,.015,64),materials.ceramic,0,.035);
-  array(core,new THREE.BoxGeometry(.009,.004,.073),materials.socket,36,.30,.14);
-  const gimbal = new THREE.Group(); core.add(gimbal);
-  const outerGimbal = torus(gimbal,.74,.016,0,materials.edge);
-  const innerGimbal = torus(gimbal,.64,.012,0,materials.brass);
-  innerGimbal.rotation.z = Math.PI/2;
-  array(core,new THREE.BoxGeometry(.027,.03,.055),materials.dark,32,.56,.078);
-  const light = new THREE.PointLight(0x6ccfee,3,4,2); core.add(light); light.position.y=.2;
+  const rotor=new THREE.Group();chassis.add(rotor);rotor.position.y=.40;
+  const turbineBlade=keep(arcGeometry(.85,1.41,-.055,.10,.014,.003));
+  radial(rotor,turbineBlade,materials.bore,32,0,0,.1);
+  ring(rotor,.86,.92,.034,.018,materials.copper);
+  const innerLight=new THREE.PointLight(0x81d6ff,6,4.2,2);optic.add(innerLight);innerLight.position.y=-.065;
+  const cavityLight=new THREE.PointLight(0x5db9e6,2.5,3.1,2);cartridge.add(cavityLight);cavityLight.position.y=.32;
 
-  // A machined enclosure gives the mechanism a physical setting and scale.
-  // The mechanism opens inside the enclosure; the outer housing stays still.
-  const enclosure = new THREE.Group(); root.add(enclosure);
-  ring(enclosure,2.23,3.03,.39,-1.77,materials.dark);
-  ring(enclosure,2.27,3.08,.08,-1.54,materials.titanium);
-  ring(enclosure,2.30,2.43,.035,-1.48,materials.brass);
-  ring(enclosure,2.89,3.10,.085,-1.53,materials.edge);
-  ring(enclosure,2.2,3.08,.09,-2.01,materials.dark);
-  torus(enclosure,3.075,.018,-1.79,materials.brass);
-  torus(enclosure,3.045,.012,-1.88,materials.edge);
-  array(enclosure,new THREE.BoxGeometry(.052,.29,.031),materials.socket,120,3.048,-1.78);
-  array(enclosure,new THREE.BoxGeometry(.026,.008,.10),materials.edge,100,2.81,-1.477);
-  fasteners(enclosure,16,2.60,-1.475,.048);
-  machiningLines(enclosure,2.68,2.77,-1.491,10);
-  machiningLines(enclosure,2.92,3.045,-1.479,12);
-  race(enclosure,2.48,-1.42,56);
-  const braceGeometry=keep(arcGeometry(2.42,2.70,-.20,.20,.095,.018));
-  for (let i=0;i<6;i++) {
-    const brace=new THREE.Group(); enclosure.add(brace); brace.rotation.y=i/6*TAU;
-    mesh(brace,braceGeometry,materials.titanium,0,-1.41);
-    const arm=mesh(brace,new THREE.BoxGeometry(.15,.52,.23),materials.dark,2.57,-1.21,0);
-    arm.rotation.z=-.24;
-    mesh(brace,new THREE.CylinderGeometry(.052,.052,.35,16),materials.edge,2.61,-1.25,0);
-    const cableCurve=new THREE.CatmullRomCurve3([new THREE.Vector3(2.54,-1.35,.13),new THREE.Vector3(2.74,-1.07,.18),new THREE.Vector3(2.69,-.64,.24),new THREE.Vector3(2.39,-.42,.25)]);
-    mesh(brace,new THREE.TubeGeometry(cableCurve,24,.033,8,false),materials.ceramic);
-    mesh(brace,new THREE.TubeGeometry(cableCurve,24,.010,6,false),materials.brass,0,.009,.027);
-  }
-  // Deep, irregular recesses keep the movement from reading as flat rings.
-  for (let i=0;i<4;i++) {
-    const bridge=new THREE.Group(); movement.add(bridge); bridge.rotation.y=i/4*TAU+.18;
-    const arm=mesh(bridge,new THREE.BoxGeometry(.84,.042,.11),materials.titanium,1.32,.27,0);
-    arm.rotation.y=.18;
-    mesh(bridge,new THREE.CylinderGeometry(.054,.054,.04,24),materials.brass,.92,.31,0);
-    mesh(bridge,new THREE.CylinderGeometry(.027,.027,.008,6),materials.socket,.92,.335,0);
-  }
-  array(rotor,new THREE.BoxGeometry(.010,.006,.075),materials.socket,120,1.77,.048);
-  array(core,new THREE.CylinderGeometry(.012,.012,.008,12),materials.edge,48,.516,.116);
-  machiningLines(core,.61,.66,.04,4);
+  // An actual decal on one panel, rather than surrounding HUD decoration.
+  const label=document.createElement('canvas');label.width=1024;label.height=256;
+  const context=label.getContext('2d');context.fillStyle='#889499';context.font='42px monospace';
+  context.fillText('S / 01',45,83);context.font='21px monospace';context.fillStyle='#586971';context.fillText('OPTICAL ASSEMBLY   ·   SENTINEL',45,133);
+  context.fillRect(45,165,290,2);
+  const decal=new THREE.CanvasTexture(label);decal.colorSpace=THREE.SRGBColorSpace;decal.anisotropy=8;textures.add(decal);
+  materials.decal=new THREE.MeshStandardMaterial({map:decal,transparent:true,depthWrite:false,metalness:.75,roughness:.46,polygonOffset:true,polygonOffsetFactor:-1});
+  const plate=mesh(covers[0].panel,new THREE.PlaneGeometry(1.20,.30),materials.decal,1.22,.182,1.93,false);plate.rotation.x=-Math.PI/2;
 
-  // Separate micro-engraving layer, aligned with the curved case top.
-  const labelCanvas=document.createElement('canvas');labelCanvas.width=labelCanvas.height=2048;
-  const ink=labelCanvas.getContext('2d');
-  ink.translate(1024,1024);ink.strokeStyle='#59605c';ink.fillStyle='#6a726f';
-  ink.textAlign='center';ink.font='21px monospace';ink.lineWidth=1.3;
-  for(let i=0;i<120;i++){
-    const a=i/120*TAU;ink.save();ink.rotate(a);ink.beginPath();
-    ink.moveTo(0,-947);ink.lineTo(0,i%10===0?-920:-936);ink.stroke();
-    if(i%10===0){ink.fillText(String(i*3).padStart(3,'0'),0,-901);}ink.restore();
-  }
-  function curvedText(text,radius,start,size){
-    ink.font=`${size}px monospace`;
-    [...text].forEach((letter,i)=>{ink.save();ink.rotate(start+(i-(text.length-1)/2)*size*.65/radius);ink.fillText(letter,0,-radius);ink.restore();});
-  }
-  curvedText('SENTINEL  /  PRECISION ASSEMBLY',835,.22,21);
-  curvedText('S01   ·   TITANIUM / CERAMIC',835,Math.PI+.22,19);
-  const engraving=new THREE.CanvasTexture(labelCanvas);engraving.anisotropy=8;engraving.colorSpace=THREE.SRGBColorSpace;
-  const engravingMaterial=new THREE.MeshStandardMaterial({map:engraving,transparent:true,depthWrite:false,metalness:.8,roughness:.5,polygonOffset:true,polygonOffsetFactor:-1});
-  const engravingPlate=mesh(enclosure,new THREE.PlaneGeometry(6.2,6.2),engravingMaterial,0,-1.463,0,false);
-  engravingPlate.rotation.x=-Math.PI/2;
-
-  const spindle=new THREE.Group();root.add(spindle);
-  const spindleShaft=mesh(spindle,new THREE.CylinderGeometry(.15,.15,1,32),materials.edge);
-  const spindleSleeves=[];
-  for(let i=0;i<3;i++) {
-    const sleeve=new THREE.Group();root.add(sleeve);
-    mesh(sleeve,new THREE.CylinderGeometry(.17+i*.035,.17+i*.035,.36,32),materials.dark);
-    ring(sleeve,.155+i*.035,.20+i*.035,.035,.16,materials.edge);
-    spindleSleeves.push(sleeve);
-  }
-  const springCurve=new class extends THREE.Curve {
-    getPoint(t,out=new THREE.Vector3()){const a=t*TAU*9;return out.set(Math.cos(a)*.31,t-.5,Math.sin(a)*.31);}
-  }();
-  const spring=mesh(spindle,new THREE.TubeGeometry(springCurve,320,.015,8,false),materials.brass);
-
-  // Combine stationary hardware inside each moving part. Dynamic wheels and
-  // pistons remain independent; extra surface detail does not require one draw
-  // call per screw or groove. Reuse indexed attributes rather than expanding
-  // every triangle into three additional vertices.
-  const animated = new Set([spring,spindleShaft,...gears.map(gear=>gear.wheel)]);
-  root.traverse(parent => {
-    if(!parent.isGroup || parent===root) return;
-    const batches=new Map();
-    for(const child of parent.children) {
-      if(!child.isMesh || child.isInstancedMesh || animated.has(child) || Array.isArray(child.material)) continue;
-      const key=`${child.material.uuid}/${child.castShadow}/${child.receiveShadow}`;
-      if(!batches.has(key)) batches.set(key,[]);
-      batches.get(key).push(child);
-    }
-    for(const objects of batches.values()) {
-      if(objects.length<2)continue;
-      const copies=objects.map(object=>{object.updateMatrix();return object.geometry.clone().applyMatrix4(object.matrix);});
-      const count=copies.reduce((sum,g)=>sum+g.attributes.position.count,0);
-      const geometry=keep(new THREE.BufferGeometry());
-      for(const name of ['position','normal','uv']) {
-        const size=name==='uv'?2:3, data=new Float32Array(count*size);let offset=0;
-        for(const copy of copies){data.set(copy.attributes[name].array,offset);offset+=copy.attributes[name].array.length;}
-        geometry.setAttribute(name,new THREE.BufferAttribute(data,size));
-      }
-      const indices=[];let offset=0;
-      for(const copy of copies) {
-        const attribute=copy.attributes.position;
-        for(let i=0;i<(copy.index?.count??attribute.count);i++)indices.push(offset+(copy.index?.getX(i)??i));
-        offset+=attribute.count;copy.dispose();
-      }
-      geometry.setIndex(indices);geometry.computeBoundingSphere();
-      const combined=new THREE.Mesh(geometry,objects[0].material);
-      combined.castShadow=objects[0].castShadow;combined.receiveShadow=objects[0].receiveShadow;
-      objects.forEach(object=>parent.remove(object));parent.add(combined);
-    }
-  });
-
-  let travel = {position:0,velocity:0};
-  let previousSpringLength=-1;
-  function update(time, delta, view, pointer, snap=false) {
-    const target = view === "exploded" ? 1 : view === "assembled" ? 0 : cycleProgress(time);
-    travel = snap ? {position:target,velocity:0} : advanceTravel(travel,target,delta);
-    const pose=mechanicalPose(travel.position), e=pose.presentation;
-    root.rotation.set(.025 + pointer.y*.035, -.30 + pointer.x*.10, -.075);
-    root.position.y = 0;
-    chassis.position.y = -1.30;
-    movement.position.y = -.87 + pose.carrier*.35;
-    movement.rotation.y = 0;
-    rotor.position.y = -.56 + pose.lift*1.12;
-    rotor.rotation.y = pose.unlock*.085;
-    crown.position.y = -.17 + pose.cover*.34 + pose.lift*1.50;
-    crown.rotation.y = -pose.unlock*.06;
-    iris.position.y = -.17 + pose.lift*.92 + pose.iris*.40;
-    iris.rotation.y = pose.iris*.18;
-    core.position.y = .01 + pose.lift*.45 + pose.optic*1.12;
-    gimbal.rotation.set(pose.optic*.65,0,pose.optic*.48);
-    // The gimbal folds into the bezel instead of appearing/disappearing.
-    gimbal.scale.setScalar(.82 + pose.optic*.18);
-    armor.forEach(({part,lock,index}) => {
-      const stagger = ease((travel.position - .10 - (index%3)*.012) / .30);
-      part.position.set(stagger*.38,stagger*.045,0);
-      part.rotation.z = -stagger*.10;
-      lock.position.y=pose.unlock*.08;
-      lock.rotation.x=pose.unlock*.20;
-    });
-    petals.forEach(({part,index}) => {
-      const stagger = ease((travel.position - .24 - (index%4)*.01) / .28);
-      part.position.set(stagger*.48,stagger*.11,0);
-      part.rotation.z = -stagger*.25;
-    });
-    gears.forEach(({wheel,speed,phase}) => wheel.rotation.y = phase + time*speed);
-    const spindleBottom=chassis.position.y+.38,spindleTop=core.position.y-.12;
-    spindle.position.y=(spindleBottom+spindleTop)/2;
-    const spindleLength=spindleTop-spindleBottom;
-    spindleShaft.scale.y=spindleLength;
-    // Compress the pitch of the spring without stretching its wire diameter.
-    if(Math.abs(spindleLength-previousSpringLength)>.00005) {
-      const springPositions=spring.geometry.attributes.position;
-      if(!spring.geometry.userData.rest) spring.geometry.userData.rest=springPositions.array.slice();
-      const rest=spring.geometry.userData.rest;
-      for(let i=0;i<springPositions.count;i++) {
-        const t=Math.floor(i/9)/320, axial=t-.5;
-        springPositions.setY(i,axial*spindleLength+(rest[i*3+1]-axial));
-      }
-      springPositions.needsUpdate=true;
-      spring.geometry.computeVertexNormals();spring.geometry.computeBoundingSphere();
-      previousSpringLength=spindleLength;
-    }
-    spindleSleeves.forEach((sleeve,i)=>sleeve.position.y=spindleBottom+.18+i*(spindleLength-.36)/2);
-    actuators.forEach(({angle,rod,sleeve,collar,a,b}) => {
-      const lowerAngle=angle+chassis.rotation.y, upperAngle=angle+rotor.rotation.y;
-      a.position.set(Math.cos(lowerAngle)*1.72,chassis.position.y+.24,Math.sin(lowerAngle)*1.72);
-      b.position.set(Math.cos(upperAngle)*1.72,rotor.position.y-.07,Math.sin(upperAngle)*1.72);
-      direction.subVectors(b.position,a.position);
-      const length=direction.length();
-      direction.normalize();
-      rod.position.copy(a.position).lerp(b.position,.5);
-      rod.quaternion.setFromUnitVectors(up,direction); rod.scale.y=length;
-      sleeve.position.copy(a.position).addScaledVector(direction,.145);
-      sleeve.quaternion.copy(rod.quaternion);
-      collar.position.copy(a.position).addScaledVector(direction,.29);
-      collar.quaternion.copy(rod.quaternion);
-    });
-    materials.light.emissiveIntensity = .6 + pose.optic*.24;
-    light.intensity = .5 + pose.optic*.6;
-    return e;
-  }
-  function setState(state) {
-    const color = {incident:0xe98576,attention:0xd4b283,offline:0x667b8e,healthy:0x8ecac7,standby:0x74afbd}[state] || 0x74afbd;
-    materials.status.color.setHex(color);
-    materials.status.emissive.setHex(color);
-  }
-  function dispose() {
-    resources.forEach(geometry => geometry.dispose());
-    Object.values(materials).forEach(material => material.dispose());
-    root.traverse(object => {if (object.isInstancedMesh) object.dispose();});
-    grain.dispose();
-    engraving.dispose();engravingMaterial.dispose();
-  }
+  let travel={position:0,velocity:0};
   let lowPower=false;
-  function setQuality(mobile) {
-    if (lowPower===mobile) return;
-    lowPower=mobile;
-    detailGroups.forEach(group=>group.visible=!mobile);
-    // Transmission renders the entire scene twice; the mobile lens uses a
-    // reflective coating instead, retaining depth without the extra pass.
-    materials.lens.transmission=mobile ? 0 : .45;
-    materials.lens.metalness=mobile ? .45 : .1;
-    materials.lens.color.setHex(mobile ? 0x30434e : 0x1f343e);
-    materials.lens.needsUpdate=true;
+  function update(time,delta,view,pointer,snap=false){
+    const target=view==='exploded'?1:view==='assembled'?0:cycleProgress(time);
+    travel=snap?{position:target,velocity:0}:advanceTravel(travel,target,delta);
+    const pose=mechanicalPose(travel.position);
+    root.rotation.set(.08+pointer.y*.035,-.38+pointer.x*.075,-.31);
+    cover.position.y=-.62+pose.cover*.17+pose.lift*1.03;
+    cartridge.position.y=-.63+pose.carrier*.47;
+    optic.position.y=-.31+pose.lift*.19+pose.optic*1.10;
+    covers.forEach(({panel,latch},i)=>{
+      const clearance=ease((travel.position-.10-i*.008)/.30);
+      panel.position.set(clearance*.13,0,clearance*.13);
+      latch.position.y=-.19+pose.unlock*.10;
+    });
+    blades.forEach((blade,i)=>{blade.position.x=pose.iris*.09;blade.rotation.y=-pose.iris*.16;blade.position.y=i*.002;});
+    guidePosts.forEach(({rod,sleeve,collar})=>{
+      const bottom=-.96,top=cover.position.y-.18,length=top-bottom;
+      rod.position.y=(bottom+top)/2;rod.scale.y=Math.max(.08,length);
+      sleeve.position.y=bottom+.055;collar.position.y=bottom+.13;
+    });
+    rotor.rotation.y=time*.035;
+    // Illumination rises slowly as the optical cartridge clears the housing.
+    // No flashing, scanning HUD or independent decorative rings.
+    materials.emitter.emissiveIntensity=5.1+pose.optic*2.3;
+    materials.seam.emissiveIntensity=1.8+pose.carrier*1.1;
+    innerLight.intensity=1.2+pose.optic*.8;
+    cavityLight.intensity=.7+pose.lift*.8;
+    return pose.presentation;
   }
-  return {root,update,setState,setQuality,dispose};
+  function setState(state){
+    const color={incident:0xe68b79,attention:0xd2b480,offline:0x526774,healthy:0x93c9bd,standby:0x85cbe7}[state]||0x85cbe7;
+    materials.status.color.setHex(color);materials.status.emissive.setHex(color);
+  }
+  function setQuality(mobile){
+    if(lowPower===mobile)return;lowPower=mobile;
+    materials.glass.transmission=mobile?0:.25;materials.glass.needsUpdate=true;
+  }
+  const emitterPosition=new THREE.Vector3(),emitterAxis=new THREE.Vector3();
+  function lightFrame(){
+    optic.updateWorldMatrix(true,false);
+    emitterPosition.set(0,.24,0).applyMatrix4(optic.matrixWorld);
+    emitterAxis.set(0,1,0).transformDirection(optic.matrixWorld);
+    return {position:emitterPosition,axis:emitterAxis};
+  }
+  function dispose(){resources.forEach(g=>g.dispose());Object.values(materials).forEach(m=>m.dispose());textures.forEach(t=>t.dispose());root.traverse(o=>{if(o.isInstancedMesh)o.dispose();});}
+  return {root,update,setState,setQuality,lightFrame,dispose};
 }
 
+
 function createFinish(renderer) {
-  const target=new THREE.WebGLRenderTarget(1,1,{type:renderer.extensions.has("EXT_color_buffer_float") ? THREE.HalfFloatType : THREE.UnsignedByteType});
+  const type=renderer.extensions.has("EXT_color_buffer_float") ? THREE.HalfFloatType : THREE.UnsignedByteType;
+  const target=new THREE.WebGLRenderTarget(1,1,{type});
   target.depthTexture=new THREE.DepthTexture(1,1,THREE.UnsignedIntType);
-  const uniforms={tColor:{value:target.texture},tDepth:{value:target.depthTexture},uPixel:{value:new THREE.Vector2(1,1)},uProjectionInverse:{value:new THREE.Matrix4()},uFocus:{value:10},uNear:{value:.1},uFar:{value:80},uQuality:{value:1},uTime:{value:0}};
-  const material=new THREE.ShaderMaterial({uniforms,depthTest:false,depthWrite:false,
-    vertexShader:`varying vec2 vUv; void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}`,
+  const bloomA=new THREE.WebGLRenderTarget(1,1,{type,depthBuffer:false});
+  const bloomB=bloomA.clone();
+  const vertexShader=`varying vec2 vUv; void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}`;
+  const bright=new THREE.ShaderMaterial({depthTest:false,depthWrite:false,toneMapped:false,
+    uniforms:{tColor:{value:target.texture},uThreshold:{value:type===THREE.HalfFloatType ? 1.1 : .78}},vertexShader,
+    fragmentShader:`varying vec2 vUv;uniform sampler2D tColor;uniform float uThreshold;
+      void main(){vec3 c=texture2D(tColor,vUv).rgb;float b=max(c.r,max(c.g,c.b));
+      float knee=clamp(b-uThreshold+.35,0.0,.7);knee=knee*knee/1.4;
+      gl_FragColor=vec4(c*max(b-uThreshold,knee)/max(b,.0001),1.0);}`});
+  const blur=new THREE.ShaderMaterial({depthTest:false,depthWrite:false,toneMapped:false,
+    uniforms:{tColor:{value:bloomA.texture},uStep:{value:new THREE.Vector2()}},vertexShader,
+    fragmentShader:`varying vec2 vUv;uniform sampler2D tColor;uniform vec2 uStep;
+      void main(){vec3 c=texture2D(tColor,vUv).rgb*.227027;
+      c+=(texture2D(tColor,vUv+uStep*1.384615).rgb+texture2D(tColor,vUv-uStep*1.384615).rgb)*.316216;
+      c+=(texture2D(tColor,vUv+uStep*3.230769).rgb+texture2D(tColor,vUv-uStep*3.230769).rgb)*.070270;
+      gl_FragColor=vec4(c,1.0);}`});
+  const uniforms={tColor:{value:target.texture},tDepth:{value:target.depthTexture},tBloom:{value:bloomA.texture},
+    uPixel:{value:new THREE.Vector2(1,1)},uProjectionInverse:{value:new THREE.Matrix4()},
+    uEmitter:{value:new THREE.Vector3()},uAxis:{value:new THREE.Vector3()},
+    uFocus:{value:10},uNear:{value:.1},uFar:{value:80},uQuality:{value:1},uTime:{value:0}};
+  const material=new THREE.ShaderMaterial({uniforms,depthTest:false,depthWrite:false,vertexShader,
     fragmentShader:`
       varying vec2 vUv;
-      uniform sampler2D tColor,tDepth;
+      uniform sampler2D tColor,tDepth,tBloom;
       uniform vec2 uPixel;
+      uniform vec3 uEmitter,uAxis;
       uniform mat4 uProjectionInverse;
       uniform float uFocus,uNear,uFar,uQuality,uTime;
       float noise(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
-      vec3 bright(vec2 uv){vec3 c=texture2D(tColor,uv).rgb;return max(c-vec3(1.15),vec3(0.0));}
       vec3 viewPosition(vec2 uv){
         vec4 p=uProjectionInverse*vec4(uv*2.0-1.0,texture2D(tDepth,uv).x*2.0-1.0,1.0);
         return p.xyz/p.w;
@@ -666,16 +424,29 @@ function createFinish(renderer) {
       float contactShade(vec3 position){
         vec3 n=normalize(cross(dFdx(position),dFdy(position)));
         float shade=0.0;
-        // Short world-space range limits dark halos around the silhouette.
         for(int i=0;i<12;i++){
           if(uQuality<.5 && i>=6)break;
-          float a=float(i)*2.399963, radius=3.0+float(i)*1.1;
+          float a=float(i)*2.399963,radius=3.0+float(i)*1.1;
           vec3 delta=viewPosition(vUv+vec2(cos(a),sin(a))*uPixel*radius)-position;
           float distance=length(delta);
-          float horizon=max(dot(n,delta/max(distance,.0001))-.12,0.0);
-          shade+=horizon*(1.0-smoothstep(.08,.52,distance));
+          shade+=max(dot(n,delta/max(distance,.0001))-.12,0.0)*(1.0-smoothstep(.06,.48,distance));
         }
-        return clamp(1.0-shade*(uQuality<.5?.21:.105),.65,1.0);
+        return clamp(1.0-shade*(uQuality<.5?.23:.115),.62,1.0);
+      }
+      float scatteredLight(vec3 surface){
+        // Sample only in front of the depth surface. Housing and glass therefore
+        // occlude the small volume originating at the moving optical aperture.
+        vec3 ray=normalize(surface);
+        float start=max(0.0,length(uEmitter)-3.2),energy=0.0;
+        for(int i=0;i<16;i++){
+          float distance=start+(float(i)+.5)*.32;
+          if(distance>length(surface))break;
+          vec3 offset=ray*distance-uEmitter;
+          float h=dot(offset,uAxis),radius=.14+max(h,0.0)*.22;
+          vec3 radial=offset-uAxis*h;
+          energy+=exp(-dot(radial,radial)/(radius*radius))*smoothstep(0.0,.14,h)*(1.0-smoothstep(.2,2.6,h))*.32;
+        }
+        return energy;
       }
       void main(){
         vec3 color=texture2D(tColor,vUv).rgb;
@@ -683,72 +454,71 @@ function createFinish(renderer) {
         float depth=uNear*uFar/(uFar-(uFar-uNear)*z);
         vec3 position=viewPosition(vUv);
         float occlusion=contactShade(position);
-        color*=mix(1.0,occlusion,.65+uQuality*.35);
-        float blur=min(abs(depth-uFocus)*.24,1.4)*uQuality;
+        color*=occlusion;
+        float blur=min(abs(depth-uFocus)*.12,1.0)*uQuality;
         if(blur>.18){
           vec3 b=vec3(0.0);
-          for(int i=0;i<8;i++){
-            float a=float(i)*.785398;
+          for(int i=0;i<6;i++){
+            float a=float(i)*1.047198;
             b+=texture2D(tColor,vUv+vec2(cos(a),sin(a))*uPixel*blur).rgb;
           }
-          color=mix(color,b*.125*occlusion,.40);
+          color=mix(color,b/6.0*occlusion,.25);
         }
-        vec2 r=uPixel*4.0;
-        vec3 glow=bright(vUv+vec2(r.x,r.y))+bright(vUv+vec2(-r.x,r.y))+bright(vUv+vec2(r.x,-r.y))+bright(vUv-r);
-        color+=glow*.022;
+        color+=texture2D(tBloom,vUv).rgb*.32;
+        color+=vec3(.18,.53,.85)*scatteredLight(position)*.09;
         vec2 p=vUv-.5;
-        color*=1.0-.22*dot(p,p);
+        color*=1.0-.24*dot(p,p);
         gl_FragColor=vec4(color,1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
-        gl_FragColor.rgb+=(noise(vUv/uPixel+floor(uTime*12.0))-.5)*.003;
+        gl_FragColor.rgb+=(noise(vUv/uPixel+floor(uTime*12.0))-.5)*.002;
       }`});
-  const geometry=new THREE.PlaneGeometry(2,2), scene=new THREE.Scene(), camera=new THREE.Camera();
-  scene.add(new THREE.Mesh(geometry,material));
+  const geometry=new THREE.PlaneGeometry(2,2),scene=new THREE.Scene(),camera=new THREE.Camera();
+  const quad=new THREE.Mesh(geometry,material);scene.add(quad);
+  let bw=1,bh=1;
+  function pass(output,shader){quad.material=shader;renderer.setRenderTarget(output);renderer.render(scene,camera);}
   return {
     resize(width,height,mobile){
       const samples=Math.min(mobile ? 2 : 4,renderer.capabilities.maxSamples);
       if(target.samples!==samples){target.samples=samples;target.dispose();}
       target.setSize(width,height);uniforms.uPixel.value.set(1/width,1/height);uniforms.uQuality.value=mobile ? 0 : 1;
+      bw=Math.max(1,Math.round(width/4));bh=Math.max(1,Math.round(height/4));bloomA.setSize(bw,bh);bloomB.setSize(bw,bh);
     },
-    render(source,sourceCamera,time){
-      uniforms.uFocus.value=sourceCamera.position.distanceTo(new THREE.Vector3(0,.2,0));
-      uniforms.uProjectionInverse.value.copy(sourceCamera.projectionMatrixInverse);
-      uniforms.uTime.value=time;
+    render(source,sourceCamera,time,emitter){
       renderer.setRenderTarget(target);renderer.render(source,sourceCamera);
-      renderer.setRenderTarget(null);renderer.render(scene,camera);
+      uniforms.uProjectionInverse.value.copy(sourceCamera.projectionMatrixInverse);
+      uniforms.uEmitter.value.copy(emitter.position).applyMatrix4(sourceCamera.matrixWorldInverse);
+      uniforms.uAxis.value.copy(emitter.axis).transformDirection(sourceCamera.matrixWorldInverse);
+      uniforms.uFocus.value=-uniforms.uEmitter.value.z;
+      uniforms.uTime.value=time;
+      pass(bloomA,bright);
+      // Bilinear Gaussian offsets assume adjacent texels; widening the step
+      // skips texels and turns a small highlight into a visible grid of dots.
+      for(let i=0;i<2;i++){
+        blur.uniforms.tColor.value=bloomA.texture;blur.uniforms.uStep.value.set(1/bw,0);pass(bloomB,blur);
+        blur.uniforms.tColor.value=bloomB.texture;blur.uniforms.uStep.value.set(0,1/bh);pass(bloomA,blur);
+      }
+      pass(null,material);
     },
-    dispose(){target.dispose();target.depthTexture.dispose();material.dispose();geometry.dispose();}
+    dispose(){target.depthTexture.dispose();target.dispose();bloomA.dispose();bloomB.dispose();bright.dispose();blur.dispose();material.dispose();geometry.dispose();}
   };
 }
 
-function makeBackdrop() {
-  const group=new THREE.Group(), geometries=new Set();
-  const materials=[new THREE.MeshStandardMaterial({color:0x111820,metalness:.9,roughness:.28}),new THREE.MeshStandardMaterial({color:0x66573b,metalness:1,roughness:.23})];
-  function part(geometry,material,position,rotation=[0,0,0]){
-    geometries.add(geometry);const mesh=new THREE.Mesh(geometry,material);mesh.position.set(...position);mesh.rotation.set(...rotation);mesh.receiveShadow=true;mesh.castShadow=true;group.add(mesh);return mesh;
-  }
-  part(new THREE.TorusGeometry(5.5,.13,12,160),materials[0],[-.5,-.7,-4.5],[.25,-.35,.0]);
-  part(new THREE.TorusGeometry(5.68,.016,8,160),materials[1],[-.5,-.7,-4.5],[.25,-.35,.0]);
-  part(new THREE.TorusGeometry(7.25,.18,12,160),materials[0],[-.5,-.7,-5.3],[.25,-.35,.0]);
-  const railGeometry=new THREE.BoxGeometry(.055,.065,20);
-  for(const x of [-6,-5.85,4.5,4.65]) part(railGeometry,materials[1],[x,-2.23,-2]);
-  for(let i=0;i<7;i++)part(new THREE.BoxGeometry(1.6,.20,.075),materials[0],[-4.9,-2.2,3.5-i*.38],[0,-.35,0]);
-  return {group,dispose(){geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());}};
-}
+let areaLightsReady=false;
+
 
 export async function createMechanismScene(element, {still=false} = {}) {
   const canvas = document.createElement("canvas");
   canvas.className = "mechanism-canvas";
   canvas.setAttribute("aria-hidden", "true");
-  let renderer, model, environment, resizeObserver, finish, backdrop;
+  let renderer, model, environment, resizeObserver, finish;
   let frame=0, running=false, failed=false, destroyed=false, ready=false, elapsed=still ? 10 : 4.8, last=0, lastPaint=0, frames=0;
   let view="auto", width=1, height=1, narrow=false, displayedState;
   const pointer = {x:0,y:0}, targetPointer = {x:0,y:0};
   const hero=element.dataset.sentinelCore==="access";
   const scene = new THREE.Scene();
   scene.background=new THREE.Color(0x090c10);
-  scene.fog=new THREE.FogExp2(0x090c10,.038);
+  scene.fog=new THREE.FogExp2(0x090c10,.024);
   const camera = new THREE.PerspectiveCamera(36,1,.1,80);
   const shadowGeometry = new THREE.PlaneGeometry(200,200);
   const shadowMaterial = new THREE.MeshStandardMaterial({color:0x05090d,metalness:.45,roughness:.5,envMapIntensity:.2});
@@ -766,7 +536,7 @@ export async function createMechanismScene(element, {still=false} = {}) {
     removeListeners();
     model?.dispose();
     environment?.dispose();
-    finish?.dispose();backdrop?.dispose();
+    finish?.dispose();
     shadowGeometry.dispose(); shadowMaterial.dispose();
     renderer?.dispose();
     canvas.remove();
@@ -791,11 +561,11 @@ export async function createMechanismScene(element, {still=false} = {}) {
     pointer.y=THREE.MathUtils.damp(pointer.y,targetPointer.y,3,delta);
     const expansion=model.update(elapsed,delta,view,pointer,snap);
     if(hero && !narrow){
-      camera.position.set(3.5+Math.sin(elapsed*.055)*.12+pointer.x*.16,4.25+expansion*.78,8.5+expansion*.80);
-      camera.lookAt(1.43,-.20+expansion*.37,0);
+      camera.position.set(3.3+Math.sin(elapsed*.055)*.06+pointer.x*.12,4.6+expansion*.30,8.4+expansion*.62);
+      camera.lookAt(1.45,-.10+expansion*.27,0);
     }
     renderer.info.reset();
-    finish.render(scene,camera,elapsed);
+    finish.render(scene,camera,elapsed,model.lightFrame());
     if(failed){useFallback();return;}
     frames++;
     // DOM diagnostics allow smoke tests to verify that the GPU surface advances.
@@ -854,26 +624,31 @@ export async function createMechanismScene(element, {still=false} = {}) {
     renderer.setClearColor(0x000000,0);
     renderer.outputColorSpace=THREE.SRGBColorSpace;
     renderer.toneMapping=THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure=1.04;
+    renderer.toneMappingExposure=.92;
     renderer.info.autoReset=false;
     renderer.shadowMap.enabled=true;
     renderer.shadowMap.type=THREE.PCFShadowMap;
     environment=await photographicEnvironment(renderer,element);
     scene.environment=environment.texture;
-    scene.environmentIntensity=.68;
+    scene.environmentIntensity=.32;
     scene.environmentRotation.set(0,.88,0);
-    scene.add(new THREE.HemisphereLight(0xcbd9e5,0x080b10,.28));
-    const key=new THREE.DirectionalLight(0xffefdb,3.2);
-    key.position.set(-4,8,6); key.castShadow=true;
+    if(!areaLightsReady){RectAreaLightUniformsLib.init();areaLightsReady=true;}
+    scene.add(new THREE.HemisphereLight(0xb7c9db,0x030609,.12));
+    // Broad softboxes give the machined faces a continuous reflected highlight.
+    const softbox=new THREE.RectAreaLight(0xe4efff,14,5,6);
+    softbox.position.set(-3,6,4);softbox.lookAt(0,0,0);scene.add(softbox);
+    const strip=new THREE.RectAreaLight(0x9acaf1,24,.7,5);
+    strip.position.set(4,2,-3);strip.lookAt(0,0,0);scene.add(strip);
+    const bounce=new THREE.RectAreaLight(0xffe2c5,4,3,1);
+    bounce.position.set(-4,0,-2);bounce.lookAt(0,-.3,0);scene.add(bounce);
+    // Rectangular lights do not cast shadows, so one neutral key supplies depth.
+    const key=new THREE.DirectionalLight(0xeaf2ff,1.4);
+    key.position.set(-4,8,6);key.castShadow=true;
     key.shadow.mapSize.set(2048,2048);
     Object.assign(key.shadow.camera,{left:-4.5,right:4.5,top:4.5,bottom:-4.5,near:1,far:24});
-    key.shadow.normalBias=.012; key.shadow.bias=-.00010;
-    key.shadow.radius=3;
+    key.shadow.normalBias=.012;key.shadow.bias=-.00010;key.shadow.radius=3;
     scene.add(key);
-    const rim=new THREE.DirectionalLight(0xb3c7dc,2.5); rim.position.set(4,3,-5); scene.add(rim);
-    const fill=new THREE.DirectionalLight(0xe8bf85,.8); fill.position.set(-4,-1,-2); scene.add(fill);
     model=makeModel(); scene.add(model.root);
-    if(hero){backdrop=makeBackdrop();scene.add(backdrop.group);}
     const shadow=new THREE.Mesh(shadowGeometry,shadowMaterial);
     shadow.rotation.x=-Math.PI/2; shadow.position.y=-2.25; shadow.receiveShadow=true; scene.add(shadow);
     finish=createFinish(renderer);

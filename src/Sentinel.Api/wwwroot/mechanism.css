@@ -1,7 +1,7 @@
-/* Geometry, lighting and motion are rendered in the transparent WebGL surface. */
+/* The optional WebGL scene and its matching static poster share one surface. */
 .mechanism{position:relative;isolation:isolate;touch-action:pan-y}
 .mechanism-assembly{position:absolute;inset:0;transition:opacity .5s;pointer-events:none}
-.mechanism-image{display:block;width:100%;height:100%;object-fit:contain;user-select:none;-webkit-user-drag:none;filter:drop-shadow(0 25px 20px #0009)}
+.mechanism-image{display:block;width:100%;height:100%;object-fit:contain;user-select:none;-webkit-user-drag:none;transform:scale(1.17)}
 .mechanism-reflection{display:none}
 .mechanism-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;opacity:0;transition:opacity .6s}
 .mechanism[data-renderer=webgl] .mechanism-canvas{opacity:1}
