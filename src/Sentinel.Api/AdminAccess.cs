@@ -108,7 +108,7 @@ public static class AdminAccessRegistration
         app.Use(async (context, next) =>
         {
             var path = context.Request.Path;
-            var publicFile = path.Value is "/login" or "/login.html" or "/login.css" or "/login.js" or "/favicon.svg";
+            var publicFile = path.Value is "/login" or "/login.html" or "/login.css" or "/login.js" or "/sentinel-core.js" or "/favicon.svg";
             var ownAuthentication = path.Value is "/auth/csrf" or "/auth/login" or "/internal/readiness"
                 || path.StartsWithSegments("/internal/recovery") || path.StartsWithSegments("/ingest/heartbeat");
             if (access.Enabled && !publicFile && !ownAuthentication && context.User.Identity?.IsAuthenticated != true)

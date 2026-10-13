@@ -159,9 +159,9 @@ function rebuildAssets(groups) {
   }
 }
 function render(snapshot, events, offline) {
-  SentinelOperations.render(snapshot, Boolean(offline));
   latest = snapshot; eventData = events; disconnected = Boolean(offline);
   assets = SentinelAssets.buildAssets(snapshot, {offline:disconnected}); architectureNodes = SentinelArchitecture.resolveNodes(assets);
+  SentinelOperations.render(snapshot, disconnected, assets);
   SentinelTopology.render(architectureNodes,assets,disconnected,true,snapshot.recovery);
   const groups = getGroups(), signature = JSON.stringify(assets.map(asset => [asset.asset_id, asset.name, asset.role, asset.track]));
   if (signature !== assetSignature) {rebuildAssets(groups); assetSignature = signature;}

@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/dashboard.css">
   <link rel="stylesheet" href="/architecture.css">
   <link rel="stylesheet" href="/operations.css">
+  <script src="/sentinel-core.js" defer></script>
   <script src="/asset-model.js" defer></script>
   <script src="/architecture-model.js" defer></script>
   <script src="/topology.js" defer></script>
@@ -31,6 +32,7 @@
         <button id="connections-tab" type="button" role="tab" aria-selected="false" aria-controls="connections-view" tabindex="-1">연동 현황</button>
       </nav>
       <div class="header-tools">
+        <button class="motion-toggle" data-motion-toggle type="button" aria-label="모션 끄기" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4v8m5-8v8m5-8v8"/></svg><span>MOTION ON</span></button>
         <button id="logout" class="logout-button" type="button">로그아웃</button>
         <span id="profile" class="profile-label">연결 중</span>
         <button id="refresh" class="icon-button" type="button" aria-label="최신 점검 결과 가져오기" title="새로고침">
@@ -67,15 +69,22 @@
         <div class="summary-total">감시 대상 <strong id="total-count">-</strong><small id="measurement-note"></small></div>
       </div>
       <div class="signal-panels">
-        <section class="signal-panel" aria-labelledby="latency-title">
+        <section class="signal-panel latency-panel" aria-labelledby="latency-title">
           <div class="signal-heading"><h2 id="latency-title">응답 시간 <span>SIGNAL WINDOW</span></h2><div class="signal-reading"><strong id="latency-current">—</strong><small>ms</small></div></div>
           <div class="latency-plot"><svg id="latency-chart" viewBox="0 0 760 120" preserveAspectRatio="none" role="img" aria-label="응답 시간 점검 대기"><path class="chart-grid" d="M0 14H760M0 62H760M0 110H760"/><path id="latency-path" class="latency-line" d=""/><circle id="latency-point" class="latency-dot" cx="760" cy="60" r="2.5" visibility="hidden"/></svg></div>
           <div class="chart-foot"><span id="chart-start">—</span><p id="chart-note">첫 번째 점검을 기다리는 중</p><span id="chart-end">—</span></div>
         </section>
+        <section class="core-panel" aria-labelledby="core-title" data-state="standby">
+          <div class="core-panel-heading"><h2 id="core-title">관제 코어 <span>ASSET FIELD</span></h2><span class="core-designation">SNTL / 01</span></div>
+          <canvas id="operations-core" data-sentinel-core="operations" aria-hidden="true"></canvas>
+          <div class="core-side-label" aria-hidden="true">OBSERVE · DETECT · RESPOND</div>
+          <div class="core-reading"><span>정상 / 전체 자산</span><div><strong id="core-healthy">—</strong><span>/</span><b id="core-total">—</b></div></div>
+          <div class="core-panel-footer"><p id="core-condition">첫 점검 대기</p><button id="core-map" type="button" aria-label="전체 아키텍처 보기">구조도 <span aria-hidden="true">↗</span></button></div>
+        </section>
         <section class="signal-panel telemetry-panel" aria-labelledby="telemetry-title">
           <div class="signal-heading"><h2 id="telemetry-title">서버 텔레메트리 <span>HEARTBEAT</span></h2><span id="bot-status" class="telemetry-state">연결 대기</span></div>
           <div class="telemetry-identity"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M6 7h20v7H6zM6 18h20v7H6zM10 10.5h.1m0 11h.1M15 10.5h7m-7 11h7"/></svg><div><p>Discord bot</p><small>msg-ticket-bot.service</small></div></div>
-          <dl class="telemetry-numbers"><div><dt>MEMORY</dt><dd id="bot-memory">—</dd></div><div><dt>DISK</dt><dd id="bot-disk">—</dd></div><div><dt>RESTARTS</dt><dd id="bot-restarts">—</dd></div></dl>
+          <dl class="telemetry-numbers"><div><dt>MEMORY</dt><dd id="bot-memory">—</dd><meter id="bot-memory-meter" min="0" max="100" value="0" aria-label="서버 메모리 사용률" hidden></meter></div><div><dt>DISK</dt><dd id="bot-disk">—</dd><meter id="bot-disk-meter" min="0" max="100" value="0" aria-label="서버 디스크 사용률" hidden></meter></div><div><dt>RESTARTS</dt><dd id="bot-restarts">—</dd></div></dl>
           <p id="bot-seen" class="telemetry-foot">서버의 첫 상태 보고를 기다리는 중</p>
         </section>
       </div>

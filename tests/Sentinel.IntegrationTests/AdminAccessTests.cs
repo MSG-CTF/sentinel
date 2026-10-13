@@ -40,6 +40,7 @@ public sealed class AdminAccessTests
             foreach (var path in new[] { "/api/status", "/api/history", "/metrics", "/healthz", "/asset-access.json", "/dashboard.js" })
                 Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync(path)).StatusCode);
             Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/login")).StatusCode);
+            Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/sentinel-core.js")).StatusCode);
             Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/internal/readiness")).StatusCode);
             var credentials = new { username = "admin", password = Password };
             Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync("/auth/login", credentials)).StatusCode);

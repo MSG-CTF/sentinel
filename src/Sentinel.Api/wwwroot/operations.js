@@ -47,7 +47,14 @@
     } catch { clearChart("응답 시간 기록을 가져오지 못했습니다"); }
     finally { historyBusy = false; }
   }
-  function render(snapshot, offline) {
+  function render(snapshot, offline, assets) {
+    const counts = SentinelAssets.summarize(assets);
+    const state = offline ? "offline" : counts.down + counts.degraded ? "incident" : counts.unknown ? "attention" : counts.healthy ? "healthy" : "standby";
+    byId("core-healthy").textContent = counts.healthy;
+    byId("core-total").textContent = counts.total;
+    byId("core-condition").textContent = offline ? "연결 끊김 · 최신 상태 미확인" : !counts.total ? "등록된 자산 없음" : counts.down + counts.degraded ? `장애·저하 ${counts.down + counts.degraded}개` : counts.unknown ? `${counts.unknown}개 자산 상태 확인 필요` : counts.pending ? `${counts.pending}개 자산 연결 대기` : "연결된 자산 정상";
+    byId("operations-core").closest(".core-panel").dataset.state = state;
+    SentinelCore.setState(byId("operations-core"), state);
     byId("session-label").textContent = offline ? "CONNECTION LOST" : "OBSERVATION ACTIVE";
     byId("session-label").classList.toggle("offline", offline);
     byId("environment-label").textContent = snapshot.profile === "aws" ? "AWS · SEOUL" : "LOCAL ENVIRONMENT";
@@ -58,6 +65,12 @@
     byId("bot-memory").textContent = parts.memory_used_percent ? `${parts.memory_used_percent}%` : "—";
     byId("bot-disk").textContent = parts.disk_used_percent ? `${parts.disk_used_percent}%` : "—";
     byId("bot-restarts").textContent = parts.restart_count ?? "—";
+    for (const key of ["memory", "disk"]) {
+      const value = Number.parseFloat(parts[`${key}_used_percent`]);
+      const meter = byId(`bot-${key}-meter`);
+      meter.hidden = offline || bot?.status === "STALE" || !Number.isFinite(value);
+      if (!meter.hidden) meter.value = Math.max(0, Math.min(100, value));
+    }
     byId("bot-seen").textContent = bot?.checked_at ? `${formatTime(bot.checked_at)} 수신 · Discord 연결 상태는 별도 확인` : "서버의 첫 상태 보고를 기다리는 중";
     if (offline) clearChart("연결이 끊겨 최신 응답 시간을 확인할 수 없습니다");
     else refreshHistory(snapshot);
@@ -65,6 +78,7 @@
     document.querySelectorAll(".data-recovery-panel").forEach(panel => panel.hidden = snapshot.profile === "aws");
   }
   document.addEventListener("DOMContentLoaded", () => {
+    byId("core-map").addEventListener("click", () => {byId("architecture-tab").click(); byId("architecture-tab").focus();});
     fetch("/auth/session", {cache:"no-store", signal:AbortSignal.timeout(5000)})
       .then(response => response.ok ? response.json() : null)
       .then(session => { if (session?.authentication_enabled === false) byId("logout").hidden = true; })
