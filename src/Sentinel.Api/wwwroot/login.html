@@ -2,10 +2,11 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#050c14"><meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#111214"><meta name="robots" content="noindex,nofollow">
   <title>Sentinel · 관리자 로그인</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/login.css">
+  <link rel="stylesheet" href="/mechanism.css">
   <script src="/sentinel-core.js" defer></script><script src="/login.js" defer></script>
 </head>
 <body>
@@ -13,34 +14,31 @@
     <section class="identity-panel" aria-label="MSG CTF Sentinel">
       <a class="wordmark" href="/login" aria-label="Sentinel 로그인"><svg viewBox="0 0 28 28" aria-hidden="true"><path d="M5 7 14 2 23 7v14l-9 5-9-5V7Z M5 7l9 5 9-5M14 12v14"/></svg><span>SENTINEL</span><span class="brand-divider"></span><small>MSG CTF</small></a>
       <div class="identity-content">
-        <div class="sector-label"><span><i></i> INFRASTRUCTURE INTELLIGENCE</span><span>S / 01</span></div>
+        <div class="sector-label"><span>INFRASTRUCTURE MONITOR</span><span>01 / SENTINEL</span></div>
         <div class="core-stage" aria-hidden="true">
-          <div class="core-glow"></div><canvas data-sentinel-core="access"></canvas>
-          <div class="core-axis axis-left"><span>01 — OBSERVE</span><i></i><span>02 — DETECT</span></div>
-          <div class="core-axis axis-right"><span>CONTROL CORE</span><i></i><span>SNTL / MK.01</span></div>
-          <div class="projection-base"></div>
+          <div class="mechanism" data-sentinel-core="access"><div class="mechanism-assembly"><img class="mechanism-image" src="/assets/sentinel-metal-core.webp" width="1254" height="1254" alt="" fetchpriority="high" decoding="async" draggable="false"><span class="mechanism-reflection"></span></div></div>
         </div>
-        <div class="identity-caption"><p>EVERY SIGNAL. ONE COMMAND.</p><h1>See everything.<br><em>Stay ahead.</em></h1><span>모든 신호를 한곳에, 인프라를 한눈에</span></div>
+        <div class="identity-caption"><p>OBSERVE / UNDERSTAND / RESPOND</p><h1>한눈에, 정확하게</h1><span>MSG CTF 인프라 관제 시스템</span></div>
       </div>
       <div class="identity-footer"><span>SERVICE LEVEL ASSURANCE</span><span class="footer-coordinate">MSG CTF / OPERATIONS DIVISION</span></div>
     </section>
     <section class="login-panel" aria-labelledby="login-title">
-      <div class="panel-topline"><span>SECURE COMMAND INTERFACE</span><button class="motion-toggle" data-motion-toggle type="button" aria-label="모션 끄기" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4v8m5-8v8m5-8v8"/></svg><span>MOTION ON</span></button></div>
+      <div class="panel-topline"><span>PRIVATE CONSOLE</span><button class="motion-toggle" data-motion-toggle type="button" aria-label="모션 끄기" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4v8m5-8v8m5-8v8"/></svg><span>MOTION ON</span></button></div>
       <div class="login-content">
-        <div class="access-label"><span class="access-mark">S</span><div><span>IDENTITY VERIFICATION</span><small>AUTHORIZED PERSONNEL ONLY</small></div><span class="access-number">01</span></div>
-        <div class="login-heading"><p class="eyebrow">WELCOME TO SENTINEL</p><h2 id="login-title">관제의 중심으로</h2><p class="login-description">관리자 계정으로 시스템에 접속하세요</p></div>
+        <div class="access-label"><span class="access-mark" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="m10 2 6 2v5c0 4-6 8-6 8S4 13 4 9V4l6-2Z"/><path d="m7 9 2 2 4-4"/></svg></span><span>ADMINISTRATOR ACCESS</span></div>
+        <div class="login-heading"><h2 id="login-title">관제실 로그인</h2><p class="login-description">관리자 계정으로 접속하세요</p></div>
         <form id="login-form" method="post" action="/auth/login">
-          <label for="username">아이디 <span>ACCOUNT / 01</span></label>
+          <label for="username">아이디 <span>ACCOUNT</span></label>
           <div class="account-field"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3"/><path d="M5 20v-2a7 7 0 0 1 14 0v2"/></svg><input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="32" placeholder="관리자 아이디" required></div>
-          <label for="password">비밀번호 <span>PASSWORD / 02</span></label>
+          <label for="password">비밀번호 <span>PASSWORD</span></label>
           <div class="password-field"><svg class="input-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="1"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2"/></svg><input id="password" name="password" type="password" autocomplete="current-password" maxlength="256" placeholder="비밀번호 입력" required><button id="toggle-password" type="button" aria-label="비밀번호 표시" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"/><circle cx="12" cy="12" r="2.5"/></svg></button></div>
           <p id="caps-lock" class="caps-lock" hidden>Caps Lock이 켜져 있습니다</p>
           <p id="login-error" class="login-error" role="alert" aria-live="polite"></p>
-          <button id="sign-in" class="sign-in" type="submit"><span>로그인</span><small aria-hidden="true">ENTER CONSOLE</small><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6"/></svg></button>
+          <button id="sign-in" class="sign-in" type="submit"><span>로그인</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6"/></svg></button>
         </form>
         <div class="access-note"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m10 2 6 2v5c0 4-6 8-6 8S4 13 4 9V4l6-2Z"/><path d="m7 9 2 2 4-4"/></svg><span>승인된 관리자만 접근할 수 있습니다</span></div>
         <noscript><p class="login-error">로그인하려면 JavaScript를 켜 주세요</p></noscript>
-        <div class="access-baseline" aria-hidden="true"><span>PRIVATE ACCESS</span><i></i><span>MSG / SNTL</span></div>
+        <div class="access-baseline" aria-hidden="true"><span>SENTINEL</span><i></i><span>MSG CTF</span></div>
       </div>
       <footer class="login-footer"><span><i></i> MSG CLOUD</span><span>OBSERVE / DETECT / RESPOND</span></footer>
     </section>

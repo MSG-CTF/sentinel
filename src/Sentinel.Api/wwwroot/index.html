@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/dashboard.css">
   <link rel="stylesheet" href="/architecture.css">
   <link rel="stylesheet" href="/operations.css">
+  <link rel="stylesheet" href="/mechanism.css">
   <script src="/sentinel-core.js" defer></script>
   <script src="/asset-model.js" defer></script>
   <script src="/architecture-model.js" defer></script>
@@ -76,8 +77,7 @@
         </section>
         <section class="core-panel" aria-labelledby="core-title" data-state="standby">
           <div class="core-panel-heading"><h2 id="core-title">관제 코어 <span>ASSET FIELD</span></h2><span class="core-designation">SNTL / 01</span></div>
-          <canvas id="operations-core" data-sentinel-core="operations" aria-hidden="true"></canvas>
-          <div class="core-side-label" aria-hidden="true">OBSERVE · DETECT · RESPOND</div>
+          <div id="operations-core" class="mechanism" data-sentinel-core="operations" aria-hidden="true"><div class="mechanism-assembly"><img class="mechanism-image" src="/assets/sentinel-metal-core.webp" width="1254" height="1254" alt="" decoding="async" draggable="false"><span class="mechanism-reflection"></span></div></div>
           <div class="core-reading"><span>정상 / 전체 자산</span><div><strong id="core-healthy">—</strong><span>/</span><b id="core-total">—</b></div></div>
           <div class="core-panel-footer"><p id="core-condition">첫 점검 대기</p><button id="core-map" type="button" aria-label="전체 아키텍처 보기">구조도 <span aria-hidden="true">↗</span></button></div>
         </section>
