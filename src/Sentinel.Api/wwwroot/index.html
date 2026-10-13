@@ -12,6 +12,7 @@
   <script src="/architecture-model.js" defer></script>
   <script src="/topology.js" defer></script>
   <script src="/data-recovery.js" defer></script>
+  <script src="/instance-inventory.js" defer></script>
   <script src="/dashboard.js" defer></script>
 </head>
 <body>
@@ -65,6 +66,13 @@
       <div id="asset-groups" class="asset-groups"><p class="loading-message">점검 결과를 불러오는 중</p></div>
       <p id="empty-filter" class="empty-filter" hidden>현재 확인된 장애·상태 불명 없음 · 미연결 자산은 판정 대상에서 제외</p>
       <p class="scope-note">DB·Redis는 서비스의 연결 점검으로 확인 · VM 전원은 미연결</p>
+      <section class="instance-panel" aria-labelledby="instance-title">
+        <div class="section-heading"><h2 id="instance-title">문제 인스턴스</h2><span id="instance-state" role="status">조회 대기</span></div>
+        <p id="instance-caption" class="scope-note">최근 생성 목록을 불러오는 중</p>
+        <p class="scope-note">최근 최대 20개 조회 · 전체 목록 미확인</p>
+        <ul id="instance-list" class="instance-list"></ul>
+        <p class="scope-note">로컬 시험 서비스만 기능 점검 연결 · 대회 문제·트랙 매핑·인스턴스 자동 복구는 연결 전</p>
+      </section>
       <section class="recovery-panel" aria-labelledby="recovery-title">
         <div class="section-heading"><h2 id="recovery-title">자동 복구</h2><span id="recovery-mode">확인 중</span></div>
         <p id="recovery-scope" class="scope-note"></p>
@@ -100,7 +108,7 @@
       <p id="audit-scope" class="scope-note">소스 기준 확인 중</p>
     </section>
   </main>
-  <footer class="site-footer"><span id="operation-mode">운영 모드 확인 중</span><div><a href="/metrics">Metrics</a><a href="/api/status">상태 JSON</a><a href="/api/events">변경 기록</a><a href="/api/recovery">복구 기록</a></div></footer>
+  <footer class="site-footer"><span id="operation-mode">운영 모드 확인 중</span><div><a href="/metrics">Metrics</a><a href="/api/status">상태 JSON</a><a href="/api/instances">인스턴스</a><a href="/api/events">변경 기록</a><a href="/api/recovery">복구 기록</a></div></footer>
   <dialog id="inspector" class="inspector" aria-labelledby="detail-title">
     <div class="inspector-header"><span id="detail-group"></span><button id="detail-close" class="icon-button" type="button" aria-label="상세 닫기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
     <div class="inspector-content">

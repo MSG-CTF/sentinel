@@ -1,0 +1,83 @@
+import json
+import os
+from pathlib import Path
+import tarfile
+import tempfile
+import unittest
+from unittest.mock import patch
+
+import release
+
+
+def profile():
+    return {"platform_monitor": {"profile": "aws", "event_file": "data/events.jsonl",
+                                "targets": [{"target_id": "web", "url": "https://example.com/"}]},
+            "platform_recovery": {"enabled": False}, "instance_monitor": {"enabled": False}}
+
+
+class ConfigurationTests(unittest.TestCase):
+    def test_observe_only_without_tokens(self):
+        self.assertEqual(release.validate_configuration(profile(), {}), "")
+
+    def test_recovery_and_inventory_require_separate_rollout(self):
+        for key in ("platform_recovery", "instance_monitor"):
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                config = profile()
+                config[key]["enabled"] = True
+                release.validate_configuration(config, {})
+
+    def test_disallows_credentials_in_url_and_local_targets(self):
+        for url in ("http://localhost/", "http://127.0.0.1/", "https://user:pass@example.com/",
+                    "https://example.com/?token=secret", "https://example.com/#secret"):
+            with self.subTest(url=url), self.assertRaises(ValueError):
+                config = profile()
+                config["platform_monitor"]["targets"][0]["url"] = url
+                release.validate_configuration(config, {})
+
+    def test_authenticated_probes_require_https_and_exact_tokens(self):
+        config = profile()
+        config["platform_monitor"]["targets"][0]["auth_token_env"] = "PROBE_TOKEN"
+        self.assertEqual(release.validate_configuration(config, {"PROBE_TOKEN": "example"}), "PROBE_TOKEN=example\n")
+        for credentials in ({}, {"PROBE_TOKEN": "example", "UNUSED_TOKEN": "other"}):
+            with self.assertRaises(ValueError):
+                release.validate_configuration(config, credentials)
+        config["platform_monitor"]["targets"][0]["url"] = "http://example.com/"
+        with self.assertRaises(ValueError):
+            release.validate_configuration(config, {"PROBE_TOKEN": "example"})
+
+    def test_env_file_cannot_inject_additional_settings(self):
+        for name, value in (("PATH", "x"), ("DOTNET_STARTUP_HOOKS", "x"),
+                            ("PROBE_TOKEN", "x\nSECOND=y"), ("PROBE_TOKEN", "x\rSECOND=y"),
+                            ("PROBE_TOKEN", "x\0y"), ("PROBE_TOKEN", "")):
+            with self.subTest(name=name, value=value), self.assertRaises(ValueError):
+                config = profile()
+                config["platform_monitor"]["targets"][0]["auth_token_env"] = name
+                release.validate_configuration(config, {name: value})
+
+    def test_disabled_targets_need_no_authentication(self):
+        config = profile()
+        config["platform_monitor"]["targets"].append({"enabled": False, "auth_token_env": "LATER_TOKEN"})
+        self.assertEqual(release.validate_configuration(config, {}), "")
+
+    def test_private_package_contains_only_expected_members_and_leaves_build_artifact_clean(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source = root / "source"
+            source.mkdir()
+            for name in ("image.tar.gz", "release.json", "deploy_host.py"):
+                (source / name).write_bytes(b"fixture")
+            config = profile()
+            config["platform_monitor"]["targets"][0]["auth_token_env"] = "PROBE_TOKEN"
+            with patch.dict(os.environ, {"SENTINEL_PROFILE_JSON": json.dumps(config),
+                                         "SENTINEL_PROBE_SECRETS_JSON": '{"PROBE_TOKEN":"test-only-secret"}'}):
+                release.package(source, root / "bundle.tar.gz")
+            with tarfile.open(root / "bundle.tar.gz") as archive:
+                self.assertEqual(set(archive.getnames()),
+                                 {"image.tar.gz", "release.json", "deploy_host.py", "profile.json", "probe.env"})
+                self.assertEqual(archive.extractfile("probe.env").read(), b"PROBE_TOKEN=test-only-secret\n")
+            self.assertFalse((source / "probe.env").exists())
+            self.assertFalse((source / "profile.json").exists())
+
+
+if __name__ == "__main__":
+    unittest.main()

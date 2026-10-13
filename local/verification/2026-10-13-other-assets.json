@@ -1,0 +1,466 @@
+{
+  "schema_version": 1,
+  "reviewed_date": "2026-10-13",
+  "generated_at": "2026-10-13T05:41:07.840975+00:00",
+  "timezone": "Asia/Seoul",
+  "scope": "other_asset_contract_review_and_bounded_local_recovery",
+  "evidence_origin": "local_execution_and_github_notion_reads",
+  "worktree_base_commit": "6b527e31d7ccc084f34966882742a1e08562a43b",
+  "changes_committed": false,
+  "review_method": "sequential_source_review_implementation_review_countercheck_and_reconciliation",
+  "repositories": [
+    {
+      "repo": "MSG-CTF/msg-backend",
+      "default_branch_head": {
+        "branch": "main",
+        "sha": "08be84d46f49c6f51947a871cb0003c49ed531ed",
+        "url": "https://github.com/MSG-CTF/msg-backend/commit/08be84d46f49c6f51947a871cb0003c49ed531ed",
+        "committed_at": "2026-10-12T07:26:25Z"
+      },
+      "remote_branch_count": 75,
+      "open_prs": [
+        {
+          "number": 102,
+          "url": "https://github.com/MSG-CTF/msg-backend/pull/102"
+        },
+        {
+          "number": 101,
+          "url": "https://github.com/MSG-CTF/msg-backend/pull/101"
+        },
+        {
+          "number": 100,
+          "url": "https://github.com/MSG-CTF/msg-backend/pull/100"
+        },
+        {
+          "number": 80,
+          "url": "https://github.com/MSG-CTF/msg-backend/pull/80"
+        },
+        {
+          "number": 26,
+          "url": "https://github.com/MSG-CTF/msg-backend/pull/26"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "repo": "MSG-CTF/resource-broker",
+      "default_branch_head": {
+        "branch": "dev",
+        "sha": "bde6361dd36440c7ee299adf4ded113b978da25d",
+        "url": "https://github.com/MSG-CTF/resource-broker/commit/bde6361dd36440c7ee299adf4ded113b978da25d",
+        "committed_at": "2026-07-20T09:02:30Z"
+      },
+      "remote_branch_count": 6,
+      "open_prs": [
+        {
+          "number": 4,
+          "url": "https://github.com/MSG-CTF/resource-broker/pull/4"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "repo": "MSG-CTF/secure-provisioner",
+      "default_branch_head": {
+        "branch": "main",
+        "sha": "738419f6045680b175fbc744f71108ad37d76439",
+        "url": "https://github.com/MSG-CTF/secure-provisioner/commit/738419f6045680b175fbc744f71108ad37d76439",
+        "committed_at": "2026-07-13T06:02:33Z"
+      },
+      "remote_branch_count": 23,
+      "open_prs": [
+        {
+          "number": 46,
+          "url": "https://github.com/MSG-CTF/secure-provisioner/pull/46"
+        },
+        {
+          "number": 45,
+          "url": "https://github.com/MSG-CTF/secure-provisioner/pull/45"
+        },
+        {
+          "number": 42,
+          "url": "https://github.com/MSG-CTF/secure-provisioner/pull/42"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "repo": "MSG-CTF/msgctf-devsecops",
+      "default_branch_head": {
+        "branch": "main",
+        "sha": "40513968fa9e4a8a624dc7c11a6e0a399aada323",
+        "url": "https://github.com/MSG-CTF/msgctf-devsecops/commit/40513968fa9e4a8a624dc7c11a6e0a399aada323",
+        "committed_at": "2026-10-07T11:28:24Z"
+      },
+      "remote_branch_count": 16,
+      "open_prs": [
+        {
+          "number": 19,
+          "url": "https://github.com/MSG-CTF/msgctf-devsecops/pull/19"
+        },
+        {
+          "number": 17,
+          "url": "https://github.com/MSG-CTF/msgctf-devsecops/pull/17"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "repo": "MSG-CTF/2026_MSG_CTF",
+      "default_branch_head": {
+        "branch": "main",
+        "sha": "3a961c945e544c9a50fd7938868d67f07fe78828",
+        "url": "https://github.com/MSG-CTF/2026_MSG_CTF/commit/3a961c945e544c9a50fd7938868d67f07fe78828",
+        "committed_at": "2026-10-12T10:44:30Z"
+      },
+      "remote_branch_count": 69,
+      "open_prs": [
+        {
+          "number": 79,
+          "url": "https://github.com/MSG-CTF/2026_MSG_CTF/pull/79"
+        }
+      ],
+      "errors": []
+    }
+  ],
+  "repository_scope": "default_heads_all_remote_branch_refs_and_open_pr_metadata_with_targeted_source_review",
+  "notion_sources": [
+    {
+      "id": "3bb0f19c72be813a9d06c6a8dc535c6b",
+      "title": "👑 KOTH·채점",
+      "url": "https://app.notion.com/p/3bb0f19c72be813a9d06c6a8dc535c6b?pvs=204",
+      "last_edited_at": "2026-08-28T06:37:21.551Z"
+    },
+    {
+      "id": "3ec0f19c72be81a0a73cc24dc5b46747",
+      "title": "KOTH와 내부 API QA",
+      "url": "https://app.notion.com/p/3ec0f19c72be81a0a73cc24dc5b46747?pvs=204",
+      "last_edited_at": "2026-10-05T04:58:29.483Z"
+    },
+    {
+      "id": "3f00f19c72be8070a7c0d1177d79c18e",
+      "title": "CTF 문제 실행 VM · K3s 설치 및 격리 인수 기준 — 최종본",
+      "url": "https://app.notion.com/p/3f00f19c72be8070a7c0d1177d79c18e?pvs=204",
+      "last_edited_at": "2026-10-05T08:28:26.955Z"
+    },
+    {
+      "id": "3bb0f19c72be8194817bd79af9ba1822",
+      "title": "📦 Challenge Registry → 플랫폼·백엔드",
+      "url": "https://app.notion.com/p/3bb0f19c72be8194817bd79af9ba1822?pvs=204",
+      "last_edited_at": "2026-08-28T06:38:40.452Z"
+    },
+    {
+      "id": "3ac0f19c72be81a89e00c02326baf01f",
+      "title": "🔑 KOTH 팀 토큰 연동 API",
+      "url": "https://app.notion.com/p/3ac0f19c72be81a89e00c02326baf01f?pvs=204",
+      "last_edited_at": "2026-08-23T14:19:00.841Z"
+    }
+  ],
+  "asset_checks": {
+    "passed": true,
+    "checked_at": "2026-10-13T05:40:06.013097+00:00",
+    "checks": [
+      "local_recovery_mode_is_active",
+      "configured_direct_probes_healthy",
+      "absent_roles_have_reasons_without_timestamps",
+      "public_status_contains_no_service_credentials",
+      "scheduler_requires_authentication",
+      "broker_requires_authentication",
+      "scheduler_queries_real_recent_inventory",
+      "broker_inventory_matches_explicit_local_catalog",
+      "broker_inventory_token_cannot_read_admin_accounts",
+      "internal_frontend_serves_built_html",
+      "internal_frontend_forwards_real_backend_response",
+      "internal_edge_serves_built_html",
+      "internal_edge_forwards_real_backend_response",
+      "external_frontend_serves_built_html",
+      "external_frontend_forwards_real_backend_response",
+      "external_edge_serves_built_html",
+      "external_edge_forwards_real_backend_response",
+      "existing_six_containers_unchanged",
+      "new_containers_keep_identity_and_persistent_volumes",
+      "fixed_application_recovery_bindings"
+    ],
+    "faults": [],
+    "direct_probes": 12,
+    "healthy_assets_including_backend_dependencies": 16,
+    "unconfigured_roles": 9,
+    "recovery_bindings": 8,
+    "scheduler_recent_count": 3,
+    "broker_catalog_scope": "explicit_local_fixture_not_cloud",
+    "source_versions": {
+      "scheduler": "5c695142",
+      "broker": "99ff5b88",
+      "frontend": "c0a85359"
+    }
+  },
+  "application_recovery": {
+    "passed": true,
+    "started_at": "2026-10-13T05:21:40.971580+00:00",
+    "completed_at": "2026-10-13T05:32:48.477378+00:00",
+    "scope": "allowlisted_local_applications",
+    "expected_assets": [
+      "broker",
+      "edge",
+      "external-backend",
+      "external-frontend",
+      "internal-backend",
+      "internal-frontend",
+      "runtime",
+      "scheduler"
+    ],
+    "new_request_count": 8,
+    "data_services_unchanged": true,
+    "final_healthy_direct_probes": 12,
+    "inspection_contract_checks": 3
+  },
+  "runtime_store_restore": {
+    "schema_version": 1,
+    "run_id": "20261013T053309Z-eea53570",
+    "started_at": "2026-10-13T05:33:10.532081+00:00",
+    "passed": true,
+    "scope": "isolated_local_runtime_store_restore",
+    "source_unchanged": true,
+    "lab_removed": true,
+    "automatic_restore_enabled": false,
+    "live_cluster_reconnected": false,
+    "source_images": [
+      {
+        "service": "runtime-db",
+        "image_id": "sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24"
+      },
+      {
+        "service": "runtime",
+        "image_id": "sha256:d90c69e1fdfa554e14a6114ae264aa460ff24bcaf33177e45cf20a331ff78c45"
+      }
+    ],
+    "checks": [
+      {
+        "name": "no_inflight_operations_at_snapshot",
+        "passed": true
+      },
+      {
+        "name": "checksum_mismatch_rejected_before_restore",
+        "passed": true
+      },
+      {
+        "name": "restore_destination_isolated",
+        "passed": true
+      },
+      {
+        "name": "restored_rows_and_sequences_match",
+        "passed": true,
+        "tables": 2,
+        "rows": 10
+      },
+      {
+        "name": "real_runtime_reads_restored_operations",
+        "passed": true,
+        "operations": 6
+      },
+      {
+        "name": "runtime_start_keeps_restored_rows",
+        "passed": true
+      },
+      {
+        "name": "restored_database_restart_preserves_rows",
+        "passed": true
+      },
+      {
+        "name": "runtime_restart_keeps_operation_responses",
+        "passed": true
+      },
+      {
+        "name": "source_containers_volumes_and_rows_unchanged",
+        "passed": true
+      }
+    ],
+    "completed_at": "2026-10-13T05:33:54.198167+00:00",
+    "duration_seconds": 45.8
+  },
+  "dashboard_tests": {
+    "passed": true,
+    "tests": 59
+  },
+  "browser_checks": {
+    "passed": true,
+    "checks": [
+      "edge_58186_renders_react_application",
+      "edge_58187_renders_react_application",
+      "all_25_roles_are_counted_once",
+      "connected_direct_and_four_dependency_observations",
+      "sentinel_map_card_includes_added_probes",
+      "scheduler_discloses_recent_list_scope",
+      "scheduler_has_local_recovery_and_explicit_verification",
+      "runtime_scope_matches_execution_configuration",
+      "koth_source_exists_but_local_service_is_unconfigured",
+      "all_asset_status_rows_are_visible",
+      "absence_is_not_reported_as_failure",
+      "offline_clears_all_healthy_readings",
+      "all_groups_fit_mobile_width",
+      "no_javascript_errors"
+    ],
+    "screenshots_suffix": "2026-10-13T05-39-29-571Z"
+  },
+  "final_observation": {
+    "checked_at": "2026-10-13T05:41:07.840975+00:00",
+    "profile": "local-recovery",
+    "healthy_direct": 12,
+    "healthy_backend_components": 4,
+    "unconfigured_roles": [
+      "cloud-api",
+      "koth",
+      "windows",
+      "koth-score",
+      "info",
+      "ci",
+      "ghcr",
+      "bundle",
+      "registry"
+    ],
+    "executor_connected": true,
+    "recovery_bindings": 8,
+    "instance_counts": {
+      "recent": 3,
+      "functional_up": 1,
+      "removed": 2
+    }
+  },
+  "delivery_evidence": {
+    "source_sha": "3a961c945e544c9a50fd7938868d67f07fe78828",
+    "validation_run_id": 38238229618,
+    "validation_conclusion": "failure",
+    "failed_step": "Trivy 취약점 차단 검사",
+    "publish_bundle_present": false,
+    "approved_web_smoke_run_id": 38346073355,
+    "approved_web_smoke_conclusion": "success",
+    "same_end_to_end_delivery_flow": false
+  },
+  "limits": [
+    "no_live_koth_service_or_period_polling",
+    "no_windows_vm_or_management_adapter",
+    "broker_inventory_is_manual_local_fixture_not_cloud_observation",
+    "no_ghcr_cold_pull_or_registry_poller_verification",
+    "no_runtime_store_cutover_or_live_cluster_reconnection",
+    "no_inflight_operation_handoff",
+    "no_atomic_cross_store_snapshot_or_production_rto_guarantee"
+  ],
+  "file_hashes": [
+    {
+      "path": "local/verify_assets.py",
+      "sha256": "1d6a40fc48d3100fde24e2737a53f15a0debfd9107ecaab488947d3ce3aa426d"
+    },
+    {
+      "path": "local/verify_multi_recovery.py",
+      "sha256": "bc80e93cd64b88e721d5954232fc458a4f935a3bb6a0528cf352670332973ba7"
+    },
+    {
+      "path": "local/verify_runtime_store.py",
+      "sha256": "32315f16a568dd34c5e30eff2be06ab74d8e87853a9e2f9141545d475fba05b1"
+    },
+    {
+      "path": "local/verify_assets_browser.cjs",
+      "sha256": "9920796a6f6d9a5d30af039f8600614d2b3ca949743c5559337cdca992218ce2"
+    },
+    {
+      "path": "src/Sentinel.Api/wwwroot/asset-access.json",
+      "sha256": "c279f0bce145b856c68ec4476019e709b784a1a80119d092e41e2ae7b2581882"
+    },
+    {
+      "path": "src/Sentinel.Api/wwwroot/architecture-model.js",
+      "sha256": "e87ff3d0323d3b408bc4adb2f3dfedd00022b47d1bbd9a64e3abdf91576a20ac"
+    },
+    {
+      "path": "src/Sentinel.Api/wwwroot/dashboard.js",
+      "sha256": "6681196af20415bf2d4b07dca1ef1537df7ee680f905551ad4f167fb0374506c"
+    },
+    {
+      "path": "local/sla-other-assets-review-20261013.md",
+      "sha256": "5548153e914f79a785a88984129ae93e34b8cfacac69361c738fe6599a1ceaad"
+    }
+  ],
+  "koth_period_contract": {
+    "finding_confirmed": true,
+    "evidence_level": "E2_component_time_contract",
+    "real_service_integration_run": false,
+    "storage_and_config_dependencies_stubbed": true,
+    "backend_sha": "08be84d46f49c6f51947a871cb0003c49ed531ed",
+    "challenge_sha": "3a961c945e544c9a50fd7938868d67f07fe78828",
+    "default_max_retries": 3,
+    "cases": [
+      {
+        "poll_started_at": "2026-10-13T00:00:00+00:00",
+        "selected_period_id": "2026-10-13T00:00:00Z",
+        "attempt_offsets_seconds": [
+          0,
+          60,
+          180,
+          420
+        ],
+        "period_not_ready_each_attempt": [
+          true,
+          true,
+          true,
+          true
+        ],
+        "period_ready_after_seconds": 900
+      },
+      {
+        "poll_started_at": "2026-10-13T00:15:00+00:00",
+        "selected_period_id": "2026-10-13T00:15:00Z",
+        "attempt_offsets_seconds": [
+          0,
+          60,
+          180,
+          420
+        ],
+        "period_not_ready_each_attempt": [
+          true,
+          true,
+          true,
+          true
+        ],
+        "period_ready_after_seconds": 900
+      },
+      {
+        "poll_started_at": "2026-10-13T00:30:00+00:00",
+        "selected_period_id": "2026-10-13T00:30:00Z",
+        "attempt_offsets_seconds": [
+          0,
+          60,
+          180,
+          420
+        ],
+        "period_not_ready_each_attempt": [
+          true,
+          true,
+          true,
+          true
+        ],
+        "period_ready_after_seconds": 900
+      },
+      {
+        "poll_started_at": "2026-10-13T00:45:00+00:00",
+        "selected_period_id": "2026-10-13T00:45:00Z",
+        "attempt_offsets_seconds": [
+          0,
+          60,
+          180,
+          420
+        ],
+        "period_not_ready_each_attempt": [
+          true,
+          true,
+          true,
+          true
+        ],
+        "period_ready_after_seconds": 900
+      }
+    ],
+    "condition": "default_command_without_period_id_at_each_15_minute_boundary",
+    "remaining_gap_seconds_after_final_retry": 480,
+    "review_priority": "P2",
+    "verification_script": "review-work/sla-other-assets-20261013/verify_koth_period_contract.py"
+  },
+  "review_document": "local/sla-other-assets-review-20261013.md"
+}

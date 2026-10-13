@@ -3,10 +3,11 @@
 Django mock은 실행하지 않는다
 실제 Backend·Frontend·Scheduler·Broker를 실행하고, 각 상태 점검의 확인 범위를 분리해 보여준다
 
-2026년 10월 11일 기준 Runtime·Runtime Store·Linux / K3s를 추가로 연결했다
+2026년 10월 13일 재점검 기준 Runtime·Runtime Store·Linux / K3s까지 연결했다
 직접 점검 12개와 Backend 구성 요소 4개가 정상이며 미연결 역할은 9개다
 자동 기동 대상은 기본 앱 7개와 Runtime이며 아래의 실행 자산 연결 절차로 준비한다
 데이터 복원 결과를 실제 서비스에 잠시 연결했다가 원래 볼륨으로 돌아오는 절차는 별도 전환 명령을 사용한다
+KoTH 시간 계약과 CI·Registry 미연결 사유, 앱 8개 복구와 Runtime Store 복원 근거는 [10월 13일 추가 자산 점검](sla-other-assets-review-20261013.md)에 기록했다
 
 ## 데이터 백업과 격리 복원
 
@@ -58,7 +59,8 @@ Redis 시험 값은 복원한 격리 환경의 DB 1과 DB 7에만 만들고 다�
 
 25개 구성 역할을 상태 목록에 모두 등록했다
 Backend 2개와 그 응답으로 확인하는 DB·Redis 4개에 Edge·Frontend 2개·Scheduler·Scheduler DB·Broker·Broker DB를 추가했다
-모든 연결이 정상일 때 직접 점검 9개, Backend를 통한 구성 요소 점검 4개, 미연결 역할 12개다
+실행 자산 연결 전에는 직접 점검 9개, Backend를 통한 구성 요소 점검 4개, 미연결 역할 12개다
+Runtime·Runtime Store·Linux / K3s를 연결한 현재 구성은 직접 점검 12개, 구성 요소 점검 4개, 미연결 역할 9개다
 서비스 API의 정상 응답은 문제 생성·참가자 기능 전체나 운영 VM 가용성을 보장하지 않는다
 
 | 대상 | 접속과 점검 | 현재 확인 범위 |
@@ -76,8 +78,9 @@ Scheduler recent는 전체 목록 API가 아니므로 전체 문제 감시로 �
 Scheduler의 unused Redis 자동 상태 점검은 끄며 실제 PostgreSQL 점검은 유지한다
 
 Runtime은 빈 cluster registry로 시작할 수 없다
-실제 K3s 대상·kubeconfig·인스턴스 매핑이 필요하며 Runtime Store와 Linux / K3s도 같은 연결 대기를 표시한다
-KoTH는 실행 대상이 없는 템플릿 상태이며 서비스와 채점 URL·토큰·period 연결이 필요하다
+실제 K3s 대상·kubeconfig·인스턴스 매핑이 필요하며 실행 자산 연결 절차를 마치면 Runtime Store와 Linux / K3s도 함께 점검한다
+2026_MSG_CTF에는 실제 KoTH 서비스 코드가 있고 Backend에는 점수 수집 명령이 있다
+현재 로컬 구성에는 KoTH 서비스가 없어 채점 URL·토큰·문제 ID·period 연결이 필요하다
 Windows는 실제 문제 VM과 관리 접속이 필요하며 사용자 PC의 Windows를 대체 대상으로 삼지 않는다
 Cloud API는 계정·리전·VM 매핑, 문제 발행 자산은 revision·workflow run·image digest·artifact ID가 필요하다
 Challenge Registry의 새 bundle 수집 경로는 현재 로컬 Backend에 없다
@@ -96,8 +99,8 @@ Sentinel은 GET만 사용하며 Scheduler 쓰기 API를 호출하지 않는다
 Docker Desktop의 내부 전용 네트워크에서는 호스트 포트가 열리지 않아 local_access 브리지를 함께 사용한다
 DB에는 호스트 포트를 게시하지 않으며 서비스별 내부 데이터 네트워크와 볼륨을 분리한다
 
-local-recovery는 앱 서비스 7개에 정지 컨테이너 기동을 연결한다
-DB·Redis 6개는 점검만 수행하며 자동 기동·데이터 복원을 실행하지 않는다
+local-recovery는 기본 앱 7개와 추가 연결한 Runtime에 정지 컨테이너 기동을 연결한다
+기본 DB·Redis 6개와 Runtime Store는 점검만 수행하며 자동 기동·데이터 복원을 실행하지 않는다
 
     python local/verify_assets.py --faults
     node --test local/asset-coverage.test.cjs
@@ -345,9 +348,9 @@ local에서 deployed로 바꿨다가 finally에서 local로 돌아온다
 deployed 프로필의 공개 주소에는 GET만 보내며 변경 요청은 보내지 않는다
 완료 시 두 로컬 백엔드 정상과 관측 전용 모드를 확인한다
 
-## 이번 단계에서 하지 않은 것
+## 남은 검증 범위
 
-- 문제 생성·삭제 전체 경로 검증
+- Backend 참가자 요청부터 실제 대회 문제 발행·생성·삭제까지의 전체 경로 검증
 - Scheduler·Broker·Runtime 복구 신호 전송
 - KoTH 점령 상태 복구와 Windows VM 복구
 - Active/Standby leader lock 또는 자동 승격
@@ -361,15 +364,15 @@ Runtime은 인증된 /internal/v1 경계와 실제 K3s registry가 필요하다
 복구 API 계약이 없는 곳에 기존 사용자 reset을 자동 호출하지 않는다
 [inventory 조회 계약](inventory-contracts.json)에 최근 20건 제한, operation ID 연결, Pod Ready와 문제 healthcheck의 미확정 입력을 기록했다
 
-## 다음 구현 순서
+## 다음 연결 순서
 
 - DevSecOps가 실제 백엔드 healthz를 프록시 뒤에서 조회할 수 있게 연결
 - Scheduler의 최근 20건을 넘어서는 전체 인스턴스 목록 조회 계약 확정
-- 실제 K3s registry를 연결하고 Runtime의 runtime-status를 읽는 inventory client 추가
-- 데이터 복원 후 서비스 연결 전환과 저장소 간 일관성 정책 확정
-- 문제별 healthcheck와 Runtime Ready 상태를 함께 판단
+- KoTH 실행 대상·점수 API·주기 수집과 Windows 전용 VM 관리 경로 연결
+- Runtime Store 복원 후 실제 K3s 재연결과 진행 중 작업 인계 검증
+- 실제 대회 문제의 healthcheck와 Runtime Ready를 함께 판단하는 계약 확정
 - 수신팀과 recovery signal의 인증·멱등성·횟수 제한·만료 처리 계약 확정
-- 이 로컬 환경에서만 생성 실패·cleanup·복구·중복 요청 시험
+- CI 발행·GHCR pull·Backend Registry 수집의 동일 revision 경로 검증
 
 2026-10-10 읽기 전용 재조회에서도 msgctf.kr/healthz는 JSON이 아니라 HTML을 200으로 반환했다
 이것은 사이트가 응답한다는 증거일 뿐, 배포 백엔드 DB·Redis가 정상이라는 증거가 아니다
@@ -441,9 +444,117 @@ Redis 시험용 키는 이 전환 경로에 넣지 않는다
     python local/data_cutover.py rollback
 
 전환 중 새 업무 요청을 처리하는 무중단 복구나 운영 데이터 자동 덮어쓰기는 구현 범위에 포함하지 않는다
-Runtime Store는 위 6개 저장소 복원 시험과 별도이며 이번 연결 검증은 프로세스 재기동 후 작업 기록 보존까지 확인한다
-확인한 Backend KoTH 템플릿은 실제 실행 코드가 비어 있고 선택한 로컬 구성에는 Windows 문제 VM 이미지·설정이 없다
+Runtime Store는 위 6개 저장소의 서비스 전환 시험과 분리해 격리 백업·복원을 검증한다
+Backend의 예제 checker와 별도로 2026_MSG_CTF에는 실제 KoTH 서비스가 있다
+선택한 로컬 구성에는 KoTH 실행 대상과 Windows 문제 VM 이미지·설정이 없다
 KoTH·Windows와 클라우드·배포 자산은 해당 실행 대상과 접속 정보가 준비될 때 연결한다
+
+Runtime Store의 별도 검증은 완료된 작업만 있는 상태에서 실행한다
+원본 PostgreSQL의 읽기 스냅샷을 새 볼륨에 복원하고 같은 이미지의 Runtime에서 작업 응답을 비교한다
+DB와 Runtime을 각각 재기동한 뒤에도 테이블·시퀀스·작업 응답이 같아야 통과한다
+원본 컨테이너·시작 시각·볼륨·행 내용은 마지막에 다시 비교하며 시험 자원만 정리한다
+
+    python local/verify_runtime_store.py
+
+실습 환경에는 실제 kubeconfig와 클러스터 연결을 전달하지 않는다
+이 검증은 Runtime 작업 기록의 복원과 조회 범위이며 진행 중 작업의 lease 인계, K3s 재연결, 원본 서비스 전환은 포함하지 않는다
+백업과 manifest는 비공개 local/.restore-labs에, 인증값과 행 내용을 제외한 결과는 local/artifacts에 남긴다
 
 도구 출처는 [k3d v5.9.0 릴리스](https://github.com/k3d-io/k3d/releases/tag/v5.9.0), [K3s 공식 컨테이너](https://github.com/k3s-io/k3s/pkgs/container/k3s), [Go 공식 다운로드](https://go.dev/dl/)다
 k3d 바이너리와 Go 압축 파일은 공식 checksum으로 검증하며 K3s와 도구 이미지는 digest로 고정한다
+
+## 최근 인스턴스 감시
+
+등록된 실행 실습 환경에서 Start-Monitor를 실행하면 instance_monitor를 활성화한다
+Scheduler의 인증된 최근 목록에서 최대 20개를 읽고, 명시적으로 등록한 runtime_target_id의 Runtime에 인스턴스 상태를 조회한다
+기본 간격은 30초, 요청 제한 시간은 4초, 동시 Runtime 조회는 최대 4개다
+목록과 Runtime 응답 크기는 각각 256 KiB로 제한한다
+
+GET /api/instances와 자산 상태 화면의 문제 인스턴스 항목에서 결과를 볼 수 있다
+응답은 snake_case이며 전체 목록 확인 여부는 항상 false다
+최근 목록이 비어 있어도 전체 인스턴스가 없거나 모두 정상이라고 판정하지 않는다
+Runtime의 READY는 컨테이너·endpoint·노드 준비 상태이며 별도 기능 점검이 등록되지 않으면 문제 기능은 UNVERIFIED로 유지한다
+명시적으로 등록한 로컬 시험 서비스만 기능을 점검하며 트랙은 UNMAPPED로 유지한다
+
+인스턴스 ID·target ID·알려진 workload ID가 일치해야 실행 상태를 사용한다
+관측 시각이 현재에서 60초를 넘게 벗어나면 STALE로 처리하며 목록 갱신 실패 시 이전 행을 비운다
+expires_at·idle_expires_at·hard_expires_at 중 가장 빠른 시각을 사용 기한으로 사용한다
+기한 초과나 종료 상태에서 준비된 실행 자원이 남아 있으면 관리자 확인 대상으로 표시한다
+Sentinel 감시기는 인스턴스 삭제·reset·복구 요청을 보내지 않는다
+
+최초 조회 검증 시점의 로컬 Scheduler 최근 목록은 0건이었다
+기존 Nginx 연결 시험 인스턴스는 Scheduler가 생성한 인스턴스가 아니므로 목록에 추가하거나 DB에 삽입하지 않는다
+별도 검증 호스트에서 시험용 Scheduler 응답을 실제 Runtime에 연결해 조회·불일치·기한·종료 상태 처리를 확인한다
+이 검증을 실제 Scheduler 생성부터 문제 기능 복구까지의 통합 성공으로 계산하지 않는다
+
+    dotnet test Sentinel.sln --no-restore
+    node --test local/instance-inventory.test.cjs
+    python local/verify_instance_inventory.py
+    npx --yes --package @playwright/cli playwright-cli -s=sentinel-local --raw run-code --filename local/verify_instance_browser.cjs
+
+Python 검증은 기존 실습 환경과 local/.tooling/dotnet SDK, Debug 빌드 결과가 있어야 실행된다
+시험용 조회 서버와 별도 Sentinel 프로세스는 loopback에만 열며 종료 시 정리한다
+브라우저 검증의 시험 행은 해당 브라우저에서만 주입하며 마지막에는 실제 최근 목록 화면으로 복귀한다
+전체 인스턴스 목록, 트랙 매핑, 문제 기능 결과와 인증된 전용 복구 수신 계약은 다음 연동에 필요하다
+
+## 로컬 기능 점검과 실제 생성 경로
+
+후속 실습은 실제 Scheduler API로 계산 시험 인스턴스를 생성하고 Broker 예약·Runtime/K3s 실행·종료를 연결한다
+Broker에는 실습 전용 계정과 자원 행 하나를 명시적으로 등록한다
+이 행의 용량은 제한된 시험 예산이며 실제 클라우드 quota나 노드 에이전트 측정값으로 사용하지 않는다
+Runtime의 AWS 값도 로컬 Docker 연결을 위한 기존 프로토콜 표기다
+
+functional-fixture는 입력 두 수의 합과 요청마다 새로 생성한 nonce를 반환한다
+실행 자원이 READY이고 instance_id·challenge_id·target_id·runtime_workload_id가 등록값과 일치할 때만 요청한다
+정확한 결과는 UP, 오답·HTTP 5xx·응답 제한 시간 초과는 DOWN, 잘못된 JSON·nonce·형식은 CHECKER_ERROR로 표시한다
+관측값이 오래되면 기능 결과도 STALE로 바뀌며 이전 UP을 유지하지 않는다
+
+기능 요청 주소는 명시적으로 등록한 loopback 또는 host.docker.internal의 30080~30089 포트와 /calculate 경로로 제한한다
+Scheduler가 반환한 service_url을 감시기가 자동으로 따라가지 않는다
+기능 요청에는 서비스 인증 토큰을 넣지 않고 리다이렉트·쿠키를 차단하며 응답은 8 KiB까지만 읽는다
+기본 요청 제한 시간은 4초이고 Runtime 조회와 기능 요청을 합쳐 인스턴스 4개까지 동시에 점검한다
+
+전용 K3s와 Runtime 실습 환경이 실행 중인 저장소 루트에서 시험 이미지를 빌드한다
+아래 Go SDK는 기존 실행 실습에서 공식 checksum으로 검증한 도구다
+
+    New-Item -ItemType Directory -Force local/.execution/functional-build
+    $env:GOOS='linux'
+    $env:GOARCH='amd64'
+    $env:CGO_ENABLED='0'
+    $env:GOTOOLCHAIN='local'
+    & local/.tooling/go-1.26/go/bin/go.exe build -trimpath -ldflags='-s -w' -o local/.execution/functional-build/functional-fixture local/functional-fixture/main.go
+    docker --host npipe:////./pipe/dockerDesktopLinuxEngine build -f local/functional-fixture/Dockerfile -t ghcr.io/msg-ctf/sentinel-local-functional-fixture:local-only local/.execution/functional-build
+    python local/functional_lab.py prepare
+    python local/functional_lab.py create --ttl 120
+
+이미지는 로컬 containerd로 가져오며 GHCR에 게시하지 않는다
+Scheduler의 이미지 정책에 맞는 이름과 digest를 사용하고 실제 Registry 릴리스 경로 검증과 구분한다
+생성 ID·팀·문제·예약·점검 바인딩은 Git에서 제외한 local/.execution/functional/ledger.json에 기록한다
+생성 요청은 중복 호출 시 새 인스턴스가 생기므로 도구는 결과가 불명확한 POST를 자동 재시도하지 않는다
+
+생성 명령이 출력한 ID로 아래 점검을 실행한다
+새 바인딩을 읽으려면 새 코드로 빌드한 Sentinel을 재시작해야 한다
+재시작 동안 호스트 실행기를 멈추고 Sentinel 기동 뒤 다시 연결한다
+
+    python local/recovery_agent.py stop
+    $env:SLA_PROFILE='local-recovery'
+    docker --host npipe:////./pipe/dockerDesktopLinuxEngine compose -p msg-sla-real-local -f local/compose.yaml -f local/compose.assets.yaml -f local/compose.execution.yaml build sentinel
+    docker --host npipe:////./pipe/dockerDesktopLinuxEngine compose -p msg-sla-real-local -f local/compose.yaml -f local/compose.assets.yaml -f local/compose.execution.yaml up -d --no-deps sentinel
+    Start-Process python -ArgumentList 'recovery_agent.py','run' -WorkingDirectory (Join-Path (Get-Location) 'local') -WindowStyle Hidden -RedirectStandardOutput local/.recovery/stdout.log -RedirectStandardError local/.recovery/stderr.log
+    python local/verify_functional_flow.py --instance <생성한 인스턴스 ID>
+
+검증 도구는 등록한 시험 인스턴스의 오답·형식 오류·서비스 실패를 순서대로 적용하고 정상 설정으로 복귀시킨다
+이후 해당 인스턴스를 실제 Scheduler로 삭제하고 별도의 1분 TTL 인스턴스도 생성해 정리를 기다린다
+두 경우 모두 Scheduler CLEANED, Runtime TERMINATED, Broker RELEASED, 네임스페이스 부재와 Sentinel REMOVED를 확인한다
+기능 오류 해제는 실습 실행기의 수동 조치이며 Sentinel의 자동 인스턴스 복구 기능이 아니다
+실습용 HTTP API에는 오류 설정 경로가 없고, 실행기는 소유 ID·팀·이미지가 일치하는 Pod에만 명령을 보낸다
+
+별도로 살아 있는 등록 시험 인스턴스에서 Pod 재생성을 확인할 수 있다
+
+    python local/verify_owned_pod_recovery.py --instance <정상 실행 중인 시험 인스턴스 ID>
+
+이 도구는 해당 시험 Pod 하나를 삭제하고 K3s Deployment의 새 Pod와 새 기능 응답을 기다린다
+복구 주체는 K3s이며 짧은 교체 구간을 Sentinel이 DOWN으로 관측했는지도 따로 기록한다
+
+공유 가능한 근거는 [후속 검증 요약](verification/2026-10-13-functional.json)에 기록한다
+실제 대회 문제별 정상 기능 계약, Runtime 기능 결과 수신 계약, 전체 인스턴스 목록, 트랙과 전용 복구 수신 계약은 남아 있다

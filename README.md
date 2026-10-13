@@ -4,7 +4,7 @@ MSG CTF 실제 서버의 응답을 확인하고 로컬 실습 자산의 제한�
 
 기본 local·deployed 프로필은 감시만 수행한다
 local-recovery 프로필은 Windows 호스트 실행기를 통해 등록한 앱의 정지 컨테이너만 기동한다
-문제 인스턴스 생성·삭제와 운영 서버 자동 복구는 연결하지 않는다
+감시 서비스는 인스턴스 생성·삭제를 자동 호출하지 않으며 로컬 검증 도구에서만 시험 인스턴스를 생성하고 정리한다
 
 ## 현재 동작
 
@@ -17,12 +17,16 @@ local-recovery 프로필은 Windows 호스트 실행기를 통해 등록한 앱�
 - 오래된 점검 결과와 연결하지 않은 역할은 정상 판정에서 제외
 - 대시보드와 Prometheus 형식의 metrics 제공
 - Scheduler·Broker의 인증된 조회와 DB 연결, 선택한 로컬 Runtime·PostgreSQL store·K3s 상태 확인
+- Scheduler 최근 20개 인스턴스와 Runtime 상태를 연결해 식별자·관측 시각·기한·종료 후 잔존 자원 확인
+- 등록된 로컬 시험 인스턴스에 계산 요청을 보내 기능 정상·장애·점검 오류를 구분
 - 로컬 앱 최대 8개의 정지 복구와 인증·멱등성·장애당 1회·300초 대기 조건 적용
 - PostgreSQL 4개·Redis 2개의 격리 복원과 실제 서비스 전환·원래 볼륨 복귀 시험
 
 ## 로컬 실행
 
 [실행 방법과 배포 서버 전환](local/README.md)
+
+[AWS 배포와 GitHub 자동 배포 설정](deploy/aws/README.md)
 
 Docker Compose로 실제 내부·외부 Backend·Frontend와 트랙별 PostgreSQL·Redis, Scheduler·Broker를 분리해 실행한다
 선택 절차로 전용 K3s와 Runtime을 연결하며 기본 감시에 Django mock을 사용하지 않는다
@@ -34,6 +38,7 @@ Docker Compose로 실제 내부·외부 Backend·Frontend와 트랙별 PostgreSQ
 |---|---|
 | GET /healthz | Sentinel 자체 실행 상태, 다른 서버가 정상이라는 뜻은 아님 |
 | GET /api/status | 실제 점검 결과와 연결 대기 대상 |
+| GET /api/instances | 최근 최대 20개 인스턴스의 Runtime 관측과 등록된 로컬 시험 서비스 기능 결과 |
 | GET /api/events | 장애·복구 이벤트 |
 | GET /api/recovery | 인증값을 제외한 로컬 복구 요청과 실행기 상태 |
 | GET /metrics | Prometheus 형식의 상태·지연·점검 시각 |
@@ -78,6 +83,10 @@ C#, .NET 8, ASP.NET Core, BackgroundService, HttpClientFactory, xUnit, Docker Co
 
 ## 검증 근거
 
+[2026년 10월 13일 인스턴스 감시 검증](local/verification/2026-10-13.json)과 [최신 저장소·노션 대조](local/sla-review-20261013.md)에 이번 변경의 근거와 남은 계약을 기록했다
+
+후속 [실제 로컬 생성·기능·정리 검증](local/verification/2026-10-13-functional.json)은 Scheduler 생성부터 Broker 예약, Runtime 실행, 기능 장애와 복구 관측, 삭제·TTL 정리까지의 별도 실행 기록이다
+
 [2026년 10월 11일 공개 검증 요약](local/verification/2026-10-11.json)과 [세부 검수 기록](local/architecture-audit.md)에 범위와 제한을 기록했다
 세부 문서의 artifacts 경로는 Git에서 제외한 로컬 실행 결과이며 공유 가능한 요약만 버전 관리한다
-Runtime은 Nginx 연결 시험 인스턴스이며 실제 대회 문제나 운영 고가용성 검증을 뜻하지 않는다
+Runtime에는 Nginx 연결 시험과 Scheduler가 생성한 계산 시험 인스턴스를 사용하며 실제 대회 문제나 운영 고가용성 검증을 뜻하지 않는다

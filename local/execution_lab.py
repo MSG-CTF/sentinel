@@ -173,6 +173,15 @@ def connect():
 def monitor(profile):
     connection = json.loads((STATE / "connection.json").read_text())
     config = json.loads((LOCAL.parent / "src/Sentinel.Api/profiles" / (profile + ".json")).read_text(encoding="utf-8"))
+    config["instance_monitor"] = {"enabled": True, "runtime_targets": [
+        {"target_id": TARGET, "base_url": "http://runtime:8080", "auth_token_env": "RUNTIME_MONITOR_TOKEN"}
+    ]}
+    functional_ledger = STATE / "functional/ledger.json"
+    if functional_ledger.exists():
+        entries = json.loads(functional_ledger.read_text())
+        recovery.require(entries["scope"] == "sentinel_local_functional_fixture", "FUNCTIONAL_LEDGER_SCOPE_MISMATCH")
+        config["instance_monitor"]["functional_checks"] = [item["binding"] for item in entries["instances"].values()
+            if "binding" in item][-20:]
     if profile == "local-recovery":
         config["platform_recovery"]["enabled_assets"].append("runtime")
     for target in config["platform_monitor"]["targets"]:

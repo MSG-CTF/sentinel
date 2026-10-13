@@ -1,4 +1,38 @@
 {
+  "other_asset_review": {
+    "reviewed_date": "2026-10-13",
+    "verification": "verification/2026-10-13-other-assets.json",
+    "remote_repositories": 5,
+    "remote_branches": 189,
+    "open_prs": 12,
+    "notion_pages": 5,
+    "local_application_recovery_verified": 8,
+    "runtime_store_restore_verified": true,
+    "runtime_store_live_cluster_reconnected": false,
+    "direct_healthy": 12,
+    "derived_healthy": 4,
+    "unconfigured": 9
+  },
+  "functional_instance_update": {
+    "reviewed_date": "2026-10-13",
+    "scope": "E3_local_service_boundaries_with_explicit_test_catalog_and_imported_fixture",
+    "verification": "verification/2026-10-13-functional.json",
+    "source_versions": {
+      "scheduler": "5c695142871a5a926b96d7befcaf0832c691933f",
+      "broker": "99ff5b884e4bf2198dabca84a179c11f5a516785",
+      "runtime": "19d2fdffef753bb9415861c4a6b382b6408455ea"
+    },
+    "running_image_ids": {
+      "scheduler": "sha256:b4d82d3c342fdf008c4f043276872e451153158e319ec095ad5f469a9c64a4f7",
+      "broker": "sha256:1f1f6201f7e7398b77896566d69d4d06a6f2fda53b94f23ea5a605258e3b0b11",
+      "runtime": "sha256:d90c69e1fdfa554e14a6114ae264aa460ff24bcaf33177e45cf20a331ff78c45",
+      "sentinel": "sha256:80b9876d7d78faaec699cc11ee03184c84f9a6502e36b0c2f5b63c861d18ea03"
+    },
+    "scheduler_creation_flow_verified": true,
+    "competition_challenge_verified": false,
+    "cloud_api_verified": false,
+    "automatic_instance_recovery_enabled": false
+  },
   "execution_lab_update": {
     "reviewed_date": "2026-10-11",
     "timezone": "Asia/Seoul",
@@ -31,10 +65,19 @@
     "competition_challenge_verified": false,
     "pwn_gvisor_verified": false,
     "capability_report": "artifacts/execution-capabilities.json",
-    "capability_checks": ["ingress_deny_and_restore", "egress_deny_and_restore", "strict_groups_101", "pod_cgroup_pid_limit_128"],
+    "capability_checks": [
+      "ingress_deny_and_restore",
+      "egress_deny_and_restore",
+      "strict_groups_101",
+      "pod_cgroup_pid_limit_128"
+    ],
     "monitor_image_id": "sha256:9f1bc2ad81e14abcae97490c9f70797c1d399835a03d42f9a8dfc5d287a60023",
     "dashboard_assets": "read_only_source_mount",
-    "connected_targets": ["runtime", "runtime-db", "linux-pool"],
+    "connected_targets": [
+      "runtime",
+      "runtime-db",
+      "linux-pool"
+    ],
     "direct_healthy": 12,
     "derived_healthy": 4,
     "unconfigured": 9,
@@ -67,7 +110,15 @@
       "automatic_data_restore_enabled": false,
       "crash_rollback_drill_verified": false
     },
-    "remaining": ["windows_problem_vm", "koth_service_and_scoring", "cloud_accounts_and_vm_bindings", "challenge_delivery_pipeline", "scheduler_to_runtime_creation", "runtime_store_backup_restore", "business_data_and_inflight_workload_recovery"]
+    "remaining": [
+      "windows_problem_vm",
+      "koth_service_and_scoring",
+      "cloud_accounts_and_vm_bindings",
+      "challenge_delivery_pipeline",
+      "scheduler_to_runtime_creation",
+      "runtime_store_backup_restore",
+      "business_data_and_inflight_workload_recovery"
+    ]
   },
   "data_recovery_update": {
     "reviewed_date": "2026-10-10",
@@ -78,7 +129,10 @@
     "restore_run_id": "20261010T143338Z-13bf534c",
     "restore_report": "artifacts/data-restore-20261010T143338Z-13bf534c.json",
     "final_state_report": "artifacts/data-recovery-final-state-20261010.json",
-    "engines": {"postgres": "17.11", "redis": "8.10.2"},
+    "engines": {
+      "postgres": "17.11",
+      "redis": "8.10.2"
+    },
     "image_binding": "exact_source_image_ids_in_private_backup_manifest",
     "data_services_verified": 6,
     "application_queries_verified": 4,
@@ -100,11 +154,20 @@
       "dashboard_model_tests_passed": 50,
       "dashboard_model_log": "artifacts/data-recovery-dashboard-regression-20261010.log",
       "browser_assertions_passed": 22,
-      "browser_logs": ["artifacts/data-recovery-browser-20261010.log", "artifacts/data-recovery-existing-ui-regression-20261010.log"],
+      "browser_logs": [
+        "artifacts/data-recovery-browser-20261010.log",
+        "artifacts/data-recovery-existing-ui-regression-20261010.log"
+      ],
       "redis_regression_report": "artifacts/data-restore-20261010T142608Z-caa9a8f7.json",
       "scheduler_configuration_report": "artifacts/data-restore-20261010T143022Z-1c82cc9f.json"
     },
-    "remaining": ["source_cutover_policy", "cross_store_consistency", "business_data_and_inflight_workload_recovery", "backup_schedule_and_retention", "remote_asset_access"]
+    "remaining": [
+      "source_cutover_policy",
+      "cross_store_consistency",
+      "business_data_and_inflight_workload_recovery",
+      "backup_schedule_and_retention",
+      "remote_asset_access"
+    ]
   },
   "multi_asset_recovery_update": {
     "reviewed_date": "2026-10-10",

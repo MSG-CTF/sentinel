@@ -97,6 +97,7 @@ function renderAccessDetail() {
   const restored = SentinelDataRecovery.describe(id);
   if (restored) fields.unshift(["마지막 격리 복원", restored]);
   if (observation) fields.unshift(["현재 점검", `${observation.transport} · ${observation.scope}`]);
+  else fields.unshift(["점검 계획", plan.monitoring]);
   for (const [title, value] of fields) {const box = node("div"); box.append(node("dt", title), node("dd", value)); list.append(box);}
   const inputNames = {host_id:"호스트 ID",management_endpoint:"관리 주소",credential_reference:"인증정보 참조",service_binding:"서비스 매핑",recovery_policy:"복구 정책",repository:"저장소",source_revision:"소스 버전",validation_workflow:"검증 작업",workflow_id:"작업 ID",rerun_policy:"재실행 정책",registry_repository:"이미지 저장소",image_digest:"이미지 digest",pull_probe_binding:"pull 점검 위치",artifact_id:"산출물 ID",ingestion_policy:"수집 정책",backend_endpoint:"백엔드 주소",revision_contract:"revision 계약",provider:"클라우드",account_id:"계정 ID",region:"리전",provider_vm_id:"VM ID",power_action_policy:"전원 조치 정책",scheduler_url:"Scheduler 주소",runtime_url:"Runtime 주소",service_token_reference:"서비스 인증정보 참조",inventory_pagination_contract:"전체 목록 조회 계약",instance_target_binding:"인스턴스·호스트 매핑",healthcheck_contract:"문제 기능 점검 계약",host_management_binding:"노드 관리 연결"};
   byId("detail-access-note").textContent = `${plan.preconditions.join(" · ")} / 운영 연결에 필요한 항목: ${plan.required_inputs.map(key => inputNames[key] || key).join(" · ")}`;
@@ -314,7 +315,7 @@ function inspect(next, button) {
     byId("detail-reason").textContent = observer ? "설정한 API 점검과 백엔드 DB·Redis 결과 수집 · 로컬 실행 자산을 연결하면 Runtime·K3s 관측과 Runtime 정지 복구도 포함" : "참가자는 HTTPS로 해당 트랙에 접속 · 내부·외부 앱과 데이터를 분리하며 다른 트랙으로 자동 전환하지 않음";
     metric("역할",observer ? "상태 수집 · 변경 기록" : "브라우저 접속"); metric("확인 범위",observer ? "현재 프로필의 점검 대상" : "운영 배치안");
     byId("detail-source").textContent = observer ? "GET /api/status · /api/events · /metrics" : "공통 Edge와 트랙별 도메인";
-    byId("detail-source-note").textContent = observer ? "SLA가 API에 요청하는 흐름은 workload 생성 경로와 분리 · 소스 확인 구성은 정상으로 집계하지 않음" : "현재 로컬에서는 Edge·Frontend 경유 접속을 실행하지 않음"; sourceAnchor("notion");
+    byId("detail-source-note").textContent = observer ? "SLA가 API에 요청하는 흐름은 workload 생성 경로와 분리 · 소스 확인 구성은 정상으로 집계하지 않음" : "로컬 Edge·Frontend 프록시 응답 확인 · 참가자 전체 이용 흐름은 별도 검증"; sourceAnchor("notion");
   } else if (next.kind === "gate") {
     const gate = catalog.gates[next.id]; if (!gate) return;
     byId("detail-group").textContent = gate.owner; byId("detail-title").textContent = gate.name; byId("detail-icon").append(icon("LINK"));
@@ -381,7 +382,7 @@ async function refresh() {
     if (latest) render(latest,eventData,true);
     else {showWarning("Sentinel 연결 실패 · 점검 결과를 가져오지 못함"); byId("status-caption").textContent = "점검 결과를 가져오지 못함"; byId("last-update").textContent = "연결 실패";}
   } finally {
-    await SentinelDataRecovery.refresh(disconnected || !latest, latest?.profile);
+    await Promise.all([SentinelDataRecovery.refresh(disconnected || !latest, latest?.profile), SentinelInstances.refresh()]);
     if (selection) renderAccessDetail();
     inFlight = false; byId("refresh").disabled = false;
   }

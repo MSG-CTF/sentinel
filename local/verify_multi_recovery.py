@@ -48,13 +48,16 @@ def main():
     history = initial["recovery"]["requests"]
     baseline_ids = {item["request_id"] for item in history}
     baseline_containers = containers()
-    assert len(baseline_containers) == 15
+    required_services = {service for _, service, _ in agent.BINDINGS.values()}
+    required_services.update(dependency for _, _, dependencies in agent.BINDINGS.values() for dependency in dependencies)
+    assert required_services | {"sentinel"} <= baseline_containers.keys()
     stopped = set()
     results = []
     started = dt.datetime.now(dt.timezone.utc)
     report_path = LOCAL / "artifacts" / ("multi-recovery-" + started.strftime("%Y%m%dT%H%M%SZ") + ".json")
     report = {"passed": False, "started_at": started.isoformat(), "results": results, "inspection_contract_checks": 3,
-              "historical_request_count": len(history), "scope": "seven_local_applications"}
+              "historical_request_count": len(history), "scope": "allowlisted_local_applications",
+              "expected_assets": sorted(agent.BINDINGS)}
     try:
         for asset_id, (track, service, dependencies) in agent.BINDINGS.items():
             wait_for(lambda current: ready(current) and next(item for item in current["recovery"]["assets"]
@@ -90,13 +93,14 @@ def main():
             print("Verified automatic recovery: " + asset_id, flush=True)
         final = wait_for(ready, "final healthy baseline")
         new = [item for item in final["recovery"]["requests"] if item["request_id"] not in baseline_ids]
-        assert len(new) == 7 and all(item["status"] == "SUCCEEDED" for item in new)
+        assert len(new) == len(agent.BINDINGS) and all(item["status"] == "SUCCEEDED" for item in new)
         assert set(item["asset_id"] for item in new) == set(agent.BINDINGS)
         current = containers()
-        data_services = ["postgres-internal", "postgres-external", "redis-internal", "redis-external", "scheduler-db", "broker-db"]
+        data_services = ["postgres-internal", "postgres-external", "redis-internal", "redis-external", "scheduler-db", "broker-db", "runtime-db"]
         assert all(current[name] == baseline_containers[name] for name in data_services)
-        report.update(passed=True, new_request_count=7, data_services_unchanged=True,
-                      final_healthy_direct_probes=9, completed_at=dt.datetime.now(dt.timezone.utc).isoformat())
+        report.update(passed=True, new_request_count=len(new), data_services_unchanged=True,
+                      final_healthy_direct_probes=sum(t["status"] == "HEALTHY" for t in final["targets"]),
+                      completed_at=dt.datetime.now(dt.timezone.utc).isoformat())
     finally:
         for identifier in stopped:
             agent.docker("start", identifier)

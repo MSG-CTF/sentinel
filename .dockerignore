@@ -4,6 +4,7 @@
 **/TestResults
 data
 local/artifacts
+local/.verification
 local/.recovery
 local/.assets
 local/.sources
@@ -16,6 +17,7 @@ src/Sentinel.Api/wwwroot/data-recovery-status.json
 src/Sentinel.Api/wwwroot/service-cutover-status.json
 **/__pycache__
 .playwright-cli
+.deployment
 output
 **/.env
 **/.env.*

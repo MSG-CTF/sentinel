@@ -11,6 +11,7 @@ coverage/
 *.nupkg
 data/
 local/artifacts/
+local/.verification/
 local/__pycache__/
 local/.recovery/
 local/.assets/
@@ -24,3 +25,5 @@ src/Sentinel.Api/wwwroot/data-recovery-status.json
 src/Sentinel.Api/wwwroot/service-cutover-status.json
 output/playwright/
 .playwright-cli/
+.deployment/
+**/__pycache__/

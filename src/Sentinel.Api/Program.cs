@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Sentinel.Monitor.Platform;
 using Sentinel.Monitor.Recovery;
+using Sentinel.Monitor.Instances;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 4096);
@@ -16,6 +17,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 });
 builder.Services.AddPlatformMonitor(builder.Configuration);
 builder.Services.AddPlatformRecovery(builder.Configuration);
+builder.Services.AddInstanceInventory(builder.Configuration);
 
 var app = builder.Build();
 app.Use(async (context, next) =>
@@ -40,6 +42,7 @@ app.MapGet("/healthz", (RecoveryCoordinator recovery) => Results.Ok(new
 app.MapGet("/api/status", (PlatformMonitor monitor, RecoveryCoordinator recovery) =>
     Results.Ok(monitor.Snapshot() with { Mode = recovery.Mode, Recovery = recovery.Snapshot() }));
 app.MapGet("/api/recovery", (RecoveryCoordinator recovery) => Results.Ok(recovery.Snapshot()));
+app.MapGet("/api/instances", (InstanceInventory inventory) => Results.Ok(inventory.Snapshot()));
 var recoveryApi = app.MapGroup("/internal/recovery");
 recoveryApi.AddEndpointFilter(async (context, next) =>
 {

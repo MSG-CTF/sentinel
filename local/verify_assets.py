@@ -66,14 +66,18 @@ def wait_targets(expected, timeout=120):
 def main(faults=False):
     credentials = dict(line.split("=",1) for line in (LOCAL / ".assets/services.env").read_text().splitlines() if "=" in line)
     connected = ["internal-backend", "external-backend", "edge", "internal-frontend", "external-frontend", "scheduler", "scheduler-db", "broker", "broker-db"]
+    before = containers()
+    execution_enabled = "runtime" in before and "runtime-db" in before
+    if execution_enabled:
+        connected.extend(["runtime", "runtime-db", "linux-pool"])
     initial = wait_targets(dict.fromkeys(connected, "HEALTHY"), 180)
     check("local_recovery_mode_is_active", initial["profile"] == "local-recovery" and initial["recovery"]["enabled"])
-    check("nine_direct_probes_healthy", len([t for t in initial["targets"] if t["status"] == "HEALTHY"]) == 9)
+    check("configured_direct_probes_healthy", {t["target_id"] for t in initial["targets"] if t["status"] == "HEALTHY"} == set(connected))
     missing = [t for t in initial["targets"] if not t["enabled"]]
-    check("twelve_absent_roles_have_reasons_without_timestamps", len(missing) == 12 and all(t["reason_code"] != "ENDPOINT_NOT_CONFIGURED" and t["checked_at"] is None for t in missing))
+    check("absent_roles_have_reasons_without_timestamps", len(missing) == (9 if execution_enabled else 12)
+          and all(t["reason_code"] != "ENDPOINT_NOT_CONFIGURED" and t["checked_at"] is None for t in missing))
     public = json.dumps(initial) + get(BASE + "/asset-access.json")[2].decode() + get(BASE + "/api/recovery")[2].decode()
     check("public_status_contains_no_service_credentials", all(value not in public for value in credentials.values()))
-    before = containers()
     recovery_before = json.loads(get(BASE + "/api/recovery")[2])["requests"]
     scheduler = "http://127.0.0.1:58182/api/instances/recent"
     broker = "http://127.0.0.1:58183/v1/inventory/resource-targets"
@@ -81,9 +85,17 @@ def main(faults=False):
         check(name + "_requires_authentication", get(url)[0] == 401)
     scheduler_result = get(scheduler, credentials["SCHEDULER_API_TOKEN"])
     broker_result = get(broker, credentials["INVENTORY_API_TOKEN"])
-    check("scheduler_queries_real_empty_database", scheduler_result[0] == 200 and json.loads(scheduler_result[2])["data"] == [])
+    recent = json.loads(scheduler_result[2])
+    check("scheduler_queries_real_recent_inventory", scheduler_result[0] == 200 and recent["code"] == "SUCCESS"
+          and isinstance(recent["data"], list) and len(recent["data"]) <= 20)
     inventory = json.loads(broker_result[2])
-    check("broker_inventory_empty_without_fake_cloud_targets", broker_result[0] == 200 and inventory["total"] == 0 and inventory["items"] == [])
+    capacity_path = LOCAL / ".execution/functional/capacity.json"
+    capacity = json.loads(capacity_path.read_text(encoding="utf-8")) if capacity_path.exists() else None
+    expected_targets = {capacity["resource_target_id"]} if capacity else set()
+    check("broker_inventory_matches_explicit_local_catalog", broker_result[0] == 200
+          and inventory["total"] == len(expected_targets)
+          and {item["resource_target_id"] for item in inventory["items"]} == expected_targets
+          and all(item["scope_id"] == "local-fixture-only" and item["account_id"] == capacity["account_id"] for item in inventory["items"]))
     check("broker_inventory_token_cannot_read_admin_accounts", get("http://127.0.0.1:58183/v1/admin/provider-accounts", credentials["INVENTORY_API_TOKEN"])[0] in (401,403))
     for track, backend, frontend, edge in [("internal",58180,58184,58186),("external",58181,58185,58187)]:
         endpoint = "/api/v1/challenges/00000000-0000-0000-0000-000000000000"
@@ -126,10 +138,15 @@ def main(faults=False):
     unchanged = ["backend-internal","backend-external","postgres-internal","postgres-external","redis-internal","redis-external"]
     check("existing_six_containers_unchanged", all(before[name] == after[name] for name in unchanged))
     check("new_containers_keep_identity_and_persistent_volumes", all(before[name]["id"] == after[name]["id"] for name in before))
-    check("seven_fixed_application_recovery_bindings", final["recovery"]["enabled"] and len(final["recovery"]["assets"]) == 7)
+    expected_bindings = {"internal-backend", "external-backend", "scheduler", "broker", "internal-frontend", "external-frontend", "edge"}
+    if execution_enabled: expected_bindings.add("runtime")
+    check("fixed_application_recovery_bindings", final["recovery"]["enabled"]
+          and {item["asset_id"] for item in final["recovery"]["assets"]} == expected_bindings)
     result = {"passed":True,"checked_at":datetime.now(timezone.utc).isoformat(),"checks":CHECKS,"faults":faults_seen,
-        "direct_probes":9,"healthy_assets_including_backend_dependencies":13,"unconfigured_roles":12,
-        "recovery_for_added_assets":"seven_fixed_applications","source_versions":{"scheduler":"5c695142","broker":"99ff5b88","frontend":"c0a85359"}}
+        "direct_probes":len(connected),"healthy_assets_including_backend_dependencies":len(connected)+4,"unconfigured_roles":len(missing),
+        "recovery_bindings":len(expected_bindings),"scheduler_recent_count":len(recent["data"]),
+        "broker_catalog_scope":"explicit_local_fixture_not_cloud" if expected_targets else "empty_inventory",
+        "source_versions":{"scheduler":"5c695142","broker":"99ff5b88","frontend":"c0a85359"}}
     path = LOCAL / "artifacts" / ("assets-verification-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + ".json")
     path.write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
     print(json.dumps({"passed":True,"checks":len(CHECKS),"report":str(path)},ensure_ascii=False))
