@@ -341,7 +341,7 @@ export async function createMechanismScene(element, {still=false} = {}) {
   canvas.setAttribute("aria-hidden", "true");
   let renderer, model, environment, resizeObserver;
   let frame=0, running=false, failed=false, destroyed=false, ready=false, elapsed=still ? 8 : 2.6, last=0, lastPaint=0, frames=0;
-  let view="auto", width=1, height=1, narrow=false;
+  let view="auto", width=1, height=1, narrow=false, displayedState;
   const pointer = {x:0,y:0}, targetPointer = {x:0,y:0};
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(34,1,.1,80);
@@ -462,7 +462,12 @@ export async function createMechanismScene(element, {still=false} = {}) {
     element.addEventListener("pointermove",movePointer);
     element.addEventListener("pointerleave",leavePointer);
     resizeObserver=new ResizeObserver(resize); resizeObserver.observe(element);
-    return {setRunning,setState:state=>{model.setState(state); if(!running) draw();},setView:mode=>{
+    return {setRunning,setState:state=>{
+      if (state===displayedState) return;
+      displayedState=state;
+      model.setState(state);
+      if (!running) draw();
+    },setView:mode=>{
       view=["auto","exploded","assembled"].includes(mode) ? mode : "auto";
       if (!running) draw(0,true);
     },dispose};
