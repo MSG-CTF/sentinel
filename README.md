@@ -78,7 +78,7 @@ C#, .NET 8, ASP.NET Core, BackgroundService, HttpClientFactory, xUnit, Docker Co
 
 [확인한 소스 버전](local/source-versions.json)
 
-배포 서버의 release SHA와 image digest는 아직 확인되지 않았다
+감시 대상인 배포 서버들의 release SHA와 image digest는 아직 확인되지 않았다
 로컬은 기록한 GitHub 소스로 실행하며 배포 이미지와 같다고 주장하지 않는다
 
 ## 검증 근거
