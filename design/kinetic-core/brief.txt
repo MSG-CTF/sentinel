@@ -51,3 +51,22 @@ rendering techniques with the fidelity of an offline film render.
 Verify the full scene at 1280x720, 390x844 and a tablet breakpoint, including
 text legibility over geometry, animation pause, viewport switching, missing
 HDR behavior, missing renderer behavior and authenticated asset access.
+
+Precision finishing and mechanical timing revision
+Separate turned titanium, linear satin brushing, perlage on the movement
+plate, polished bevels, dark coated metal and small ruby bearings. Add
+derivative-filtered object-space machining to surface roughness and normals;
+keep marks subtle enough that the metal still reads as maintained hardware.
+Use curved bevel profiles, involute-style gear flanks with cutout spokes,
+rolling-element bearings, locking pins and curved case engravings. Contact
+shading should clarify small gaps without outlining the whole silhouette.
+
+Anchor the chassis to its case. Use a reversible cam sequence: unlock,
+clear the cover, open the iris, raise the carriage, extend the gear carrier
+and then present the optic. Closing follows the same path in reverse. Avoid
+independent spinning of the structural plates. Gear pairs counter-rotate at
+their tooth ratio; the spring changes pitch without stretching its wire.
+Manual reversal preserves velocity through a critically damped controller.
+Test endpoint clearance, loop continuity, reversal and frame-rate independence.
+Batch stationary hardware within each animated part and hide fine physical
+grooves at mobile sizes. Verify the actual scene after those optimizations.
