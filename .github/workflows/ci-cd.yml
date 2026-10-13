@@ -21,7 +21,8 @@ jobs:
           node-version: '22'
       - run: dotnet test -c Release --nologo
       - run: node --test local/*.test.cjs
-      - run: python3 -m unittest discover -s deploy/aws -p 'test_*.py' -v
+      # SSM runs as root; match ownership of its mode-0600 proxy configuration.
+      - run: sudo --preserve-env=SENTINEL_DOCKER_TESTS python3 -m unittest discover -s deploy/aws -p 'test_*.py' -v
         env:
           SENTINEL_DOCKER_TESTS: '1'
       - name: Build tested image
