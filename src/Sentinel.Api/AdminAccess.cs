@@ -111,6 +111,7 @@ public static class AdminAccessRegistration
             var publicFile = path.Value is "/login" or "/login.html" or "/login.css" or "/login.js"
                 or "/sentinel-core.js" or "/sentinel-scene.js" or "/mechanism.css"
                 or "/vendor/three/three.module.js" or "/vendor/three/three.core.js"
+                or "/vendor/three/HDRLoader.js" or "/assets/studio-small-09.hdr"
                 or "/assets/sentinel-metal-core.webp" or "/favicon.svg";
             var ownAuthentication = path.Value is "/auth/csrf" or "/auth/login" or "/internal/readiness"
                 || path.StartsWithSegments("/internal/recovery") || path.StartsWithSegments("/ingest/heartbeat");

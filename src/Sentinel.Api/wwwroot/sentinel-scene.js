@@ -1,4 +1,5 @@
 import * as THREE from "./vendor/three/three.module.js";
+import { HDRLoader } from "./vendor/three/HDRLoader.js";
 
 // A procedural product model, not asset telemetry. Dimensions are scene units.
 const TAU = Math.PI * 2;
@@ -11,7 +12,7 @@ function sequence(time) {
 }
 
 function surfaceTexture() {
-  const size = 256, data = new Uint8Array(size * size * 4);
+  const size = 512, data = new Uint8Array(size * size * 4);
   let seed = 713;
   const random = () => { seed = (1664525 * seed + 1013904223) >>> 0; return seed / 4294967296; };
   for (let y = 0; y < size; y++) {
@@ -70,10 +71,25 @@ function gearGeometry(radius, teeth, depth) {
   return geometry;
 }
 
+function bridgeGeometry() {
+  const plate=new THREE.Shape();plate.absarc(0,0,1.90,0,TAU,false);
+  const center=new THREE.Path();center.absarc(0,0,.70,0,TAU,true);plate.holes.push(center);
+  for(let i=0;i<6;i++){
+    const a=i/6*TAU+.12,b=(i+1)/6*TAU-.12;
+    const window=new THREE.Path();
+    window.moveTo(Math.cos(a)*.99,Math.sin(a)*.99);
+    window.absarc(0,0,.99,a,b,false);
+    window.lineTo(Math.cos(b)*1.62,Math.sin(b)*1.62);
+    window.absarc(0,0,1.62,b,a,true);window.closePath();plate.holes.push(window);
+  }
+  const geometry=new THREE.ExtrudeGeometry(plate,{depth:.065,bevelEnabled:true,bevelThickness:.022,bevelSize:.022,bevelSegments:3,curveSegments:56});
+  geometry.rotateX(-Math.PI/2);geometry.translate(0,-.0325,0);return geometry;
+}
+
 function studioEnvironment(renderer) {
   const studio = new THREE.Scene();
-  studio.background = new THREE.Color(.18, .20, .23);
-  const box = new THREE.Mesh(new THREE.BoxGeometry(32, 24, 32), new THREE.MeshBasicMaterial({color:0x596572, side:THREE.BackSide}));
+  studio.background = new THREE.Color(.006, .009, .014);
+  const box = new THREE.Mesh(new THREE.BoxGeometry(32, 24, 32), new THREE.MeshBasicMaterial({color:0x252c33, side:THREE.BackSide}));
   studio.add(box);
   function softbox(position, width, height, color, intensity) {
     const panel = new THREE.Mesh(new THREE.PlaneGeometry(width, height), new THREE.MeshBasicMaterial({color:new THREE.Color(color).multiplyScalar(intensity), side:THREE.DoubleSide}));
@@ -81,11 +97,12 @@ function studioEnvironment(renderer) {
     panel.lookAt(0, 0, 0);
     studio.add(panel);
   }
-  softbox([-5, 7, 5], 5, 8, 0xf0f5ff, 7);
-  softbox([6, 3, -4], 3, 9, 0x92bed6, 4);
-  softbox([1, 8, 0], 8, 1.2, 0xffffff, 5);
-  softbox([-6, -1, -3], 2, 6, 0xc8a57f, 1.6);
-  softbox([0, 1, 8], 7, 1, 0xffffff, 2);
+  softbox([-5, 7, 5], 3, 9, 0xffe0aa, 9);
+  softbox([6, 3, -4], 1.5, 10, 0x8cb2d0, 8);
+  softbox([1, 8, 0], 9, .7, 0xfff4df, 10);
+  softbox([-6, -1, -3], 1.5, 7, 0xd99951, 3);
+  softbox([0, 1, 8], 6, .6, 0xd9eaff, 4);
+  softbox([5, 4, 6], 10, 8, 0xb4c7d5, 1.15);
   const generator = new THREE.PMREMGenerator(renderer);
   const target = generator.fromScene(studio, .04);
   studio.traverse(object => { object.geometry?.dispose(); object.material?.dispose(); });
@@ -93,19 +110,41 @@ function studioEnvironment(renderer) {
   return target;
 }
 
+async function photographicEnvironment(renderer,element) {
+  let texture,generator;
+  try {
+    const response=await fetch("/assets/studio-small-09.hdr",{signal:AbortSignal.timeout(6000)});
+    if(!response.ok)throw new Error("Environment unavailable");
+    const data=new HDRLoader().parse(await response.arrayBuffer());
+    texture=new THREE.DataTexture(data.data,data.width,data.height,THREE.RGBAFormat,data.type);
+    texture.colorSpace=data.colorSpace;texture.flipY=data.flipY;
+    texture.minFilter=texture.magFilter=THREE.LinearFilter;
+    texture.needsUpdate=true;
+    generator=new THREE.PMREMGenerator(renderer);
+    const environment=generator.fromEquirectangular(texture);
+    element.dataset.environment="photographic-studio";
+    return environment;
+  } catch {
+    element.dataset.environment="procedural-studio";
+    return studioEnvironment(renderer);
+  } finally {
+    texture?.dispose();generator?.dispose();
+  }
+}
+
 function makeModel() {
   const root = new THREE.Group();
   const grain = surfaceTexture();
   const materials = {
-    titanium:new THREE.MeshPhysicalMaterial({color:0xb6bec7, metalness:.96, roughness:.40, roughnessMap:grain, bumpMap:grain, bumpScale:.006, anisotropy:.5, envMapIntensity:1.1}),
-    edge:new THREE.MeshStandardMaterial({color:0xd4dce4, metalness:1, roughness:.20, envMapIntensity:1.15}),
-    dark:new THREE.MeshStandardMaterial({color:0x202933, metalness:.7, roughness:.37}),
+    titanium:new THREE.MeshPhysicalMaterial({color:0x9da3a6, metalness:.94, roughness:.46, roughnessMap:grain, bumpMap:grain, bumpScale:.006, anisotropy:.7, envMapIntensity:1.25}),
+    edge:new THREE.MeshStandardMaterial({color:0xc8c0ad, metalness:1, roughness:.16, envMapIntensity:1.5}),
+    dark:new THREE.MeshStandardMaterial({color:0x10161d, metalness:.58, roughness:.45, bumpMap:grain, bumpScale:.007}),
     ceramic:new THREE.MeshPhysicalMaterial({color:0x080e15, metalness:.25, roughness:.24, clearcoat:.55, clearcoatRoughness:.13}),
-    brass:new THREE.MeshStandardMaterial({color:0x9e8259, metalness:1, roughness:.27, roughnessMap:grain}),
+    brass:new THREE.MeshStandardMaterial({color:0xba9054, metalness:1, roughness:.24, roughnessMap:grain}),
     socket:new THREE.MeshStandardMaterial({color:0x06090d, metalness:.3, roughness:.48}),
     light:new THREE.MeshStandardMaterial({color:0xb6f4ff, metalness:.15, roughness:.19, emissive:0x5ad9ff, emissiveIntensity:2.5}),
     status:new THREE.MeshStandardMaterial({color:0xa6d6de, metalness:.2, roughness:.3, emissive:0x63bbc9, emissiveIntensity:1.3}),
-    lens:new THREE.MeshPhysicalMaterial({color:0x79b7d1, metalness:.12, roughness:.06, clearcoat:1, transmission:.72, thickness:.25, ior:1.55}),
+    lens:new THREE.MeshPhysicalMaterial({color:0x1d5366, metalness:.18, roughness:.08, clearcoat:1, transmission:.5, thickness:.25, ior:1.55}),
   };
   const resources = new Set();
   const keep = geometry => {resources.add(geometry); return geometry;};
@@ -189,11 +228,11 @@ function makeModel() {
   }
 
   const rotor = new THREE.Group(); root.add(rotor);
+  mesh(rotor,bridgeGeometry(),[materials.titanium,materials.edge],0,.018);
   ring(rotor, 1.63, 1.91, .08, 0);
   ring(rotor, .67, .9, .12, .02, materials.edge);
   torus(rotor, 1.83, .022, .065, materials.brass);
-  array(rotor, new THREE.BoxGeometry(.78,.055,.10), materials.titanium, 6, 1.27, .028);
-  array(rotor, new THREE.BoxGeometry(.57,.012,.035), materials.dark, 6, 1.3, .063);
+  array(rotor, new THREE.BoxGeometry(.48,.012,.025), materials.dark, 6, 1.31, .086);
   fasteners(rotor, 6, 1.77, .075, .046);
   fasteners(rotor, 6, .81, .102, .038);
   array(rotor, new THREE.BoxGeometry(.04,.035,.018), materials.brass, 84, 1.93, -.015);
@@ -251,17 +290,62 @@ function makeModel() {
 
   const core = new THREE.Group(); root.add(core);
   ring(core,.37,.6,.11,0,materials.edge);
+  ring(core,.60,.78,.09,-.024,materials.titanium);
+  fasteners(core,8,.70,.04,.025);
   ring(core,.40,.53,.12,-.10,materials.dark);
   torus(core,.47,.035,.092,materials.light);
-  const lens = mesh(core,new THREE.SphereGeometry(.4,48,32),materials.lens,0,.08);
-  lens.scale.y = .56;
-  mesh(core,new THREE.SphereGeometry(.29,32,24),materials.light,0,.04);
+  mesh(core,new THREE.CylinderGeometry(.398,.398,.075,96),materials.lens,0,.09);
+  mesh(core,new THREE.CylinderGeometry(.32,.32,.015,64),materials.ceramic,0,.035);
+  array(core,new THREE.BoxGeometry(.009,.004,.073),materials.socket,36,.30,.14);
   const gimbal = new THREE.Group(); core.add(gimbal);
   const outerGimbal = torus(gimbal,.74,.035,0,materials.edge);
   const innerGimbal = torus(gimbal,.64,.023,0,materials.brass);
   innerGimbal.rotation.z = Math.PI/2;
   array(core,new THREE.BoxGeometry(.027,.03,.055),materials.dark,32,.56,.078);
   const light = new THREE.PointLight(0x6ccfee,3,4,2); core.add(light); light.position.y=.2;
+
+  // A machined enclosure gives the mechanism a physical setting and scale.
+  // The mechanism opens inside the enclosure; the outer housing stays still.
+  const enclosure = new THREE.Group(); root.add(enclosure);
+  ring(enclosure,2.23,3.03,.39,-1.77,materials.dark);
+  ring(enclosure,2.27,3.08,.08,-1.54,materials.titanium);
+  ring(enclosure,2.30,2.43,.035,-1.48,materials.brass);
+  ring(enclosure,2.89,3.10,.085,-1.53,materials.edge);
+  ring(enclosure,2.2,3.08,.09,-2.01,materials.dark);
+  torus(enclosure,3.075,.018,-1.79,materials.brass);
+  torus(enclosure,3.045,.012,-1.88,materials.edge);
+  array(enclosure,new THREE.BoxGeometry(.052,.29,.031),materials.socket,120,3.048,-1.78);
+  array(enclosure,new THREE.BoxGeometry(.026,.008,.10),materials.edge,100,2.81,-1.477);
+  fasteners(enclosure,16,2.60,-1.475,.048);
+  const braceGeometry=keep(arcGeometry(2.42,2.70,-.20,.20,.095,.018));
+  for (let i=0;i<6;i++) {
+    const brace=new THREE.Group(); enclosure.add(brace); brace.rotation.y=i/6*TAU;
+    mesh(brace,braceGeometry,materials.titanium,0,-1.41);
+    const arm=mesh(brace,new THREE.BoxGeometry(.15,.52,.23),materials.dark,2.57,-1.21,0);
+    arm.rotation.z=-.24;
+    mesh(brace,new THREE.CylinderGeometry(.052,.052,.35,16),materials.edge,2.61,-1.25,0);
+    const cableCurve=new THREE.CatmullRomCurve3([new THREE.Vector3(2.54,-1.35,.13),new THREE.Vector3(2.74,-1.07,.18),new THREE.Vector3(2.69,-.64,.24),new THREE.Vector3(2.39,-.42,.25)]);
+    mesh(brace,new THREE.TubeGeometry(cableCurve,24,.033,8,false),materials.ceramic);
+    mesh(brace,new THREE.TubeGeometry(cableCurve,24,.010,6,false),materials.brass,0,.009,.027);
+  }
+  // Deep, irregular recesses keep the movement from reading as flat rings.
+  for (let i=0;i<4;i++) {
+    const bridge=new THREE.Group(); movement.add(bridge); bridge.rotation.y=i/4*TAU+.18;
+    const arm=mesh(bridge,new THREE.BoxGeometry(.84,.042,.11),materials.titanium,1.32,.27,0);
+    arm.rotation.y=.18;
+    mesh(bridge,new THREE.CylinderGeometry(.054,.054,.04,24),materials.brass,.92,.31,0);
+    mesh(bridge,new THREE.CylinderGeometry(.027,.027,.008,6),materials.socket,.92,.335,0);
+  }
+  array(rotor,new THREE.BoxGeometry(.010,.006,.075),materials.socket,120,1.77,.048);
+  array(core,new THREE.CylinderGeometry(.012,.012,.008,12),materials.edge,48,.516,.116);
+
+  const spindle=new THREE.Group();root.add(spindle);
+  mesh(spindle,new THREE.CylinderGeometry(.23,.23,1,48),materials.dark);
+  const springCurve=new class extends THREE.Curve {
+    getPoint(t,out=new THREE.Vector3()){const a=t*TAU*9;return out.set(Math.cos(a)*.31,t-.5,Math.sin(a)*.31);}
+  }();
+  mesh(spindle,new THREE.TubeGeometry(springCurve,320,.026,8,false),materials.brass);
+  for(let i=0;i<7;i++) ring(spindle,.23,.265,.032,i/6-.5,materials.edge);
 
   let explosion = .25;
   function update(time, delta, view, pointer, snap=false) {
@@ -294,6 +378,10 @@ function makeModel() {
       part.rotation.z = -stagger*.35;
     });
     gears.forEach(({wheel,speed}) => wheel.rotation.y = time*speed);
+    const spindleBottom=chassis.position.y+.38,spindleTop=core.position.y-.12;
+    spindle.position.y=(spindleBottom+spindleTop)/2;
+    spindle.scale.y=spindleTop-spindleBottom;
+    spindle.rotation.y=time*.10;
     actuators.forEach(({angle,rod,sleeve,a,b}) => {
       const lowerAngle=angle-chassis.rotation.y, upperAngle=angle-rotor.rotation.y;
       a.position.set(Math.cos(lowerAngle)*1.72,chassis.position.y+.24,Math.sin(lowerAngle)*1.72);
@@ -306,8 +394,8 @@ function makeModel() {
       sleeve.position.copy(a.position).lerp(b.position,.22);
       sleeve.quaternion.copy(rod.quaternion); sleeve.scale.y=length*.42;
     });
-    materials.light.emissiveIntensity = 2.2 + e*.45 + Math.sin(time*1.2)*.16;
-    light.intensity = 2.8 + e*1.4;
+    materials.light.emissiveIntensity = 1.25 + e*.25 + Math.sin(time*1.2)*.1;
+    light.intensity = 1.7 + e*.7;
     return e;
   }
   function setState(state) {
@@ -327,26 +415,98 @@ function makeModel() {
     lowPower=mobile;
     // Transmission renders the entire scene twice; the mobile lens uses a
     // reflective coating instead, retaining depth without the extra pass.
-    materials.lens.transmission=mobile ? 0 : .72;
-    materials.lens.metalness=mobile ? .6 : .12;
-    materials.lens.color.setHex(mobile ? 0x53859b : 0x79b7d1);
+    materials.lens.transmission=mobile ? 0 : .5;
+    materials.lens.metalness=mobile ? .6 : .18;
+    materials.lens.color.setHex(mobile ? 0x275162 : 0x1d5366);
     materials.lens.needsUpdate=true;
   }
   return {root,update,setState,setQuality,dispose};
+}
+
+function createFinish(renderer) {
+  const target=new THREE.WebGLRenderTarget(1,1,{type:renderer.extensions.has("EXT_color_buffer_float") ? THREE.HalfFloatType : THREE.UnsignedByteType});
+  target.depthTexture=new THREE.DepthTexture(1,1,THREE.UnsignedIntType);
+  const uniforms={tColor:{value:target.texture},tDepth:{value:target.depthTexture},uPixel:{value:new THREE.Vector2(1,1)},uFocus:{value:10},uNear:{value:.1},uFar:{value:80},uQuality:{value:1},uTime:{value:0}};
+  const material=new THREE.ShaderMaterial({uniforms,depthTest:false,depthWrite:false,
+    vertexShader:`varying vec2 vUv; void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}`,
+    fragmentShader:`
+      varying vec2 vUv;
+      uniform sampler2D tColor,tDepth;
+      uniform vec2 uPixel;
+      uniform float uFocus,uNear,uFar,uQuality,uTime;
+      float noise(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
+      vec3 bright(vec2 uv){vec3 c=texture2D(tColor,uv).rgb;return max(c-vec3(1.15),vec3(0.0));}
+      void main(){
+        vec3 color=texture2D(tColor,vUv).rgb;
+        float z=texture2D(tDepth,vUv).x;
+        float depth=uNear*uFar/(uFar-(uFar-uNear)*z);
+        float blur=min(abs(depth-uFocus)*.42,2.6)*uQuality;
+        if(blur>.18){
+          vec3 b=vec3(0.0);
+          for(int i=0;i<8;i++){
+            float a=float(i)*.785398;
+            b+=texture2D(tColor,vUv+vec2(cos(a),sin(a))*uPixel*blur).rgb;
+          }
+          color=mix(color,b*.125,.72);
+        }
+        vec2 r=uPixel*4.0;
+        vec3 glow=bright(vUv+vec2(r.x,r.y))+bright(vUv+vec2(-r.x,r.y))+bright(vUv+vec2(r.x,-r.y))+bright(vUv-r);
+        color+=glow*.022;
+        vec2 p=vUv-.5;
+        color*=1.0-.30*dot(p,p);
+        gl_FragColor=vec4(color,1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+        gl_FragColor.rgb+=(noise(vUv/uPixel+floor(uTime*12.0))-.5)*.009;
+      }`});
+  const geometry=new THREE.PlaneGeometry(2,2), scene=new THREE.Scene(), camera=new THREE.Camera();
+  scene.add(new THREE.Mesh(geometry,material));
+  return {
+    resize(width,height,mobile){
+      const samples=Math.min(mobile ? 2 : 4,renderer.capabilities.maxSamples);
+      if(target.samples!==samples){target.samples=samples;target.dispose();}
+      target.setSize(width,height);uniforms.uPixel.value.set(1/width,1/height);uniforms.uQuality.value=mobile ? 0 : 1;
+    },
+    render(source,sourceCamera,time){
+      uniforms.uFocus.value=sourceCamera.position.distanceTo(new THREE.Vector3(0,.2,0));
+      uniforms.uTime.value=time;
+      renderer.setRenderTarget(target);renderer.render(source,sourceCamera);
+      renderer.setRenderTarget(null);renderer.render(scene,camera);
+    },
+    dispose(){target.dispose();target.depthTexture.dispose();material.dispose();geometry.dispose();}
+  };
+}
+
+function makeBackdrop() {
+  const group=new THREE.Group(), geometries=new Set();
+  const materials=[new THREE.MeshStandardMaterial({color:0x111820,metalness:.9,roughness:.28}),new THREE.MeshStandardMaterial({color:0x66573b,metalness:1,roughness:.23})];
+  function part(geometry,material,position,rotation=[0,0,0]){
+    geometries.add(geometry);const mesh=new THREE.Mesh(geometry,material);mesh.position.set(...position);mesh.rotation.set(...rotation);mesh.receiveShadow=true;mesh.castShadow=true;group.add(mesh);return mesh;
+  }
+  part(new THREE.TorusGeometry(5.5,.13,12,160),materials[0],[-.5,-.7,-4.5],[.25,-.35,.0]);
+  part(new THREE.TorusGeometry(5.68,.016,8,160),materials[1],[-.5,-.7,-4.5],[.25,-.35,.0]);
+  part(new THREE.TorusGeometry(7.25,.18,12,160),materials[0],[-.5,-.7,-5.3],[.25,-.35,.0]);
+  const railGeometry=new THREE.BoxGeometry(.055,.065,20);
+  for(const x of [-6,-5.85,4.5,4.65]) part(railGeometry,materials[1],[x,-2.23,-2]);
+  for(let i=0;i<7;i++)part(new THREE.BoxGeometry(1.6,.20,.075),materials[0],[-4.9,-2.2,3.5-i*.38],[0,-.35,0]);
+  return {group,dispose(){geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());}};
 }
 
 export async function createMechanismScene(element, {still=false} = {}) {
   const canvas = document.createElement("canvas");
   canvas.className = "mechanism-canvas";
   canvas.setAttribute("aria-hidden", "true");
-  let renderer, model, environment, resizeObserver;
+  let renderer, model, environment, resizeObserver, finish, backdrop;
   let frame=0, running=false, failed=false, destroyed=false, ready=false, elapsed=still ? 8 : 2.6, last=0, lastPaint=0, frames=0;
   let view="auto", width=1, height=1, narrow=false, displayedState;
   const pointer = {x:0,y:0}, targetPointer = {x:0,y:0};
+  const hero=element.dataset.sentinelCore==="access";
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(34,1,.1,80);
-  const shadowGeometry = new THREE.PlaneGeometry(30,30);
-  const shadowMaterial = new THREE.ShadowMaterial({opacity:.065});
+  scene.background=new THREE.Color(0x090c10);
+  scene.fog=new THREE.FogExp2(0x090c10,.038);
+  const camera = new THREE.PerspectiveCamera(36,1,.1,80);
+  const shadowGeometry = new THREE.PlaneGeometry(200,200);
+  const shadowMaterial = new THREE.MeshStandardMaterial({color:0x05090d,metalness:.45,roughness:.5,envMapIntensity:.2});
   function removeListeners() {
     element.removeEventListener("pointermove", movePointer);
     element.removeEventListener("pointerleave", leavePointer);
@@ -361,6 +521,7 @@ export async function createMechanismScene(element, {still=false} = {}) {
     removeListeners();
     model?.dispose();
     environment?.dispose();
+    finish?.dispose();backdrop?.dispose();
     shadowGeometry.dispose(); shadowMaterial.dispose();
     renderer?.dispose();
     canvas.remove();
@@ -383,8 +544,13 @@ export async function createMechanismScene(element, {still=false} = {}) {
     if (destroyed || failed || !ready) return;
     pointer.x=THREE.MathUtils.damp(pointer.x,targetPointer.x,3,delta);
     pointer.y=THREE.MathUtils.damp(pointer.y,targetPointer.y,3,delta);
-    model.update(elapsed,delta,view,pointer,snap);
-    renderer.render(scene,camera);
+    const expansion=model.update(elapsed,delta,view,pointer,snap);
+    if(hero && !narrow){
+      camera.position.set(3.7+Math.sin(elapsed*.07)*.30+pointer.x*.24,4.45+expansion*.65,8.65+expansion*.65);
+      camera.lookAt(1.48,.18,0);
+    }
+    renderer.info.reset();
+    finish.render(scene,camera,elapsed);
     frames++;
     // DOM diagnostics allow smoke tests to verify that the GPU surface advances.
     if (frames%20===1 || !running) {
@@ -415,15 +581,24 @@ export async function createMechanismScene(element, {still=false} = {}) {
     if (destroyed || !renderer) return;
     const box=element.getBoundingClientRect();
     if (!box.width || !box.height) return;
-    width=box.width; height=box.height; narrow=window.innerWidth<700 || width<420;
+    width=box.width; height=box.height; narrow=window.innerWidth<(hero ? 901 : 700) || width<420;
     model.setQuality(narrow);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1,narrow ? 1.35 : 1.6));
+    renderer.setPixelRatio(Math.min(Math.max(window.devicePixelRatio || 1,1.25),1.5));
     renderer.setSize(width,height,false);
+    finish.resize(Math.round(width*renderer.getPixelRatio()),Math.round(height*renderer.getPixelRatio()),narrow);
     camera.aspect=width/height;
-    // Fit the fully extended assembly as well as the closed body.
-    const distance=Math.max(11.2,10.7/camera.aspect);
-    camera.position.set(distance*.34,distance*.48,distance*.81);
-    camera.lookAt(0,.22,0);
+    if(hero && !narrow){
+      camera.position.set(3.7,5.1,9.2);
+      camera.lookAt(1.48,.18,0);
+    }else if(hero){
+      const distance=Math.max(12.6,10.2/camera.aspect);
+      camera.position.set(distance*.29,distance*.48,distance*.82);
+      camera.lookAt(-.20,.17,0);
+    }else{
+      const distance=Math.max(13.8,12.1/camera.aspect);
+      camera.position.set(distance*.34,distance*.46,distance*.81);
+      camera.lookAt(0,-.12,0);
+    }
     camera.updateProjectionMatrix();
     draw();
   }
@@ -432,24 +607,29 @@ export async function createMechanismScene(element, {still=false} = {}) {
     renderer.setClearColor(0x000000,0);
     renderer.outputColorSpace=THREE.SRGBColorSpace;
     renderer.toneMapping=THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure=1.05;
+    renderer.toneMappingExposure=1.15;
+    renderer.info.autoReset=false;
     renderer.shadowMap.enabled=true;
     renderer.shadowMap.type=THREE.PCFShadowMap;
-    environment=studioEnvironment(renderer);
+    environment=await photographicEnvironment(renderer,element);
     scene.environment=environment.texture;
-    scene.add(new THREE.HemisphereLight(0xe4f0ff,0x101822,1.1));
-    const key=new THREE.DirectionalLight(0xf6f2e9,3.1);
+    scene.environmentIntensity=.42;
+    scene.environmentRotation.set(0,.58,0);
+    scene.add(new THREE.HemisphereLight(0xbdd7f1,0x080b10,.42));
+    const key=new THREE.DirectionalLight(0xffd79c,4.1);
     key.position.set(-4,8,6); key.castShadow=true;
     key.shadow.mapSize.set(1024,1024);
     Object.assign(key.shadow.camera,{left:-4.5,right:4.5,top:4.5,bottom:-4.5,near:1,far:24});
     key.shadow.normalBias=.022; key.shadow.bias=-.00015;
     key.shadow.radius=3;
     scene.add(key);
-    const rim=new THREE.DirectionalLight(0x8ac9f4,1.5); rim.position.set(4,3,-5); scene.add(rim);
-    const fill=new THREE.DirectionalLight(0xffd3ac,.55); fill.position.set(-4,-1,-2); scene.add(fill);
+    const rim=new THREE.DirectionalLight(0x91b6d5,3.3); rim.position.set(4,3,-5); scene.add(rim);
+    const fill=new THREE.DirectionalLight(0xe8b16b,1.1); fill.position.set(-4,-1,-2); scene.add(fill);
     model=makeModel(); scene.add(model.root);
+    if(hero){backdrop=makeBackdrop();scene.add(backdrop.group);}
     const shadow=new THREE.Mesh(shadowGeometry,shadowMaterial);
-    shadow.rotation.x=-Math.PI/2; shadow.position.y=-2.03; shadow.receiveShadow=true; scene.add(shadow);
+    shadow.rotation.x=-Math.PI/2; shadow.position.y=-2.25; shadow.receiveShadow=true; scene.add(shadow);
+    finish=createFinish(renderer);
     element.append(canvas);
     resize();
     model.update(elapsed,0,view,pointer,true);

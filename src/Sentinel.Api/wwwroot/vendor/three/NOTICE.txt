@@ -9,3 +9,7 @@ build/three.module.js and build/three.core.js are minified with esbuild 0.28.2:
 esbuild three.module.js three.core.js --minify --format=esm --legal-comments=inline --outdir=dist
 No runtime CDN, import map, external textures, or external model requests.
 The original MIT license is included in LICENSE.
+
+HDRLoader.js is from examples/jsm/loaders/HDRLoader.js in the same pinned
+0.186.1 package. The bare 'three' import is changed to './three.module.js'.
+The loader otherwise retains the upstream source and MIT license.

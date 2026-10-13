@@ -6,6 +6,7 @@ using Sentinel.Monitor.Django;
 using Sentinel.Monitor.Platform;
 using Sentinel.Monitor.Recovery;
 using Sentinel.Monitor.Instances;
+using Microsoft.AspNetCore.StaticFiles;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 4096);
@@ -41,7 +42,9 @@ app.Use(async (context, next) =>
 });
 app.UseAdminAccess(adminAccess);
 app.UseDefaultFiles();
-app.UseStaticFiles();
+var staticTypes = new FileExtensionContentTypeProvider();
+staticTypes.Mappings[".hdr"] = "image/vnd.radiance";
+app.UseStaticFiles(new StaticFileOptions { ContentTypeProvider = staticTypes });
 app.MapAdminAccess();
 app.MapGet("/internal/readiness", (HttpContext context, PlatformMonitor monitor, RecoveryCoordinator recovery) =>
 {

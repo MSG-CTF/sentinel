@@ -42,13 +42,17 @@ public sealed class AdminAccessTests
             Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/login")).StatusCode);
             Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/sentinel-core.js")).StatusCode);
             Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/mechanism.css")).StatusCode);
-            foreach (var path in new[] { "/sentinel-scene.js", "/vendor/three/three.module.js", "/vendor/three/three.core.js" })
+            foreach (var path in new[] { "/sentinel-scene.js", "/vendor/three/three.module.js", "/vendor/three/three.core.js", "/vendor/three/HDRLoader.js" })
             {
                 var script = await client.GetAsync(path);
                 Assert.Equal(HttpStatusCode.OK, script.StatusCode);
                 Assert.Contains("javascript", script.Content.Headers.ContentType?.MediaType ?? "");
             }
             Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/vendor/unlisted.js")).StatusCode);
+            var environment = await client.GetAsync("/assets/studio-small-09.hdr");
+            Assert.Equal(HttpStatusCode.OK, environment.StatusCode);
+            Assert.Equal("image/vnd.radiance", environment.Content.Headers.ContentType?.MediaType);
+            Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/assets/unlisted.hdr")).StatusCode);
             var visual = await client.GetAsync("/assets/sentinel-metal-core.webp");
             Assert.Equal(HttpStatusCode.OK, visual.StatusCode);
             Assert.Equal("image/webp", visual.Content.Headers.ContentType?.MediaType);

@@ -26,3 +26,28 @@ Research used as guidance, not copied as runtime instructions or a claimed secre
 - Three.js filtered environment lighting: https://threejs.org/docs/pages/PMREMGenerator.html
 
 This brief is specific to Sentinel and was synthesized from the user's direction and the references above. It is not a verbatim third-party prompt.
+
+
+Cinematic composition revision
+Reference supplied by the user: https://www.youtube.com/watch?v=mFgRGSOGNPM
+The opening 0-5 seconds show a large, close-framed metallic watch and an
+exploded movement integrated with the page typography. The tutorial uses
+image/video assets for its scroll animation. Those assets are not copied.
+
+For Sentinel, keep the actual articulated Three.js model but make the whole
+login screen one scene. A close perspective camera, permanent machined
+housing, inner spring-loaded spindle, gear bridges, background support arcs
+and recessed hardware give the core a setting. Let the silhouette fill the
+left two-thirds while the login remains quiet and readable on the right.
+Use one restrained warm metal accent against charcoal and cool steel.
+
+Use the CC0 photographic studio environment from Poly Haven for reflections,
+with a procedural lighting fallback. Finish the scene with multisampling,
+restrained highlight bloom, shallow depth-dependent blur and fine grain.
+Mobile uses fewer samples and omits the depth blur and transmission pass.
+Mode changes also move the camera smoothly. Do not equate these browser
+rendering techniques with the fidelity of an offline film render.
+
+Verify the full scene at 1280x720, 390x844 and a tablet breakpoint, including
+text legibility over geometry, animation pause, viewport switching, missing
+HDR behavior, missing renderer behavior and authenticated asset access.
