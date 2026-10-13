@@ -4,7 +4,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);-web
 a{color:inherit;text-decoration:none}button,input{font:inherit}button{cursor:pointer}svg{fill:none;stroke:currentColor;stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round}
 button:focus-visible,a:focus-visible{outline:2px solid #afd9ee;outline-offset:5px}
 .access-shell{position:relative;isolation:isolate;min-height:780px;height:100svh;overflow:hidden;background:radial-gradient(ellipse at 35% 48%,#25303b70,transparent 62%),#090c10}
-.access-scene{position:absolute;inset:0;z-index:-3}.access-scene>.mechanism{position:absolute;inset:0}.access-scene .mechanism-assembly{inset:1% 26% 2% -8%}
+.access-scene{position:absolute;inset:0;z-index:-3}.access-scene>.mechanism{position:absolute;inset:0}.access-scene .mechanism-assembly{inset:0 23% 0 0}
 .scene-shade{position:absolute;inset:0;pointer-events:none;z-index:-1;background:linear-gradient(90deg,#080b1033,transparent 37%,#080b1040 59%,#080b10ed 78%),linear-gradient(0deg,#080b10 0%,transparent 25%,transparent 75%,#080b1033)}
 .access-header{position:absolute;top:34px;left:48px;right:48px;display:flex;align-items:center;justify-content:space-between;z-index:5}
 .wordmark{display:flex;align-items:center;gap:13px;width:fit-content}.wordmark svg{width:27px;height:27px;color:#bcc8cf}.wordmark>span{font-size:12px;font-weight:600;letter-spacing:.15em}.wordmark i{height:12px;width:1px;background:#64666580;margin-inline:3px}.wordmark small{font:8px var(--mono);letter-spacing:.14em;color:#88969f}

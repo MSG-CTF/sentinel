@@ -1,7 +1,7 @@
 /* The optional WebGL scene and its matching static poster share one surface. */
 .mechanism{position:relative;isolation:isolate;touch-action:pan-y}
-.mechanism-assembly{position:absolute;inset:0;transition:opacity .5s;pointer-events:none}
-.mechanism-image{display:block;width:100%;height:100%;object-fit:contain;user-select:none;-webkit-user-drag:none;transform:scale(1.17)}
+.mechanism-assembly{position:absolute;inset:0;display:grid;grid-template: minmax(0,1fr) / minmax(0,1fr);place-items:center;transition:opacity .5s;pointer-events:none}
+.mechanism-image{display:block;width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;user-select:none;-webkit-user-drag:none;transform:scale(.90);mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent),linear-gradient(0deg,transparent,#000 3%,#000 84%,transparent);mask-composite:intersect}
 .mechanism-reflection{display:none}
 .mechanism-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;opacity:0;transition:opacity .6s}
 .mechanism[data-renderer=webgl] .mechanism-canvas{opacity:1}

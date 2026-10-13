@@ -5,5 +5,7 @@ at 1000 x 1000, with the same geometry, materials and light used by the app.
 This is the static fallback for unavailable WebGL, not a separate concept image.
 
 Geometry and composition: MSG CTF Sentinel project
+Current assembly: pocketed titanium bridges, recessed socket hardware,
+bearing races, nickel gear hubs and a recessed illuminated optical cartridge
 Studio lighting environment: studio-small-09.hdr, see studio-small-09-LICENSE.txt
 Renderer: self-hosted Three.js 0.186.1, see vendor/three/NOTICE.txt and LICENSE

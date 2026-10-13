@@ -36,14 +36,14 @@ export function advanceTravel(state, target, delta) {
 }
 
 function surfaceTexture() {
-  const size = 512, data = new Uint8Array(size * size * 4);
+  const size = 1024, data = new Uint8Array(size * size * 4);
   let seed = 713;
   const random = () => { seed = (1664525 * seed + 1013904223) >>> 0; return seed / 4294967296; };
   for (let y = 0; y < size; y++) {
-    const line = 155 + random() * 74;
+    const line = 164 + random() * 54;
     for (let x = 0; x < size; x++) {
       const offset = (y * size + x) * 4;
-      const value = Math.round(line + random() * 20);
+      const value = Math.round(line + random() * 12 + Math.sin(x * .011 + y * .03) * 5);
       data[offset] = data[offset + 1] = data[offset + 2] = value;
       data[offset + 3] = 255;
     }
@@ -87,12 +87,12 @@ function machinedMaterial(parameters, grain, {style=0, strength=1} = {}) {
           along = mix(p.y, length(fract(tile) - .5) * .17, top);
         }
         float fine = filteredToolLine(along * 320.0);
-        float cut = filteredToolLine(along * 42.0);
+        float cut = filteredToolLine(along * 118.0);
         float grain = texture2D(uMachining, vec2(p.x * .21 + p.z * .17, along * 5.0)).r - .72;
         float variation = texture2D(uMachining, p.xz * .07 + .31).r - .72;
         float score = pow(max(0.0, filteredToolLine(along * 21.0 + p.x * .035)), 20.0);
-        return vec3((fine * .12 + cut * .10 + grain * .25 - score * .18) * .00016,
-          grain * .18 + fine * .022 + cut * .025 + variation * .06, score);
+        return vec3((fine * .12 + cut * .10 + grain * .25 - score * .18) * .00038,
+          grain * .24 + fine * .028 + cut * .032 + variation * .08, score);
       }
       vec3 machiningNormal(vec3 position, vec3 n, float height) {
         vec3 dx = dFdx(position), dy = dFdy(position);
@@ -108,7 +108,7 @@ function machinedMaterial(parameters, grain, {style=0, strength=1} = {}) {
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         normal = machiningNormal(-vViewPosition, normal, toolFinish.x);`);
   };
-  material.customProgramCacheKey = () => 'sentinel-machining-v2';
+  material.customProgramCacheKey = () => 'sentinel-machining-v3';
   return material;
 }
 
@@ -122,7 +122,7 @@ function ringGeometry(inner, outer, height, bevel = .025) {
     }
   }
   profile.push(profile[0].clone());
-  return new THREE.LatheGeometry(profile, outer > 1 ? 128 : 48);
+  return new THREE.LatheGeometry(profile, outer > 1 ? 128 : outer > .3 ? 64 : 24);
 }
 
 function arcGeometry(inner, outer, start, end, height, bevel = .025) {
@@ -133,8 +133,8 @@ function arcGeometry(inner, outer, start, end, height, bevel = .025) {
   shape.absarc(0, 0, inner, end, start, true);
   shape.closePath();
   const geometry = new THREE.ExtrudeGeometry(shape, {depth:height, bevelEnabled:true, bevelThickness:bevel, bevelSize:bevel, bevelSegments:3, steps:1, curveSegments:32});
-  geometry.rotateX(-Math.PI / 2);
-  geometry.translate(0, -height / 2, 0);
+  geometry.rotateX(Math.PI / 2);
+  geometry.translate(0, height / 2, 0);
   return geometry;
 }
 
@@ -188,16 +188,17 @@ function makeModel() {
   const root=new THREE.Group(), resources=new Set(), textures=new Set();
   const grain=surfaceTexture();textures.add(grain);
   const materials={
-    body:machinedMaterial({color:0x48515b,metalness:1,roughness:.32,anisotropy:.22,envMapIntensity:.88},grain,{style:1,strength:.38}),
-    face:machinedMaterial({color:0x63707b,metalness:1,roughness:.28,anisotropy:.32,envMapIntensity:.95},grain,{style:1,strength:.48}),
-    edge:machinedMaterial({color:0xa2adb5,metalness:1,roughness:.20,envMapIntensity:1.1},grain,{strength:.18}),
-    bore:machinedMaterial({color:0x252e36,metalness:1,roughness:.40,anisotropy:.18},grain,{strength:.30}),
+    body:machinedMaterial({color:0x666965,metalness:1,roughness:.31,anisotropy:.35,envMapIntensity:1.0},grain,{strength:.65}),
+    face:machinedMaterial({color:0xb2b8b6,metalness:1,roughness:.27,anisotropy:.48,envMapIntensity:1.05},grain,{style:1,strength:.95}),
+    edge:machinedMaterial({color:0xc5cbd0,metalness:1,roughness:.16,envMapIntensity:1.15},grain,{strength:.35}),
+    bore:machinedMaterial({color:0x242b2d,metalness:1,roughness:.37,anisotropy:.18},grain,{strength:.55}),
+    nickel:machinedMaterial({color:0x999187,metalness:1,roughness:.29,anisotropy:.38},grain,{style:2,strength:.72}),
     ceramic:new THREE.MeshPhysicalMaterial({color:0x080c10,metalness:.25,roughness:.27,clearcoat:.24,clearcoatRoughness:.18}),
     rubber:new THREE.MeshStandardMaterial({color:0x080b0e,roughness:.76,metalness:0}),
-    copper:machinedMaterial({color:0x655548,metalness:1,roughness:.29},grain,{strength:.4}),
-    glass:new THREE.MeshPhysicalMaterial({color:0x0b2431,metalness:.05,roughness:.12,envMapIntensity:.32,clearcoat:1,clearcoatRoughness:.09,transmission:.25,thickness:.22,ior:1.52}),
-    emitter:new THREE.MeshStandardMaterial({color:0xcceeff,emissive:0x7bd7ff,emissiveIntensity:6.5,roughness:.22,metalness:.05}),
-    seam:new THREE.MeshStandardMaterial({color:0xc8edff,emissive:0x58bce9,emissiveIntensity:3.0,roughness:.28,metalness:.1}),
+    copper:machinedMaterial({color:0x786249,metalness:1,roughness:.3},grain,{strength:.55}),
+    glass:new THREE.MeshPhysicalMaterial({color:0x102329,metalness:0,roughness:.09,envMapIntensity:.24,clearcoat:1,clearcoatRoughness:.06,transmission:.38,thickness:.18,ior:1.52}),
+    emitter:new THREE.MeshStandardMaterial({color:0xe9f6ff,emissive:0xc3eaff,emissiveIntensity:5.0,roughness:.32,metalness:0}),
+    seam:new THREE.MeshStandardMaterial({color:0xcfecf5,emissive:0x80c6df,emissiveIntensity:1.9,roughness:.36,metalness:0}),
     status:new THREE.MeshStandardMaterial({color:0xbee9ff,emissive:0x73c9ed,emissiveIntensity:2.6,roughness:.25}),
   };
   const keep=g=>{resources.add(g);return g;};
@@ -223,77 +224,143 @@ function makeModel() {
       const a=i/count*TAU+offset;return {position:[Math.cos(a)*radius,y,Math.sin(a)*radius],rotation:[0,-a,0]};
     }));
   }
-  function extrude(shape,depth,bevel=.025){
-    const geometry=new THREE.ExtrudeGeometry(shape,{depth,bevelEnabled:true,bevelThickness:bevel,bevelSize:bevel,bevelSegments:4,curveSegments:40,steps:1});
-    geometry.rotateX(-Math.PI/2);geometry.translate(0,-depth/2,0);return geometry;
+  function extrude(shape,depth,bevel=.025,segments=40){
+    const geometry=new THREE.ExtrudeGeometry(shape,{depth,bevelEnabled:true,bevelThickness:bevel,bevelSize:bevel,bevelSegments:4,curveSegments:segments,steps:1});
+    geometry.rotateX(Math.PI/2);geometry.translate(0,depth/2,0);return geometry;
   }
-  function frameGeometry(width,depth,height,holeRadius){
-    const x=width/2,z=depth/2,c=.40,shape=new THREE.Shape();
-    shape.moveTo(-x+c,-z);shape.lineTo(x-c,-z);shape.lineTo(x,-z+c);shape.lineTo(x,z-c);shape.lineTo(x-c,z);
-    shape.lineTo(-x+c,z);shape.lineTo(-x,z-c);shape.lineTo(-x,-z+c);shape.closePath();
-    const hole=new THREE.Path();hole.absarc(0,0,holeRadius,0,TAU,true);shape.holes.push(hole);
-    return extrude(shape,height,.028);
+  function arcPath(path,inner,outer,start,end,clockwise=false){
+    path.moveTo(Math.cos(start)*outer,Math.sin(start)*outer);
+    path.absarc(0,0,outer,start,end,clockwise);
+    path.absarc(0,0,inner,end,start,!clockwise);path.closePath();return path;
   }
   function quarterGeometry(){
-    const shape=new THREE.Shape(),inner=1.53,edge=2.31;
-    shape.moveTo(inner,.045);shape.lineTo(edge-.15,.045);shape.lineTo(edge,.20);shape.lineTo(edge,edge-.42);
-    shape.lineTo(edge-.42,edge);shape.lineTo(.20,edge);shape.lineTo(.045,edge-.15);shape.lineTo(.045,inner);
-    shape.absarc(0,0,inner,Math.PI/2-.03,.03,true);shape.closePath();return extrude(shape,.27,.034);
+    const shape=arcPath(new THREE.Shape(),1.49,2.36,.045,Math.PI/2-.045);
+    // Through-pockets leave a narrow load path between each pair of guide seats.
+    // The bevel reveals cut metal inside the opening, not a painted black slot.
+    shape.holes.push(arcPath(new THREE.Path(),1.72,2.14,1.24,.32,true));
+    for(const a of [.16,Math.PI/2-.16]){
+      const hole=new THREE.Path();hole.absarc(Math.cos(a)*1.94,Math.sin(a)*1.94,.084,0,TAU,true);shape.holes.push(hole);
+    }
+    return extrude(shape,.105,.018);
+  }
+  function socketGeometry(){
+    const shape=new THREE.Shape();shape.absarc(0,0,.062,0,TAU,false);
+    const hole=new THREE.Path();
+    for(let i=0;i<6;i++){
+      const a=-i/6*TAU,x=Math.cos(a)*.029,y=Math.sin(a)*.029;
+      if(i===0)hole.moveTo(x,y);else hole.lineTo(x,y);
+    }
+    hole.closePath();shape.holes.push(hole);return extrude(shape,.038,.0035,12);
+  }
+  const socket=keep(socketGeometry());
+  function fasteners(parent,positions){
+    instance(parent,ringGeometry(.067,.095,.016,.004),materials.body,positions);
+    instance(parent,socket,materials.edge,positions.map(t=>({position:[t.position[0],t.position[1]+.014,t.position[2]]})));
+    instance(parent,new THREE.CylinderGeometry(.034,.034,.007,6),materials.bore,positions.map(t=>({position:[t.position[0],t.position[1]-.008,t.position[2]]})));
+  }
+  function teethGeometry(inner,outer,count,height){
+    const shape=new THREE.Shape(),hole=new THREE.Path();
+    for(let i=0;i<count*4;i++){
+      const a=i/(count*4)*TAU,r=i%4===1||i%4===2?outer:outer-.032;
+      if(i===0)shape.moveTo(Math.cos(a)*r,Math.sin(a)*r);else shape.lineTo(Math.cos(a)*r,Math.sin(a)*r);
+    }
+    shape.closePath();hole.absarc(0,0,inner,0,TAU,true);shape.holes.push(hole);
+    return extrude(shape,height,.0025,16);
   }
 
-  // A serviceable optical module: a solid rear housing, four guide columns,
-  // one lens cartridge and a split access cover. The case carries the weight.
+  // Thin pocketed bridges, bearing races and guide seats make the assembly
+  // legible as manufactured parts. Finishes follow those parts' functions.
   const chassis=new THREE.Group();root.add(chassis);chassis.position.y=-1.08;
-  mesh(chassis,frameGeometry(4.82,4.82,.55,1.15),[materials.body,materials.bore]);
-  mesh(chassis,frameGeometry(4.91,4.91,.08,1.15),[materials.bore,materials.body],0,-.31);
-  mesh(chassis,frameGeometry(4.77,4.77,.055,1.48),materials.rubber,0,.295);
+  const caseProfile=[[1.18,-.30],[2.20,-.30],[2.31,-.26],[2.38,-.18],[2.38,.16],[2.32,.22],[2.16,.22],[2.12,.10],[1.47,.10],[1.41,.24],[1.18,.24],[1.18,-.30]];
+  mesh(chassis,new THREE.LatheGeometry(caseProfile.map(p=>new THREE.Vector2(...p)),160),materials.body);
+  ring(chassis,2.30,2.415,.045,-.20,materials.edge);
+  ring(chassis,2.33,2.415,.045,.155,materials.edge);
+  ring(chassis,2.33,2.386,.025,-.07,materials.rubber);
+  ring(chassis,1.45,2.17,.035,.125,materials.nickel);
   ring(chassis,1.18,1.44,.39,.04,materials.bore);
-  ring(chassis,1.12,1.23,.07,.27,materials.edge);
-  const coolingFins=[];
-  for(let side=0;side<4;side++) for(let i=0;i<18;i++) {
-    const a=side/4*TAU,along=(i-8.5)*.125;
-    coolingFins.push({position:[Math.cos(a)*2.425+Math.sin(a)*along,-.045,Math.sin(a)*2.425-Math.cos(a)*along],rotation:[0,-a,0]});
+  ring(chassis,1.12,1.23,.055,.27,materials.edge);
+  const coolingFins=[],caseBolts=[];
+  for(let i=0;i<128;i++) {
+    const a=i/128*TAU;
+    coolingFins.push({position:[Math.cos(a)*2.38,-.015,Math.sin(a)*2.38],rotation:[0,-a,0]});
   }
-  instance(chassis,new THREE.BoxGeometry(.018,.31,.034),materials.bore,coolingFins);
+  instance(chassis,new THREE.BoxGeometry(.019,.24,.017),materials.bore,coolingFins);
+  for(let i=0;i<12;i++){const a=i/12*TAU;caseBolts.push({position:[Math.cos(a)*2.255,.24,Math.sin(a)*2.255]});}
+  fasteners(chassis,caseBolts);
 
   const cover=new THREE.Group();root.add(cover);
   const covers=[],quarter=keep(quarterGeometry());
   for(let i=0;i<4;i++){
     const pivot=new THREE.Group();cover.add(pivot);pivot.rotation.y=i/4*TAU;
     const panel=new THREE.Group();pivot.add(panel);
-    mesh(panel,quarter,[materials.face,materials.body]);
-    const channel=mesh(panel,new THREE.BoxGeometry(.83,.009,.011),materials.bore,1.70,.176,1.89);channel.rotation.y=.0;
-    mesh(panel,new THREE.BoxGeometry(.29,.008,.010),i===0?materials.status:materials.bore,1.91,.180,1.89);
-    // Countersunk steel hardware stays small relative to the thick billet.
-    const bolts=[[1.91,1.61],[1.61,1.91]];
-    instance(panel,new THREE.CylinderGeometry(.053,.069,.034,28),materials.bore,bolts.map(([x,z])=>({position:[x,.172,z]})));
-    instance(panel,new THREE.CylinderGeometry(.036,.045,.023,28),materials.edge,bolts.map(([x,z])=>({position:[x,.194,z]})));
-    instance(panel,new THREE.CylinderGeometry(.016,.016,.003,6),materials.ceramic,bolts.map(([x,z])=>({position:[x,.207,z]})));
-    const latch=mesh(panel,new THREE.CylinderGeometry(.036,.036,.16,20),materials.edge,1.68,-.19,1.68);
+    mesh(panel,quarter,[materials.face,materials.edge]);
+    mesh(panel,arcGeometry(2.24,2.34,.075,Math.PI/2-.075,.035,.008),materials.bore,0,-.094);
+    mesh(panel,arcGeometry(1.52,1.61,.055,Math.PI/2-.055,.025,.005),materials.bore,0,-.078);
+    // An inset bridge and transverse ribs sit below the machined opening.
+    mesh(panel,arcGeometry(1.87,2.00,.38,1.18,.028,.006),materials.nickel,0,-.13);
+    const ribs=[];
+    for(let n=0;n<9;n++){
+      const a=.40+n*.095;ribs.push({position:[Math.cos(a)*1.94,-.097,Math.sin(a)*1.94],rotation:[0,-a,0]});
+    }
+    instance(panel,new THREE.BoxGeometry(.31,.014,.013),materials.body,ribs);
+    fasteners(panel,[.16,Math.PI/2-.16].map(a=>({position:[Math.cos(a)*1.94,.055,Math.sin(a)*1.94]})));
+    const seat=mesh(panel,ringGeometry(.056,.12,.12,.009),materials.body,1.527,-.11,1.527);
+    const latch=mesh(panel,new THREE.CylinderGeometry(.044,.044,.16,24),materials.edge,seat.position.x,-.19,seat.position.z);
     covers.push({panel,latch});
+  }
+
+  // A reduction train shares the chassis with the optical carriage. Small
+  // teeth, spokes and recessed hubs reveal scale when the bridges clear it.
+  const gears=[];
+  for(let i=0;i<4;i++){
+    const a=i/4*TAU+.34,g=new THREE.Group();g.position.set(Math.cos(a)*1.78,.23,Math.sin(a)*1.78);chassis.add(g);
+    mesh(g,teethGeometry(.20,.365,28,.035),i%2?materials.nickel:materials.body);
+    ring(g,.064,.115,.046,.025,materials.edge);
+    radial(g,new THREE.BoxGeometry(.22,.028,.038),materials.nickel,5,.17,.007);
+    mesh(g,new THREE.CylinderGeometry(.036,.036,.07,24),materials.bore,0,.035);
+    gears.push(g);
   }
 
   const cartridge=new THREE.Group();root.add(cartridge);
   const barrelProfile=[[1.15,-.40],[1.37,-.40],[1.43,-.35],[1.43,-.14],[1.36,-.10],[1.34,.09],[1.26,.16],[1.19,.16],[1.15,.10],[1.15,-.40]];
   mesh(cartridge,new THREE.LatheGeometry(barrelProfile.map(p=>new THREE.Vector2(...p)),160),materials.bore);
   ring(cartridge,1.33,1.42,.035,-.10,materials.edge);
-  ring(cartridge,1.25,1.35,.035,.125,materials.body);
-  radial(cartridge,new THREE.BoxGeometry(.038,.17,.025),materials.body,64,1.403,-.245);
-  torus(cartridge,1.265,.009,.16,materials.seam);
-  radial(cartridge,new THREE.BoxGeometry(.018,.02,.055),materials.ceramic,48,1.31,.149);
+  ring(cartridge,1.25,1.35,.035,.125,materials.face);
+  radial(cartridge,new THREE.BoxGeometry(.032,.17,.024),materials.body,80,1.403,-.245);
+  torus(cartridge,1.265,.006,.15,materials.seam);
+  radial(cartridge,new THREE.BoxGeometry(.013,.007,.053),materials.bore,60,1.31,.149);
+  for(const y of [-.085,-.045,-.005])ring(cartridge,1.32,1.351,.010,y,materials.edge);
+  // Exposed ball race under the lens: a real gap between two polished tracks.
+  ring(cartridge,1.13,1.19,.032,.185,materials.edge);
+  ring(cartridge,1.25,1.30,.032,.185,materials.edge);
+  radial(cartridge,new THREE.SphereGeometry(.037,16,10),materials.edge,32,1.22,.181);
+  ring(cartridge,1.192,1.246,.010,.171,materials.copper);
 
   const optic=new THREE.Group();root.add(optic);
-  ring(optic,.89,1.14,.35,-.035,materials.body);
-  ring(optic,.91,1.08,.055,.19,materials.bore);
-  ring(optic,.93,.968,.029,.216,materials.edge);
-  torus(optic,.918,.012,.219,materials.emitter);
+  ring(optic,.89,1.12,.29,-.035,materials.bore);
+  ring(optic,.91,1.13,.055,.15,materials.face);
+  ring(optic,.93,.968,.029,.180,materials.edge);
+  torus(optic,.915,.008,.158,materials.emitter);
+  for(const y of [-.16,-.12,-.08])ring(optic,1.08,1.145,.012,y,materials.edge);
+  radial(optic,new THREE.BoxGeometry(.025,.11,.024),materials.body,72,1.115,-.018);
+  ring(optic,.968,1.03,.005,.182,materials.bore);
+  radial(optic,new THREE.BoxGeometry(.025,.006,.008),materials.face,60,1.068,.184);
+  const engraving=document.createElement('canvas');engraving.width=engraving.height=1024;
+  const etch=engraving.getContext('2d');etch.translate(512,512);etch.fillStyle='#1c282d';
+  etch.font='500 22px monospace';etch.textAlign='center';etch.textBaseline='middle';
+  for(let i=0;i<12;i++){
+    const a=i/12*TAU;etch.save();etch.rotate(a);etch.fillText(String(i*30).padStart(3,'0'),0,-453);etch.restore();
+  }
+  const etching=new THREE.CanvasTexture(engraving);etching.colorSpace=THREE.SRGBColorSpace;etching.anisotropy=8;textures.add(etching);
+  materials.etching=new THREE.MeshStandardMaterial({map:etching,transparent:true,depthWrite:false,roughness:.65,metalness:.2});
+  const scale=mesh(optic,new THREE.PlaneGeometry(2.28,2.28),materials.etching,0,.186,0,false);scale.rotation.x=-Math.PI/2;
   mesh(optic,new THREE.CylinderGeometry(.90,.90,.026,96),materials.ceramic,0,-.12);
   ring(optic,.32,.72,.028,-.08,materials.bore);
   torus(optic,.48,.008,-.06,materials.seam);
   mesh(optic,new THREE.CylinderGeometry(.105,.105,.012,48),materials.emitter,0,-.06,0,false);
-  const glass=mesh(optic,new THREE.SphereGeometry(2.42,96,36,0,TAU,0,.384),materials.glass,0,-2.185);
+  const glass=mesh(optic,new THREE.SphereGeometry(2.42,96,36,0,TAU,0,.384),materials.glass,0,-2.228);
   glass.castShadow=false;glass.receiveShadow=false;
-  radial(optic,new THREE.CylinderGeometry(.013,.013,.009,12),materials.bore,24,1.055,.20);
+  radial(optic,new THREE.CylinderGeometry(.018,.018,.009,6),materials.bore,6,1.091,.19);
 
   const iris=new THREE.Group();cartridge.add(iris);iris.position.y=.24;
   const blades=[],bladeGeometry=keep(arcGeometry(.38,1.08,-.31,.33,.012,.004));
@@ -307,7 +374,7 @@ function makeModel() {
     mesh(chassis,new THREE.CylinderGeometry(.103,.103,.21,32),materials.bore,x,.24,z);
     const rod=mesh(root,new THREE.CylinderGeometry(.045,.045,1,20),materials.edge,x,0,z);
     const sleeve=mesh(root,new THREE.CylinderGeometry(.077,.077,.14,28),materials.body,x,0,z);
-    const collar=mesh(root,ringGeometry(.047,.083,.035,.006),materials.bore,x,0,z);
+    const collar=mesh(root,ringGeometry(.047,.083,.035,.006),materials.copper,x,0,z);
     guidePosts.push({rod,sleeve,collar,x,z});
   }
   // Sparse harnesses and connectors give the hidden side a mechanical purpose.
@@ -322,8 +389,15 @@ function makeModel() {
   const turbineBlade=keep(arcGeometry(.85,1.41,-.055,.10,.014,.003));
   radial(rotor,turbineBlade,materials.bore,32,0,0,.1);
   ring(rotor,.86,.92,.034,.018,materials.copper);
-  const innerLight=new THREE.PointLight(0x81d6ff,6,4.2,2);optic.add(innerLight);innerLight.position.y=-.065;
-  const cavityLight=new THREE.PointLight(0x5db9e6,2.5,3.1,2);cartridge.add(cavityLight);cavityLight.position.y=.32;
+  const innerLight=new THREE.PointLight(0xb9e7f5,2,3.2,2);optic.add(innerLight);innerLight.position.y=-.065;
+  const cavityLight=new THREE.PointLight(0x96cddf,1.0,2.4,2);cartridge.add(cavityLight);cavityLight.position.y=.32;
+  // A recessed emitter illuminates its surrounding metal using actual lights.
+  // Four low-energy sources avoid a single hot specular dot on the glass.
+  const spillLights=[];
+  for(let i=0;i<4;i++){
+    const a=i/4*TAU,light=new THREE.PointLight(0xbce7f5,.18,1.45,2);
+    light.position.set(Math.cos(a)*.89,.10,Math.sin(a)*.89);optic.add(light);spillLights.push(light);
+  }
 
   // An actual decal on one panel, rather than surrounding HUD decoration.
   const label=document.createElement('canvas');label.width=1024;label.height=256;
@@ -332,7 +406,7 @@ function makeModel() {
   context.fillRect(45,165,290,2);
   const decal=new THREE.CanvasTexture(label);decal.colorSpace=THREE.SRGBColorSpace;decal.anisotropy=8;textures.add(decal);
   materials.decal=new THREE.MeshStandardMaterial({map:decal,transparent:true,depthWrite:false,metalness:.75,roughness:.46,polygonOffset:true,polygonOffsetFactor:-1});
-  const plate=mesh(covers[0].panel,new THREE.PlaneGeometry(1.20,.30),materials.decal,1.22,.182,1.93,false);plate.rotation.x=-Math.PI/2;
+  const plate=mesh(covers[0].panel,new THREE.PlaneGeometry(.60,.15),materials.decal,1.02,.073,2.04,false);plate.rotation.set(-Math.PI/2,0,.45);
 
   let travel={position:0,velocity:0};
   let lowPower=false;
@@ -344,9 +418,7 @@ function makeModel() {
     cover.position.y=-.62+pose.cover*.17+pose.lift*1.03;
     cartridge.position.y=-.63+pose.carrier*.47;
     optic.position.y=-.31+pose.lift*.19+pose.optic*1.10;
-    covers.forEach(({panel,latch},i)=>{
-      const clearance=ease((travel.position-.10-i*.008)/.30);
-      panel.position.set(clearance*.13,0,clearance*.13);
+    covers.forEach(({latch})=>{
       latch.position.y=-.19+pose.unlock*.10;
     });
     blades.forEach((blade,i)=>{blade.position.x=pose.iris*.09;blade.rotation.y=-pose.iris*.16;blade.position.y=i*.002;});
@@ -356,12 +428,14 @@ function makeModel() {
       sleeve.position.y=bottom+.055;collar.position.y=bottom+.13;
     });
     rotor.rotation.y=time*.035;
+    gears.forEach((gear,i)=>{gear.rotation.y=time*(i%2?.042:-.042);});
     // Illumination rises slowly as the optical cartridge clears the housing.
     // No flashing, scanning HUD or independent decorative rings.
-    materials.emitter.emissiveIntensity=5.1+pose.optic*2.3;
-    materials.seam.emissiveIntensity=1.8+pose.carrier*1.1;
-    innerLight.intensity=1.2+pose.optic*.8;
-    cavityLight.intensity=.7+pose.lift*.8;
+    materials.emitter.emissiveIntensity=3.4+pose.optic*1.8;
+    materials.seam.emissiveIntensity=1.2+pose.carrier*.7;
+    innerLight.intensity=.65+pose.optic*.55;
+    cavityLight.intensity=.45+pose.lift*.45;
+    spillLights.forEach(light=>{light.intensity=.012+pose.optic*.018;});
     return pose.presentation;
   }
   function setState(state){
@@ -370,7 +444,7 @@ function makeModel() {
   }
   function setQuality(mobile){
     if(lowPower===mobile)return;lowPower=mobile;
-    materials.glass.transmission=mobile?0:.25;materials.glass.needsUpdate=true;
+    materials.glass.transmission=mobile?0:.38;materials.glass.needsUpdate=true;
   }
   const emitterPosition=new THREE.Vector3(),emitterAxis=new THREE.Vector3();
   function lightFrame(){
@@ -390,9 +464,10 @@ function createFinish(renderer) {
   target.depthTexture=new THREE.DepthTexture(1,1,THREE.UnsignedIntType);
   const bloomA=new THREE.WebGLRenderTarget(1,1,{type,depthBuffer:false});
   const bloomB=bloomA.clone();
+  const haloA=bloomA.clone(),haloB=bloomA.clone();
   const vertexShader=`varying vec2 vUv; void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}`;
   const bright=new THREE.ShaderMaterial({depthTest:false,depthWrite:false,toneMapped:false,
-    uniforms:{tColor:{value:target.texture},uThreshold:{value:type===THREE.HalfFloatType ? 1.1 : .78}},vertexShader,
+    uniforms:{tColor:{value:target.texture},uThreshold:{value:type===THREE.HalfFloatType ? 1.25 : .78}},vertexShader,
     fragmentShader:`varying vec2 vUv;uniform sampler2D tColor;uniform float uThreshold;
       void main(){vec3 c=texture2D(tColor,vUv).rgb;float b=max(c.r,max(c.g,c.b));
       float knee=clamp(b-uThreshold+.35,0.0,.7);knee=knee*knee/1.4;
@@ -404,14 +479,14 @@ function createFinish(renderer) {
       c+=(texture2D(tColor,vUv+uStep*1.384615).rgb+texture2D(tColor,vUv-uStep*1.384615).rgb)*.316216;
       c+=(texture2D(tColor,vUv+uStep*3.230769).rgb+texture2D(tColor,vUv-uStep*3.230769).rgb)*.070270;
       gl_FragColor=vec4(c,1.0);}`});
-  const uniforms={tColor:{value:target.texture},tDepth:{value:target.depthTexture},tBloom:{value:bloomA.texture},
+  const uniforms={tColor:{value:target.texture},tDepth:{value:target.depthTexture},tBloom:{value:bloomA.texture},tHalo:{value:haloA.texture},
     uPixel:{value:new THREE.Vector2(1,1)},uProjectionInverse:{value:new THREE.Matrix4()},
     uEmitter:{value:new THREE.Vector3()},uAxis:{value:new THREE.Vector3()},
     uFocus:{value:10},uNear:{value:.1},uFar:{value:80},uQuality:{value:1},uTime:{value:0}};
   const material=new THREE.ShaderMaterial({uniforms,depthTest:false,depthWrite:false,vertexShader,
     fragmentShader:`
       varying vec2 vUv;
-      uniform sampler2D tColor,tDepth,tBloom;
+      uniform sampler2D tColor,tDepth,tBloom,tHalo;
       uniform vec2 uPixel;
       uniform vec3 uEmitter,uAxis;
       uniform mat4 uProjectionInverse;
@@ -442,7 +517,7 @@ function createFinish(renderer) {
           float distance=start+(float(i)+.5)*.32;
           if(distance>length(surface))break;
           vec3 offset=ray*distance-uEmitter;
-          float h=dot(offset,uAxis),radius=.14+max(h,0.0)*.22;
+          float h=dot(offset,uAxis),radius=.24+max(h,0.0)*.38;
           vec3 radial=offset-uAxis*h;
           energy+=exp(-dot(radial,radial)/(radius*radius))*smoothstep(0.0,.14,h)*(1.0-smoothstep(.2,2.6,h))*.32;
         }
@@ -464,8 +539,10 @@ function createFinish(renderer) {
           }
           color=mix(color,b/6.0*occlusion,.25);
         }
-        color+=texture2D(tBloom,vUv).rgb*.32;
-        color+=vec3(.18,.53,.85)*scatteredLight(position)*.09;
+        // Two optical scales: a small bright fringe and a much broader, faint
+        // halation. The latter is blurred at its own texel scale, without gaps.
+        color+=texture2D(tBloom,vUv).rgb*.23+texture2D(tHalo,vUv).rgb*.19;
+        color+=vec3(.38,.63,.72)*scatteredLight(position)*.075;
         vec2 p=vUv-.5;
         color*=1.0-.24*dot(p,p);
         gl_FragColor=vec4(color,1.0);
@@ -475,7 +552,7 @@ function createFinish(renderer) {
       }`});
   const geometry=new THREE.PlaneGeometry(2,2),scene=new THREE.Scene(),camera=new THREE.Camera();
   const quad=new THREE.Mesh(geometry,material);scene.add(quad);
-  let bw=1,bh=1;
+  let bw=1,bh=1,hw=1,hh=1;
   function pass(output,shader){quad.material=shader;renderer.setRenderTarget(output);renderer.render(scene,camera);}
   return {
     resize(width,height,mobile){
@@ -483,6 +560,7 @@ function createFinish(renderer) {
       if(target.samples!==samples){target.samples=samples;target.dispose();}
       target.setSize(width,height);uniforms.uPixel.value.set(1/width,1/height);uniforms.uQuality.value=mobile ? 0 : 1;
       bw=Math.max(1,Math.round(width/4));bh=Math.max(1,Math.round(height/4));bloomA.setSize(bw,bh);bloomB.setSize(bw,bh);
+      hw=Math.max(1,Math.round(width/24));hh=Math.max(1,Math.round(height/24));haloA.setSize(hw,hh);haloB.setSize(hw,hh);
     },
     render(source,sourceCamera,time,emitter){
       renderer.setRenderTarget(target);renderer.render(source,sourceCamera);
@@ -498,9 +576,14 @@ function createFinish(renderer) {
         blur.uniforms.tColor.value=bloomA.texture;blur.uniforms.uStep.value.set(1/bw,0);pass(bloomB,blur);
         blur.uniforms.tColor.value=bloomB.texture;blur.uniforms.uStep.value.set(0,1/bh);pass(bloomA,blur);
       }
+      blur.uniforms.tColor.value=bloomA.texture;blur.uniforms.uStep.value.set(1/bw,0);pass(haloA,blur);
+      for(let i=0;i<2;i++){
+        blur.uniforms.tColor.value=haloA.texture;blur.uniforms.uStep.value.set(1/hw,0);pass(haloB,blur);
+        blur.uniforms.tColor.value=haloB.texture;blur.uniforms.uStep.value.set(0,1/hh);pass(haloA,blur);
+      }
       pass(null,material);
     },
-    dispose(){target.depthTexture.dispose();target.dispose();bloomA.dispose();bloomB.dispose();bright.dispose();blur.dispose();material.dispose();geometry.dispose();}
+    dispose(){target.depthTexture.dispose();target.dispose();bloomA.dispose();bloomB.dispose();haloA.dispose();haloB.dispose();bright.dispose();blur.dispose();material.dispose();geometry.dispose();}
   };
 }
 
@@ -630,19 +713,19 @@ export async function createMechanismScene(element, {still=false} = {}) {
     renderer.shadowMap.type=THREE.PCFShadowMap;
     environment=await photographicEnvironment(renderer,element);
     scene.environment=environment.texture;
-    scene.environmentIntensity=.32;
-    scene.environmentRotation.set(0,.88,0);
+    scene.environmentIntensity=.52;
+    scene.environmentRotation.set(0,1.35,0);
     if(!areaLightsReady){RectAreaLightUniformsLib.init();areaLightsReady=true;}
     scene.add(new THREE.HemisphereLight(0xb7c9db,0x030609,.12));
     // Broad softboxes give the machined faces a continuous reflected highlight.
-    const softbox=new THREE.RectAreaLight(0xe4efff,14,5,6);
+    const softbox=new THREE.RectAreaLight(0xf3f0e9,12,5,6);
     softbox.position.set(-3,6,4);softbox.lookAt(0,0,0);scene.add(softbox);
-    const strip=new THREE.RectAreaLight(0x9acaf1,24,.7,5);
+    const strip=new THREE.RectAreaLight(0xc4d6e1,19,.7,5);
     strip.position.set(4,2,-3);strip.lookAt(0,0,0);scene.add(strip);
-    const bounce=new THREE.RectAreaLight(0xffe2c5,4,3,1);
+    const bounce=new THREE.RectAreaLight(0xffddba,5,3,1);
     bounce.position.set(-4,0,-2);bounce.lookAt(0,-.3,0);scene.add(bounce);
     // Rectangular lights do not cast shadows, so one neutral key supplies depth.
-    const key=new THREE.DirectionalLight(0xeaf2ff,1.4);
+    const key=new THREE.DirectionalLight(0xf4f0e9,1.4);
     key.position.set(-4,8,6);key.castShadow=true;
     key.shadow.mapSize.set(2048,2048);
     Object.assign(key.shadow.camera,{left:-4.5,right:4.5,top:4.5,bottom:-4.5,near:1,far:24});
