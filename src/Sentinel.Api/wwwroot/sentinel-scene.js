@@ -389,15 +389,10 @@ function makeModel() {
   const turbineBlade=keep(arcGeometry(.85,1.41,-.055,.10,.014,.003));
   radial(rotor,turbineBlade,materials.bore,32,0,0,.1);
   ring(rotor,.86,.92,.034,.018,materials.copper);
-  const innerLight=new THREE.PointLight(0xb9e7f5,2,3.2,2);optic.add(innerLight);innerLight.position.y=-.065;
-  const cavityLight=new THREE.PointLight(0x96cddf,1.0,2.4,2);cartridge.add(cavityLight);cavityLight.position.y=.32;
-  // A recessed emitter illuminates its surrounding metal using actual lights.
-  // Four low-energy sources avoid a single hot specular dot on the glass.
-  const spillLights=[];
-  for(let i=0;i<4;i++){
-    const a=i/4*TAU,light=new THREE.PointLight(0xbce7f5,.18,1.45,2);
-    light.position.set(Math.cos(a)*.89,.10,Math.sin(a)*.89);optic.add(light);spillLights.push(light);
-  }
+  // A low-power diffuser faces the carriage below the optic. Point sources
+  // almost touching the polished rim produced sharp, moving white hotspots.
+  const diffuserLight=new THREE.RectAreaLight(0xb7dae6,1.1,.9,.9);
+  diffuserLight.position.y=-.185;diffuserLight.rotation.x=-Math.PI/2;optic.add(diffuserLight);
 
   // An actual decal on one panel, rather than surrounding HUD decoration.
   const label=document.createElement('canvas');label.width=1024;label.height=256;
@@ -431,11 +426,9 @@ function makeModel() {
     gears.forEach((gear,i)=>{gear.rotation.y=time*(i%2?.042:-.042);});
     // Illumination rises slowly as the optical cartridge clears the housing.
     // No flashing, scanning HUD or independent decorative rings.
-    materials.emitter.emissiveIntensity=3.4+pose.optic*1.8;
-    materials.seam.emissiveIntensity=1.2+pose.carrier*.7;
-    innerLight.intensity=.65+pose.optic*.55;
-    cavityLight.intensity=.45+pose.lift*.45;
-    spillLights.forEach(light=>{light.intensity=.012+pose.optic*.018;});
+    materials.emitter.emissiveIntensity=2.6+pose.optic*.8;
+    materials.seam.emissiveIntensity=.9+pose.carrier*.4;
+    diffuserLight.intensity=.6+pose.optic*.5;
     return pose.presentation;
   }
   function setState(state){
@@ -446,15 +439,13 @@ function makeModel() {
     if(lowPower===mobile)return;lowPower=mobile;
     materials.glass.transmission=mobile?0:.38;materials.glass.needsUpdate=true;
   }
-  const emitterPosition=new THREE.Vector3(),emitterAxis=new THREE.Vector3();
-  function lightFrame(){
+  const focusPosition=new THREE.Vector3();
+  function focusPoint(){
     optic.updateWorldMatrix(true,false);
-    emitterPosition.set(0,.24,0).applyMatrix4(optic.matrixWorld);
-    emitterAxis.set(0,1,0).transformDirection(optic.matrixWorld);
-    return {position:emitterPosition,axis:emitterAxis};
+    return focusPosition.set(0,.24,0).applyMatrix4(optic.matrixWorld);
   }
   function dispose(){resources.forEach(g=>g.dispose());Object.values(materials).forEach(m=>m.dispose());textures.forEach(t=>t.dispose());root.traverse(o=>{if(o.isInstancedMesh)o.dispose();});}
-  return {root,update,setState,setQuality,lightFrame,dispose};
+  return {root,update,setState,setQuality,focusPoint,dispose};
 }
 
 
@@ -464,14 +455,26 @@ function createFinish(renderer) {
   target.depthTexture=new THREE.DepthTexture(1,1,THREE.UnsignedIntType);
   const bloomA=new THREE.WebGLRenderTarget(1,1,{type,depthBuffer:false});
   const bloomB=bloomA.clone();
-  const haloA=bloomA.clone(),haloB=bloomA.clone();
   const vertexShader=`varying vec2 vUv; void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}`;
   const bright=new THREE.ShaderMaterial({depthTest:false,depthWrite:false,toneMapped:false,
-    uniforms:{tColor:{value:target.texture},uThreshold:{value:type===THREE.HalfFloatType ? 1.25 : .78}},vertexShader,
-    fragmentShader:`varying vec2 vUv;uniform sampler2D tColor;uniform float uThreshold;
-      void main(){vec3 c=texture2D(tColor,vUv).rgb;float b=max(c.r,max(c.g,c.b));
-      float knee=clamp(b-uThreshold+.35,0.0,.7);knee=knee*knee/1.4;
-      gl_FragColor=vec4(c*max(b-uThreshold,knee)/max(b,.0001),1.0);}`});
+    uniforms:{tColor:{value:target.texture},uSourcePixel:{value:new THREE.Vector2()},uThreshold:{value:type===THREE.HalfFloatType ? 2.0 : .9}},vertexShader,
+    fragmentShader:`varying vec2 vUv;uniform sampler2D tColor;uniform vec2 uSourcePixel;uniform float uThreshold;
+      vec3 highlight(vec2 uv){
+        vec3 c=texture2D(tColor,uv).rgb;
+        float luminance=dot(c,vec3(.2126,.7152,.0722));
+        float knee=clamp(luminance-uThreshold+.3,0.0,.6);knee=knee*knee/1.2;
+        float excess=max(luminance-uThreshold,knee);
+        // Bound only the bloom energy; retain the original sharp reflection.
+        // A tiny specular spike must not become a large white disk.
+        float energy=excess/(1.0+excess*.55);
+        return c*energy/max(luminance,.0001);
+      }
+      void main(){
+        vec2 d=uSourcePixel*.5;
+        vec3 c=highlight(vUv+vec2(-d.x,-d.y))+highlight(vUv+vec2(d.x,-d.y))
+          +highlight(vUv+vec2(-d.x,d.y))+highlight(vUv+d);
+        gl_FragColor=vec4(c*.25,1.0);
+      }`});
   const blur=new THREE.ShaderMaterial({depthTest:false,depthWrite:false,toneMapped:false,
     uniforms:{tColor:{value:bloomA.texture},uStep:{value:new THREE.Vector2()}},vertexShader,
     fragmentShader:`varying vec2 vUv;uniform sampler2D tColor;uniform vec2 uStep;
@@ -479,16 +482,14 @@ function createFinish(renderer) {
       c+=(texture2D(tColor,vUv+uStep*1.384615).rgb+texture2D(tColor,vUv-uStep*1.384615).rgb)*.316216;
       c+=(texture2D(tColor,vUv+uStep*3.230769).rgb+texture2D(tColor,vUv-uStep*3.230769).rgb)*.070270;
       gl_FragColor=vec4(c,1.0);}`});
-  const uniforms={tColor:{value:target.texture},tDepth:{value:target.depthTexture},tBloom:{value:bloomA.texture},tHalo:{value:haloA.texture},
+  const uniforms={tColor:{value:target.texture},tDepth:{value:target.depthTexture},tBloom:{value:bloomA.texture},
     uPixel:{value:new THREE.Vector2(1,1)},uProjectionInverse:{value:new THREE.Matrix4()},
-    uEmitter:{value:new THREE.Vector3()},uAxis:{value:new THREE.Vector3()},
     uFocus:{value:10},uNear:{value:.1},uFar:{value:80},uQuality:{value:1},uTime:{value:0}};
   const material=new THREE.ShaderMaterial({uniforms,depthTest:false,depthWrite:false,vertexShader,
     fragmentShader:`
       varying vec2 vUv;
-      uniform sampler2D tColor,tDepth,tBloom,tHalo;
+      uniform sampler2D tColor,tDepth,tBloom;
       uniform vec2 uPixel;
-      uniform vec3 uEmitter,uAxis;
       uniform mat4 uProjectionInverse;
       uniform float uFocus,uNear,uFar,uQuality,uTime;
       float noise(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
@@ -508,21 +509,6 @@ function createFinish(renderer) {
         }
         return clamp(1.0-shade*(uQuality<.5?.23:.115),.62,1.0);
       }
-      float scatteredLight(vec3 surface){
-        // Sample only in front of the depth surface. Housing and glass therefore
-        // occlude the small volume originating at the moving optical aperture.
-        vec3 ray=normalize(surface);
-        float start=max(0.0,length(uEmitter)-3.2),energy=0.0;
-        for(int i=0;i<16;i++){
-          float distance=start+(float(i)+.5)*.32;
-          if(distance>length(surface))break;
-          vec3 offset=ray*distance-uEmitter;
-          float h=dot(offset,uAxis),radius=.24+max(h,0.0)*.38;
-          vec3 radial=offset-uAxis*h;
-          energy+=exp(-dot(radial,radial)/(radius*radius))*smoothstep(0.0,.14,h)*(1.0-smoothstep(.2,2.6,h))*.32;
-        }
-        return energy;
-      }
       void main(){
         vec3 color=texture2D(tColor,vUv).rgb;
         float z=texture2D(tDepth,vUv).x;
@@ -539,10 +525,9 @@ function createFinish(renderer) {
           }
           color=mix(color,b/6.0*occlusion,.25);
         }
-        // Two optical scales: a small bright fringe and a much broader, faint
-        // halation. The latter is blurred at its own texel scale, without gaps.
-        color+=texture2D(tBloom,vUv).rgb*.23+texture2D(tHalo,vUv).rgb*.19;
-        color+=vec3(.38,.63,.72)*scatteredLight(position)*.075;
+        // Clear studio air: light is visible on surfaces. Keep just a narrow
+        // optical fringe at very bright edges, without an added light cone.
+        color+=texture2D(tBloom,vUv).rgb*.12;
         vec2 p=vUv-.5;
         color*=1.0-.24*dot(p,p);
         gl_FragColor=vec4(color,1.0);
@@ -552,38 +537,31 @@ function createFinish(renderer) {
       }`});
   const geometry=new THREE.PlaneGeometry(2,2),scene=new THREE.Scene(),camera=new THREE.Camera();
   const quad=new THREE.Mesh(geometry,material);scene.add(quad);
-  let bw=1,bh=1,hw=1,hh=1;
+  let bw=1,bh=1;
+  const focusInView=new THREE.Vector3();
   function pass(output,shader){quad.material=shader;renderer.setRenderTarget(output);renderer.render(scene,camera);}
   return {
     resize(width,height,mobile){
       const samples=Math.min(mobile ? 2 : 4,renderer.capabilities.maxSamples);
       if(target.samples!==samples){target.samples=samples;target.dispose();}
       target.setSize(width,height);uniforms.uPixel.value.set(1/width,1/height);uniforms.uQuality.value=mobile ? 0 : 1;
-      bw=Math.max(1,Math.round(width/4));bh=Math.max(1,Math.round(height/4));bloomA.setSize(bw,bh);bloomB.setSize(bw,bh);
-      hw=Math.max(1,Math.round(width/24));hh=Math.max(1,Math.round(height/24));haloA.setSize(hw,hh);haloB.setSize(hw,hh);
+      bright.uniforms.uSourcePixel.value.set(1/width,1/height);
+      bw=Math.max(1,Math.round(width/2));bh=Math.max(1,Math.round(height/2));bloomA.setSize(bw,bh);bloomB.setSize(bw,bh);
     },
-    render(source,sourceCamera,time,emitter){
+    render(source,sourceCamera,time,focus){
       renderer.setRenderTarget(target);renderer.render(source,sourceCamera);
       uniforms.uProjectionInverse.value.copy(sourceCamera.projectionMatrixInverse);
-      uniforms.uEmitter.value.copy(emitter.position).applyMatrix4(sourceCamera.matrixWorldInverse);
-      uniforms.uAxis.value.copy(emitter.axis).transformDirection(sourceCamera.matrixWorldInverse);
-      uniforms.uFocus.value=-uniforms.uEmitter.value.z;
+      focusInView.copy(focus).applyMatrix4(sourceCamera.matrixWorldInverse);
+      uniforms.uFocus.value=-focusInView.z;
       uniforms.uTime.value=time;
       pass(bloomA,bright);
       // Bilinear Gaussian offsets assume adjacent texels; widening the step
       // skips texels and turns a small highlight into a visible grid of dots.
-      for(let i=0;i<2;i++){
-        blur.uniforms.tColor.value=bloomA.texture;blur.uniforms.uStep.value.set(1/bw,0);pass(bloomB,blur);
-        blur.uniforms.tColor.value=bloomB.texture;blur.uniforms.uStep.value.set(0,1/bh);pass(bloomA,blur);
-      }
-      blur.uniforms.tColor.value=bloomA.texture;blur.uniforms.uStep.value.set(1/bw,0);pass(haloA,blur);
-      for(let i=0;i<2;i++){
-        blur.uniforms.tColor.value=haloA.texture;blur.uniforms.uStep.value.set(1/hw,0);pass(haloB,blur);
-        blur.uniforms.tColor.value=haloB.texture;blur.uniforms.uStep.value.set(0,1/hh);pass(haloA,blur);
-      }
+      blur.uniforms.tColor.value=bloomA.texture;blur.uniforms.uStep.value.set(1/bw,0);pass(bloomB,blur);
+      blur.uniforms.tColor.value=bloomB.texture;blur.uniforms.uStep.value.set(0,1/bh);pass(bloomA,blur);
       pass(null,material);
     },
-    dispose(){target.depthTexture.dispose();target.dispose();bloomA.dispose();bloomB.dispose();haloA.dispose();haloB.dispose();bright.dispose();blur.dispose();material.dispose();geometry.dispose();}
+    dispose(){target.depthTexture.dispose();target.dispose();bloomA.dispose();bloomB.dispose();bright.dispose();blur.dispose();material.dispose();geometry.dispose();}
   };
 }
 
@@ -604,7 +582,7 @@ export async function createMechanismScene(element, {still=false} = {}) {
   scene.fog=new THREE.FogExp2(0x090c10,.024);
   const camera = new THREE.PerspectiveCamera(36,1,.1,80);
   const shadowGeometry = new THREE.PlaneGeometry(200,200);
-  const shadowMaterial = new THREE.MeshStandardMaterial({color:0x05090d,metalness:.45,roughness:.5,envMapIntensity:.2});
+  const shadowMaterial = new THREE.MeshStandardMaterial({color:0x030506,metalness:.08,roughness:.88,envMapIntensity:.08});
   function removeListeners() {
     element.removeEventListener("pointermove", movePointer);
     element.removeEventListener("pointerleave", leavePointer);
@@ -648,7 +626,7 @@ export async function createMechanismScene(element, {still=false} = {}) {
       camera.lookAt(1.45,-.10+expansion*.27,0);
     }
     renderer.info.reset();
-    finish.render(scene,camera,elapsed,model.lightFrame());
+    finish.render(scene,camera,elapsed,model.focusPoint());
     if(failed){useFallback();return;}
     frames++;
     // DOM diagnostics allow smoke tests to verify that the GPU surface advances.
