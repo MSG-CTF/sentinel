@@ -22,6 +22,8 @@ jobs:
       - run: dotnet test -c Release --nologo
       - run: node --test local/*.test.cjs
       - run: python3 -m unittest discover -s deploy/aws -p 'test_*.py' -v
+        env:
+          SENTINEL_DOCKER_TESTS: '1'
       - name: Build tested image
         env:
           REVISION: ${{ github.sha }}
@@ -74,4 +76,11 @@ jobs:
           AWS_DEPLOY_DOCUMENT: ${{ secrets.AWS_DEPLOY_DOCUMENT }}
           SENTINEL_PROFILE_JSON: ${{ secrets.SENTINEL_PROFILE_JSON }}
           SENTINEL_PROBE_SECRETS_JSON: ${{ secrets.SENTINEL_PROBE_SECRETS_JSON }}
+          SENTINEL_WEB_CONFIG_JSON: ${{ secrets.SENTINEL_WEB_CONFIG_JSON }}
         run: python3 release/release.py deploy
+      - name: Verify public HTTPS and administrator access
+        if: vars.SENTINEL_PUBLIC_HTTPS_ENABLED == 'true'
+        env:
+          SENTINEL_WEB_CONFIG_JSON: ${{ secrets.SENTINEL_WEB_CONFIG_JSON }}
+          SENTINEL_ADMIN_PASSWORD: ${{ secrets.SENTINEL_ADMIN_PASSWORD }}
+        run: python3 release/release.py verify-web

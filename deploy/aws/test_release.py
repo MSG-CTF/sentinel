@@ -66,17 +66,23 @@ class ConfigurationTests(unittest.TestCase):
             source.mkdir()
             for name in ("image.tar.gz", "release.json", "deploy_host.py"):
                 (source / name).write_bytes(b"fixture")
+            (source / "release.json").write_text('{"revision":"fixture"}')
             config = profile()
             config["platform_monitor"]["targets"][0]["auth_token_env"] = "PROBE_TOKEN"
             with patch.dict(os.environ, {"SENTINEL_PROFILE_JSON": json.dumps(config),
-                                         "SENTINEL_PROBE_SECRETS_JSON": '{"PROBE_TOKEN":"test-only-secret"}'}):
+                                         "SENTINEL_PROBE_SECRETS_JSON": '{"PROBE_TOKEN":"test-only-secret"}',
+                                         "SENTINEL_WEB_CONFIG_JSON": json.dumps({
+                                             "domain": "sla.example.com", "username": "admin",
+                                             "password_hash": "$2a$12$" + "a" * 53})}):
                 release.package(source, root / "bundle.tar.gz")
             with tarfile.open(root / "bundle.tar.gz") as archive:
                 self.assertEqual(set(archive.getnames()),
                                  {"image.tar.gz", "release.json", "deploy_host.py", "profile.json", "probe.env"})
                 self.assertEqual(archive.extractfile("probe.env").read(), b"PROBE_TOKEN=test-only-secret\n")
+                self.assertIn("public_web", json.load(archive.extractfile("release.json")))
             self.assertFalse((source / "probe.env").exists())
             self.assertFalse((source / "profile.json").exists())
+            self.assertEqual(json.loads((source / "release.json").read_text()), {"revision": "fixture"})
 
 
 if __name__ == "__main__":

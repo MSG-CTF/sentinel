@@ -1,7 +1,9 @@
 """Prepare an immutable release, inject environment secrets, and deploy via SSM."""
 
 import argparse
+import base64
 import hashlib
+import http.client
 import json
 import os
 from pathlib import Path
@@ -11,6 +13,8 @@ import tarfile
 import tempfile
 import time
 from urllib.parse import urlsplit
+
+from deploy_host import validate_web_config
 
 
 def run(args, *, optional=False):
@@ -76,17 +80,21 @@ def package(directory, destination):
     profile = json.loads(os.environ["SENTINEL_PROFILE_JSON"])
     credentials = json.loads(os.environ.get("SENTINEL_PROBE_SECRETS_JSON") or "{}")
     env_file = validate_configuration(profile, credentials)
+    web_config = validate_web_config(json.loads(os.environ["SENTINEL_WEB_CONFIG_JSON"]))
+    manifest = json.loads((directory / "release.json").read_text())
+    manifest["public_web"] = web_config
     with tempfile.TemporaryDirectory(prefix="sentinel-config-") as temp:
         root = Path(temp)
         os.chmod(root, 0o700)
         (root / "profile.json").write_text(json.dumps(profile, ensure_ascii=False) + "\n", encoding="utf-8")
         (root / "probe.env").write_bytes(env_file.encode("utf-8"))
-        for name in ("profile.json", "probe.env"):
+        (root / "release.json").write_text(json.dumps(manifest) + "\n", encoding="utf-8")
+        for name in ("profile.json", "probe.env", "release.json"):
             os.chmod(root / name, 0o600)
         with tarfile.open(destination, "w:gz") as archive:
-            for name in ("image.tar.gz", "release.json", "deploy_host.py"):
+            for name in ("image.tar.gz", "deploy_host.py"):
                 archive.add(directory / name, arcname=name, recursive=False)
-            for name in ("profile.json", "probe.env"):
+            for name in ("profile.json", "probe.env", "release.json"):
                 archive.add(root / name, arcname=name, recursive=False)
     os.chmod(destination, 0o600)
 
@@ -97,6 +105,53 @@ def digest(path):
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             value.update(chunk)
     return value.hexdigest()
+
+
+def verify_web():
+    config = validate_web_config(json.loads(os.environ["SENTINEL_WEB_CONFIG_JSON"]))
+    password = os.environ["SENTINEL_ADMIN_PASSWORD"]
+    if not 24 <= len(password) <= 72 or any(c in password for c in "\r\n\0"):
+        raise ValueError("Invalid administrator verification credential")
+    domain = config["domain"]
+
+    def request(path, authorization=None, https=True):
+        # No redirects: credentials must never leave this exact HTTPS origin.
+        conn_type = http.client.HTTPSConnection if https else http.client.HTTPConnection
+        conn = conn_type(domain, timeout=15)
+        headers = {"Authorization": authorization} if authorization else {}
+        try:
+            conn.request("GET", path, headers=headers)
+            response = conn.getresponse()
+            return response.status, dict(response.getheaders()), response.read(2 * 1024 * 1024)
+        finally:
+            conn.close()
+
+    def basic(value):
+        return "Basic " + base64.b64encode((config["username"] + ":" + value).encode()).decode()
+
+    status, headers, body = request("/", https=False)
+    if status != 308 or headers.get("Location") != "https://" + domain + "/":
+        raise RuntimeError("Public HTTP did not redirect directly to HTTPS")
+    for path in ("/", "/api/status", "/api/instances", "/api/events", "/api/recovery", "/metrics", "/healthz"):
+        status, headers, body = request(path)
+        if status != 401 or not any(k.lower() == "www-authenticate" for k in headers):
+            raise RuntimeError("Public endpoint did not require administrator authentication")
+    if request("/api/status", basic("deliberately-invalid-test-password"))[0] != 401:
+        raise RuntimeError("Public endpoint accepted invalid credentials")
+    status, headers, body = request("/healthz", basic(password))
+    health = json.loads(body) if status == 200 else {}
+    if health.get("status") != "ok" or health.get("mode") != "observe_only":
+        raise RuntimeError("Authenticated health verification failed")
+    status, headers, body = request("/api/status", basic(password))
+    snapshot = json.loads(body) if status == 200 else {}
+    if (snapshot.get("profile") != "aws" or snapshot.get("updated_at") is None
+            or snapshot.get("event_storage_healthy") is not True):
+        raise RuntimeError("Authenticated monitoring verification failed")
+    if request("/", basic(password))[0] != 200:
+        raise RuntimeError("Authenticated dashboard verification failed")
+    if request("/internal/recovery", basic(password))[0] != 404:
+        raise RuntimeError("Internal recovery endpoint must stay unavailable through the public proxy")
+    print("Public HTTPS certificate, redirect, authentication, dashboard and monitoring checks passed")
 
 
 def deploy(directory):
@@ -151,7 +206,7 @@ def deploy(directory):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=["manifest", "deploy", "validate"])
+    parser.add_argument("action", choices=["manifest", "deploy", "validate", "verify-web"])
     parser.add_argument("--directory", type=Path, default=Path("release"))
     args = parser.parse_args()
     try:
@@ -162,6 +217,8 @@ if __name__ == "__main__":
             validate_configuration(json.loads(os.environ["SENTINEL_PROFILE_JSON"]),
                                    json.loads(os.environ.get("SENTINEL_PROBE_SECRETS_JSON") or "{}"))
             print("Deployment configuration is valid")
+        elif args.action == "verify-web":
+            verify_web()
         else:
             deploy(args.directory)
     except Exception as error:

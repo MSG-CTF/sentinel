@@ -1,6 +1,8 @@
 """EC2-local deployment with a separate candidate check and container rollback."""
 
 import argparse
+import http.client
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -17,10 +19,76 @@ PREVIOUS = "msg-sentinel-previous"
 CANDIDATE = "msg-sentinel-candidate"
 OWNER_LABEL = "io.msgctf.managed-by"
 OWNER = "sentinel-deploy"
+WEB_CURRENT = "msg-sentinel-web"
+WEB_PREVIOUS = "msg-sentinel-web-previous"
+# Official Caddy 2.11.7 multi-platform image; upgrades require a reviewed digest.
+WEB_IMAGE = "caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f"
 
 
 class DeploymentError(RuntimeError):
     pass
+
+
+def validate_web_config(value):
+    if not isinstance(value, dict) or set(value) != {"domain", "username", "password_hash"}:
+        raise ValueError("Public HTTPS requires a domain and hashed administrator credentials")
+    domain, username, password_hash = (value[k] for k in ("domain", "username", "password_hash"))
+    if (not isinstance(domain, str) or len(domain) > 253
+            or not re.fullmatch(r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}", domain)
+            or domain.endswith((".localhost", ".local", ".internal", ".test", ".invalid"))):
+        raise ValueError("Public HTTPS requires a public DNS hostname")
+    try:
+        ipaddress.ip_address(domain)
+    except ValueError:
+        pass
+    else:
+        raise ValueError("Public HTTPS requires a DNS hostname, not an IP address")
+    if not isinstance(username, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{2,31}", username):
+        raise ValueError("Invalid administrator username")
+    if (not isinstance(password_hash, str)
+            or not re.fullmatch(r"\$2[aby]\$(?:12|13|14)\$[./A-Za-z0-9]{53}", password_hash)):
+        raise ValueError("Administrator password must be a bcrypt hash with cost 12 to 14")
+    return dict(value)
+
+
+def web_caddyfile(config):
+    value = validate_web_config(config)
+    # Explicit route ordering puts authentication before every upstream path.
+    return """{
+    admin off
+    servers {
+        protocols h1 h2
+    }
+}
+https://%s {
+    header {
+        -Server
+        Strict-Transport-Security "max-age=31536000"
+        Cache-Control "no-store"
+        X-Robots-Tag "noindex, nofollow"
+    }
+    route {
+        basic_auth bcrypt MSG-SLA {
+            %s %s
+        }
+        @internal path /internal /internal/*
+        respond @internal 404
+        reverse_proxy 127.0.0.1:8080 {
+            header_up -Authorization
+            header_up -Proxy-Authorization
+        }
+    }
+    handle_errors {
+        header {
+            -Server
+            Strict-Transport-Security "max-age=31536000"
+            Cache-Control "no-store"
+            X-Robots-Tag "noindex, nofollow"
+        }
+        respond "" {err.status_code}
+    }
+}
+""" % (value["domain"], value["username"], value["password_hash"])
 
 
 def command(args, *, optional=False):
@@ -96,7 +164,7 @@ def healthy(name, expected_profile, timeout=90):
     return False
 
 
-def activate(image, release, expected_profile):
+def activate(image, release, expected_profile, finalize=None):
     """Keep the previous container's image AND configuration for rollback."""
     candidate_data = release / "candidate-data"
     remove_container(CANDIDATE)
@@ -123,6 +191,8 @@ def activate(image, release, expected_profile):
         start(CURRENT, image, release, BASE / "data", 8080)
         if not healthy(CURRENT, expected_profile):
             raise DeploymentError("New version did not become ready")
+        if finalize:
+            finalize()
     except Exception as error:
         if moved_previous or not had_current:
             remove_container(CURRENT)
@@ -141,16 +211,101 @@ def activate(image, release, expected_profile):
         raise DeploymentError("Initial deployment failed; no previous version exists") from error
 
 
+def prepare_web(release, config):
+    path = release / "Caddyfile"
+    path.write_text(web_caddyfile(config), encoding="utf-8")
+    os.chmod(path, 0o600)
+    command(["docker", "pull", WEB_IMAGE])
+    command(["docker", "run", "--rm", "--network", "none", "--read-only",
+             "--cap-drop", "ALL", "--cap-add", "NET_BIND_SERVICE", "--security-opt", "no-new-privileges:true",
+             "--memory", "192m", "--pids-limit", "64",
+             "--tmpfs", "/data:rw,noexec,nosuid,size=16m",
+             "--tmpfs", "/config:rw,noexec,nosuid,size=16m",
+             "--mount", "type=bind,src=" + str(path) + ",dst=/etc/caddy/Caddyfile,readonly",
+             WEB_IMAGE, "caddy", "validate", "--config", "/etc/caddy/Caddyfile"])
+
+
+def start_web(release):
+    for directory in ("web-data", "web-config"):
+        (BASE / directory).mkdir(mode=0o700, parents=True, exist_ok=True)
+        os.chmod(BASE / directory, 0o700)
+    command([
+        "docker", "run", "-d", "--name", WEB_CURRENT,
+        "--label", OWNER_LABEL + "=" + OWNER, "--restart", "unless-stopped",
+        "--network", "host", "--read-only", "--cap-drop", "ALL",
+        "--cap-add", "NET_BIND_SERVICE", "--security-opt", "no-new-privileges:true",
+        "--memory", "192m", "--cpus", "0.5", "--pids-limit", "64",
+        "--log-driver", "json-file", "--log-opt", "max-size=5m", "--log-opt", "max-file=3",
+        "--mount", "type=bind,src=" + str(release / "Caddyfile") + ",dst=/etc/caddy/Caddyfile,readonly",
+        "--mount", "type=bind,src=" + str(BASE / "web-data") + ",dst=/data",
+        "--mount", "type=bind,src=" + str(BASE / "web-config") + ",dst=/config",
+        WEB_IMAGE, "caddy", "run", "--config", "/etc/caddy/Caddyfile",
+    ])
+
+
+def web_ready(domain, timeout=30):
+    # This checks startup before DNS / ingress is enabled. Public TLS and login
+    # are independently verified by the runner after first-time DNS setup.
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        info = container(WEB_CURRENT)
+        if not info or not info["State"]["Running"]:
+            return False
+        conn = http.client.HTTPConnection("127.0.0.1", 80, timeout=3)
+        try:
+            conn.request("GET", "/", headers={"Host": domain})
+            response = conn.getresponse()
+            if response.status == 308 and response.getheader("Location") == "https://" + domain + "/":
+                return True
+        except (OSError, http.client.HTTPException):
+            pass
+        finally:
+            conn.close()
+        time.sleep(1)
+    return False
+
+
+def activate_web(release, config):
+    had_current = container(WEB_CURRENT) is not None
+    moved_previous = False
+    try:
+        if had_current:
+            previous = container(WEB_PREVIOUS)
+            if previous and previous["State"]["Running"]:
+                raise DeploymentError("Previous HTTPS proxy is running; deployment refused")
+            remove_container(WEB_PREVIOUS)
+            command(["docker", "stop", "--time", "10", WEB_CURRENT])
+            command(["docker", "rename", WEB_CURRENT, WEB_PREVIOUS])
+            moved_previous = True
+        start_web(release)
+        if not web_ready(config["domain"]):
+            raise DeploymentError("HTTPS proxy did not become ready")
+    except Exception as error:
+        if moved_previous or not had_current:
+            remove_container(WEB_CURRENT)
+        if had_current:
+            if moved_previous:
+                command(["docker", "rename", WEB_PREVIOUS, WEB_CURRENT])
+            command(["docker", "start", WEB_CURRENT])
+            old_release = next(Path(m["Source"]).parent for m in container(WEB_CURRENT)["Mounts"]
+                               if m["Destination"] == "/etc/caddy/Caddyfile")
+            old_domain = json.loads((old_release / "release.json").read_text())["public_web"]["domain"]
+            if not web_ready(old_domain):
+                raise DeploymentError("HTTPS activation failed and previous proxy failed its startup check") from error
+            raise DeploymentError("HTTPS activation failed; previous proxy restored") from error
+        raise DeploymentError("Initial HTTPS activation failed; public proxy remains closed") from error
+
+
 def prune_releases():
     # Only this application's stopped images and config directories are eligible.
     retained = set()
     images = set()
-    for name in (CURRENT, PREVIOUS):
+    for name in (CURRENT, PREVIOUS, WEB_CURRENT, WEB_PREVIOUS):
         info = container(name)
         if info:
             images.add(info["Image"])
             retained.update(Path(m["Source"]).parent.resolve() for m in info["Mounts"]
-                            if m["Destination"] == "/config/profile.json")
+                            if m["Destination"] in {"/config/profile.json", "/etc/caddy/Caddyfile"})
     releases = (BASE / "releases").resolve()
     for path in releases.iterdir():
         if (path.is_dir() and not path.is_symlink() and path.resolve().parent == releases
@@ -170,6 +325,7 @@ def prune_releases():
 
 def deploy(source):
     manifest = json.loads((source / "release.json").read_text())
+    web_config = validate_web_config(manifest.get("public_web"))
     revision = manifest["revision"]
     release_id = manifest["release_id"]
     if not re.fullmatch(r"[0-9a-f]{40}", revision) or not re.fullmatch(
@@ -192,7 +348,9 @@ def deploy(source):
         shutil.copyfile(source / name, release / name)
         os.chmod(release / name, 0o600)
     os.chown(release / "profile.json", 1654, 1654)
-    activate(image, release, profile["platform_monitor"]["profile"])
+    prepare_web(release, web_config)
+    activate(image, release, profile["platform_monitor"]["profile"],
+             finalize=lambda: activate_web(release, web_config))
     prune_releases()
     print(json.dumps({"status": "deployed", "revision": revision, "mode": "observe_only"}))
 

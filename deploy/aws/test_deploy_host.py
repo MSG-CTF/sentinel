@@ -94,6 +94,53 @@ class ActivationTests(unittest.TestCase):
             host.activate("new-image", self.new, "aws")
         self.assertFalse(self.containers)
 
+    def test_proxy_activation_failure_also_restores_previous_application(self):
+        def fail_proxy():
+            raise host.DeploymentError("HTTPS activation failed")
+        with self.assertRaisesRegex(host.DeploymentError, "restored and verified"):
+            host.activate("new-image", self.new, "aws", finalize=fail_proxy)
+        self.assertEqual(self.containers[host.CURRENT]["Image"], "old-image")
+        self.assertTrue(self.containers[host.CURRENT]["State"]["Running"])
+
+
+class WebActivationTests(unittest.TestCase):
+    def test_failed_proxy_restores_previous_configuration_and_checks_old_domain(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            old = root / "old"
+            old.mkdir()
+            (old / "release.json").write_text(json.dumps({"public_web": {"domain": "old.example.com"}}))
+            containers = {host.WEB_CURRENT: {
+                "State": {"Running": True}, "Image": "old",
+                "Mounts": [{"Destination": "/etc/caddy/Caddyfile", "Source": str(old / "Caddyfile")}],
+            }}
+
+            def command(args):
+                if args[1] == "rename":
+                    containers[args[3]] = containers.pop(args[2])
+                elif args[1] in {"stop", "start"}:
+                    containers[args[-1]]["State"]["Running"] = args[1] == "start"
+                else:
+                    self.fail("Unexpected proxy operation")
+
+            def start(release):
+                containers[host.WEB_CURRENT] = {"State": {"Running": True}, "Image": "new"}
+
+            checked_domains = []
+
+            def ready(domain):
+                checked_domains.append(domain)
+                return containers[host.WEB_CURRENT]["Image"] == "old"
+
+            with patch.object(host, "container", containers.get), \
+                    patch.object(host, "remove_container", lambda name: containers.pop(name, None)), \
+                    patch.object(host, "command", command), patch.object(host, "start_web", start), \
+                    patch.object(host, "web_ready", ready):
+                with self.assertRaisesRegex(host.DeploymentError, "previous proxy restored"):
+                    host.activate_web(root / "new", {"domain": "new.example.com"})
+            self.assertEqual(containers[host.WEB_CURRENT]["Image"], "old")
+            self.assertEqual(checked_domains, ["new.example.com", "old.example.com"])
+
 
 if __name__ == "__main__":
     unittest.main()
