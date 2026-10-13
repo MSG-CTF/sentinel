@@ -4,6 +4,7 @@ import argparse
 import base64
 import hashlib
 import http.client
+import http.cookies
 import json
 import os
 from pathlib import Path
@@ -42,6 +43,13 @@ def validate_configuration(profile, credentials):
         if not isinstance(target, dict):
             raise ValueError("Invalid target definition")
         if target.get("enabled", True):
+            if target.get("kind") == "service_heartbeat":
+                if target.get("url") or not target.get("auth_token_env"):
+                    raise ValueError("Heartbeat requires a dedicated token and no probe URL")
+                if not isinstance(credentials.get(target["auth_token_env"]), str) or len(credentials[target["auth_token_env"]]) < 32:
+                    raise ValueError("Heartbeat credential must contain at least 32 characters")
+                names.add(target["auth_token_env"])
+                continue
             url = urlsplit(target.get("url", ""))
             if (url.scheme not in {"http", "https"} or not url.hostname
                     or url.username or url.password or url.query or url.fragment
@@ -113,45 +121,65 @@ def verify_web():
     if not 24 <= len(password) <= 72 or any(c in password for c in "\r\n\0"):
         raise ValueError("Invalid administrator verification credential")
     domain = config["domain"]
+    cookies = http.cookies.SimpleCookie()
 
-    def request(path, authorization=None, https=True):
-        # No redirects: credentials must never leave this exact HTTPS origin.
+    def request(path, method="GET", data=None, csrf=None, authenticated=False, https=True):
         conn_type = http.client.HTTPSConnection if https else http.client.HTTPConnection
         conn = conn_type(domain, timeout=15)
-        headers = {"Authorization": authorization} if authorization else {}
+        headers = {}
+        if authenticated and cookies:
+            headers["Cookie"] = "; ".join(key + "=" + value.value for key, value in cookies.items())
+        if csrf: headers["X-CSRF-TOKEN"] = csrf
+        if data is not None: headers["Content-Type"] = "application/json"
         try:
-            conn.request("GET", path, headers=headers)
+            conn.request(method, path, json.dumps(data) if data is not None else None, headers)
             response = conn.getresponse()
+            for key, value in response.getheaders():
+                if key.lower() == "set-cookie": cookies.load(value)
             return response.status, dict(response.getheaders()), response.read(2 * 1024 * 1024)
         finally:
             conn.close()
 
-    def basic(value):
-        return "Basic " + base64.b64encode((config["username"] + ":" + value).encode()).decode()
-
     status, headers, body = request("/", https=False)
     if status != 308 or headers.get("Location") != "https://" + domain + "/":
         raise RuntimeError("Public HTTP did not redirect directly to HTTPS")
-    for path in ("/", "/api/status", "/api/instances", "/api/events", "/api/recovery", "/metrics", "/healthz"):
-        status, headers, body = request(path)
-        if status != 401 or not any(k.lower() == "www-authenticate" for k in headers):
-            raise RuntimeError("Public endpoint did not require administrator authentication")
-    if request("/api/status", basic("deliberately-invalid-test-password"))[0] != 401:
-        raise RuntimeError("Public endpoint accepted invalid credentials")
-    status, headers, body = request("/healthz", basic(password))
-    health = json.loads(body) if status == 200 else {}
-    if health.get("status") != "ok" or health.get("mode") != "observe_only":
-        raise RuntimeError("Authenticated health verification failed")
-    status, headers, body = request("/api/status", basic(password))
+    status, headers, body = request("/")
+    if status != 302 or headers.get("Location") != "/login":
+        raise RuntimeError("Dashboard did not redirect to administrator login")
+    if request("/login")[0] != 200:
+        raise RuntimeError("Administrator login page is unavailable")
+    for path in ("/api/status", "/api/history", "/api/instances", "/api/events", "/api/recovery", "/metrics", "/healthz", "/asset-access.json"):
+        if request(path)[0] != 401:
+            raise RuntimeError("Operational endpoint did not require administrator authentication")
+    if request("/internal/readiness")[0] != 404 or request("/internal/recovery")[0] != 404:
+        raise RuntimeError("Internal endpoints are exposed through the public proxy")
+    if request("/ingest/heartbeat/discord-bot", method="POST", data={})[0] != 401:
+        raise RuntimeError("Heartbeat endpoint did not require its dedicated credential")
+    status, _, body = request("/auth/csrf")
+    if status != 200: raise RuntimeError("Login CSRF bootstrap failed")
+    csrf = json.loads(body)["request_token"]
+    invalid = {"username": config["username"], "password": "deliberately-invalid-test-password"}
+    if request("/auth/login", "POST", invalid, csrf, True)[0] != 401:
+        raise RuntimeError("Login accepted an invalid password")
+    valid = {"username": config["username"], "password": password}
+    if request("/auth/login", "POST", valid, authenticated=True)[0] != 400:
+        raise RuntimeError("Login accepted a request without CSRF protection")
+    if request("/auth/login", "POST", valid, csrf, True)[0] != 200:
+        raise RuntimeError("Administrator login failed")
+    status, _, body = request("/api/status", authenticated=True)
     snapshot = json.loads(body) if status == 200 else {}
     if (snapshot.get("profile") != "aws" or snapshot.get("updated_at") is None
             or snapshot.get("event_storage_healthy") is not True):
         raise RuntimeError("Authenticated monitoring verification failed")
-    if request("/", basic(password))[0] != 200:
-        raise RuntimeError("Authenticated dashboard verification failed")
-    if request("/internal/recovery", basic(password))[0] != 404:
-        raise RuntimeError("Internal recovery endpoint must stay unavailable through the public proxy")
-    print("Public HTTPS certificate, redirect, authentication, dashboard and monitoring checks passed")
+    if request("/", authenticated=True)[0] != 200 or request("/metrics", authenticated=True)[0] != 200:
+        raise RuntimeError("Authenticated dashboard or metrics verification failed")
+    _, _, body = request("/auth/csrf", authenticated=True)
+    csrf = json.loads(body)["request_token"]
+    if request("/auth/logout", "POST", csrf=csrf, authenticated=True)[0] != 200:
+        raise RuntimeError("Administrator logout failed")
+    if request("/api/status", authenticated=True)[0] != 401:
+        raise RuntimeError("Logged-out browser can still read monitoring data")
+    print("Public HTTPS, login form, protected APIs, CSRF, heartbeat boundary and logout checks passed")
 
 
 def deploy(directory):

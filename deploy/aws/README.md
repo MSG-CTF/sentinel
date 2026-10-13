@@ -68,7 +68,7 @@ platform_recovery.enabled=false, instance_monitor.enabled=false를 사용한다
 공개 예시에는 실제 서버 IP와 인증값을 넣지 않는다
 
 관리자 비밀번호는 무작위 24~72자 ASCII 문자열로 생성한다
-password_hash에는 bcrypt 비용 12~14의 해시를 저장하며 비밀번호 원문을 넣지 않는다
+password_hash는 pbkdf2-sha256$600000$<16바이트 salt의 Base64>$<32바이트 해시의 Base64> 형식이며 비밀번호 원문을 넣지 않는다
 배포 묶음에는 도메인과 해시만 포함하고 관리자 비밀번호는 서버나 GitHub artifact에 전달하지 않는다
 SENTINEL_ADMIN_PASSWORD는 배포 후 HTTPS 로그인 검증에만 사용한다
 관리자 이름·비밀번호를 바꿀 때 두 Secret을 함께 갱신한 뒤 전체 workflow를 실행한다
@@ -81,7 +81,7 @@ SENTINEL_ADMIN_PASSWORD는 배포 후 HTTPS 로그인 검증에만 사용한다
 3. GitHub artifact에는 이미지와 배포 코드만 보관한다
 4. 배포 job에서만 환경 Secrets를 읽어 비공개 S3 묶음을 생성한다
 5. SSM에서 SHA-256과 파일 목록을 검사한 뒤 이미지를 적재한다
-6. 별도 데이터 디렉터리를 쓰는 후보 컨테이너의 healthz와 첫 감시 결과를 확인한다
+6. 별도 데이터 디렉터리를 쓰는 후보 컨테이너의 내부 readiness와 첫 감시 결과를 확인한다
 7. 후보가 통과하면 기존 컨테이너를 보존하고 새 버전으로 교체한다
 8. 교체 후 검사에 실패하면 이전 이미지와 이전 설정으로 복구하고 다시 확인한다
 9. 검증한 Caddy 설정으로 HTTPS 프록시를 교체하고 시작 상태를 확인한다
@@ -109,15 +109,20 @@ aws cloudformation create-stack --stack-name msg-sentinel-web --region ap-northe
 ```
 
 TCP 80은 인증서 발급·갱신과 HTTPS 리다이렉트에 사용하고 앱 내용을 제공하지 않는다
-TCP 443에서는 브라우저의 관리자 아이디·비밀번호 입력창이 뜬다
+TCP 443에서는 전용 로그인 화면이 열린다
+로그인 후 Secure·HttpOnly·SameSite=Strict 쿠키로 8시간 세션을 유지한다
+로그인·로그아웃에는 CSRF 토큰이 필요하며 로그인은 분당 10회로 제한한다
+쿠키 암호화 키는 앱 데이터 볼륨의 auth-keys 디렉터리에 보존한다
 대시보드, API, metrics, healthz 모두 인증이 필요하며 /internal 경로는 공개 프록시에서 차단한다
-인증 헤더는 백엔드에 전달하지 않고 응답에는 no-store 캐시 정책을 적용한다
+일반 경로에서는 인증 헤더를 제거하고, /ingest/heartbeat/*에만 대상별 Bearer 토큰을 전달한다
+응답에는 no-store 캐시 정책을 적용한다
+내부 readiness는 배포마다 생성한 전용 토큰으로 확인하며 공개 프록시는 /internal을 차단한다
 Caddy 관리 API는 비활성화하며 SSH·8080 포트는 열지 않는다
 인증서와 갱신 정보는 /opt/msg-sentinel/web-data에 보존한다
 
 공개 HTTPS 접속을 확인한 뒤 저장소 변수 SENTINEL_PUBLIC_HTTPS_ENABLED를 true로 설정한다
-이후 자동 배포마다 공인 인증서, HTTP 리다이렉트, 미인증·잘못된 암호의 401 응답,
-정상 로그인, 첫 수집 결과와 이벤트 저장 상태를 검증한다
+이후 자동 배포마다 공인 인증서, HTTP 리다이렉트, 로그인 이동과 미인증 API의 401 응답,
+CSRF·정상 로그인·로그아웃, 첫 수집 결과와 이벤트 저장 상태를 검증한다
 외부 검증은 DNS나 인증서 문제도 감지하며 실패 시 배포 job을 실패 처리한다
 이 외부 점검은 호스트 활성화 이후 단계이므로 자동 롤백을 수행하지 않는다
 최초 포트 개방 전에는 호스트의 프록시 시작 검사까지만 가능하다
@@ -145,3 +150,14 @@ CloudFormation 스택 삭제는 EC2와 루트 디스크의 이벤트 이력을 �
 필요한 기록은 먼저 보관한다
 S3 버킷은 Retain으로 남고 배포 묶음은 3일 만료 규칙에 따라 정리된다
 스택을 없애면 AWS_DEPLOY_ENABLED를 false로 바꾸고 더 이상 쓰지 않는 환경 Secrets를 정리한다
+
+## 서비스 상태 보고
+
+SSH로 접근하는 봇 서버에는 deploy/telemetry의 보고기와 systemd 타이머를 설치한다
+reporter.json은 /etc/sentinel-telemetry에 root 소유 0600으로 보관하고 LoadCredential로 전달한다
+설정 필드는 endpoint, token, service이며 token은 GitHub의 SENTINEL_PROBE_SECRETS_JSON에 같은 값으로 등록한다
+대상은 kind=service_heartbeat와 전용 auth_token_env를 사용하고 URL을 지정하지 않는다
+서버는 60초마다 프로세스 상태·재시작 횟수·메모리·디스크·load를 전송한다
+150초 이상 보고가 없으면 최신 정상 상태를 유지하지 않는다
+서비스 실행 여부는 Discord gateway 연결·티켓 처리 성공을 뜻하지 않는다
+개인 SSH 키와 Discord 봇 토큰은 SLA 서버에 전달하지 않는다

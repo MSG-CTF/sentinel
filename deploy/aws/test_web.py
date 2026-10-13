@@ -15,7 +15,7 @@ import deploy_host as host
 
 
 def fixture():
-    return {"domain": "sla.example.com", "username": "admin", "password_hash": "$2a$12$" + "a" * 53}
+    return {"domain": "sla.example.com", "username": "admin", "password_hash": 'pbkdf2-sha256$600000$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='}
 
 
 class WebConfigurationTests(unittest.TestCase):
@@ -29,7 +29,7 @@ class WebConfigurationTests(unittest.TestCase):
         cases = [("domain", value) for value in (
             "http://sla.example.com", "127.0.0.1", "localhost", "site.local", "site.internal",
             "site.example.com\n}", "site.example.com:8080", "site..com", "-site.example.com")]
-        cases += [("username", "admin\nrespond 200"), ("password_hash", "$2a$12$" + "a" * 53 + "\n}")]
+        cases += [("username", "admin\nrespond 200"), ("password_hash", 'pbkdf2-sha256$600000$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' + "\n}")]
         for key, value in cases:
             with self.subTest(key=key, value=value), self.assertRaises(ValueError):
                 host.web_caddyfile({**fixture(), key: value})
@@ -37,7 +37,7 @@ class WebConfigurationTests(unittest.TestCase):
 
 @unittest.skipUnless(os.environ.get("SENTINEL_DOCKER_TESTS") == "1", "Set SENTINEL_DOCKER_TESTS=1 for proxy integration")
 class WebProxyIntegrationTests(unittest.TestCase):
-    def test_authentication_covers_all_routes_and_credentials_never_reach_backend(self):
+    def test_proxy_hides_internal_routes_and_limits_credential_forwarding(self):
         suffix = uuid.uuid4().hex[:12]
         proxy = "sentinel-web-test-" + suffix
         created = []
@@ -53,10 +53,7 @@ class WebProxyIntegrationTests(unittest.TestCase):
                 self.fail(result.stderr)
             return result
 
-        password = "fixture-only-long-administrator-password"
-        hashed = docker(["run", "--rm", "-i", "--network", "none", host.WEB_IMAGE, "caddy",
-                         "hash-password", "--algorithm", "bcrypt", "--bcrypt-cost", "12"], input=password + "\n").stdout.strip()
-        config = {**fixture(), "password_hash": hashed}
+        config = fixture()
         production = host.web_caddyfile(config)
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -101,24 +98,20 @@ class WebProxyIntegrationTests(unittest.TestCase):
                         if attempt == 29:
                             raise
                         time.sleep(0.2)
-                for path in ("/", "/api/status", "/api/instances", "/api/events", "/api/recovery", "/metrics",
-                             "/healthz", "/internal/recovery", "/not-a-real-route"):
-                    with self.subTest(path=path):
-                        status, headers, body = request(path)
-                        self.assertEqual(status, 401)
-                        self.assertIn("www-authenticate", headers)
-                        self.assertEqual(headers.get("cache-control"), "no-store")
-                        self.assertNotIn(b"upstream:", body)
-                self.assertEqual(request("/api/status", "admin", "wrong-password")[0], 401)
-                self.assertEqual(request("/api/status", "other", password)[0], 401)
-                for path in ("/", "/api/status", "/metrics", "/healthz"):
-                    status, headers, body = request(path, "admin", password)
+                # The proxy delegates browser sessions to ASP.NET and still hides internal routes.
+                for path in ("/", "/login", "/api/status", "/metrics", "/healthz"):
+                    status, headers, body = request(path, "admin", "fixture-unused-password")
                     self.assertEqual(status, 200)
                     self.assertEqual(body, b"upstream:|")
                     self.assertEqual(headers.get("cache-control"), "no-store")
                     self.assertNotIn("server", headers)
-                self.assertEqual(request("/internal/recovery", "admin", password)[0], 404)
-                self.assertEqual(request("/internal", "admin", password)[0], 404)
+                self.assertEqual(request("/internal/readiness")[0], 404)
+                self.assertEqual(request("/internal/recovery")[0], 404)
+                self.assertEqual(request("/internal")[0], 404)
+                status, headers, body = request("/ingest/heartbeat/discord-bot", "admin", "fixture-token")
+                self.assertEqual(status, 200)
+                self.assertIn(b"upstream:Basic ", body)
+                self.assertTrue(body.endswith(b"|"))
             finally:
                 for name in reversed(created):
                     docker(["rm", "-f", name], required=False)

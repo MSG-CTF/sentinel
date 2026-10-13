@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace Sentinel.Monitor.Platform;
 
-public sealed class PlatformProbeClient(HttpClient httpClient)
+public sealed class PlatformProbeClient(HttpClient httpClient, HeartbeatStore? heartbeatStore = null)
 {
     private const int MaxBodyBytes = 65536;
 
@@ -15,6 +15,8 @@ public sealed class PlatformProbeClient(HttpClient httpClient)
             return Result(target, "UNCONFIGURED", target.UnconfiguredReason, null, null, null);
         if (!target.IsValid())
             return Result(target, "UNVERIFIED", "INVALID_CONFIGURATION", null, null, null);
+        if (target.Kind == "service_heartbeat")
+            return heartbeatStore?.Read(target) ?? Result(target, "UNCONFIGURED", "HEARTBEAT_PENDING", null, null, null);
 
         using var request = new HttpRequestMessage(HttpMethod.Get, target.Url);
         request.Headers.UserAgent.ParseAdd("MSG-Sentinel/0.1");
@@ -38,11 +40,13 @@ public sealed class PlatformProbeClient(HttpClient httpClient)
             var code = (int)response.StatusCode;
             if (code is >= 300 and < 400)
                 return Measured("UNVERIFIED", "REDIRECT_BLOCKED", code);
-            if (code is 401 or 403)
+            if (code is 401 or 403 && target.Kind != "auth_boundary")
                 return Measured("UNVERIFIED", "AUTH_REQUIRED", code);
             if (code == 404)
                 return Measured("UNVERIFIED", "ENDPOINT_NOT_FOUND", code);
-            if (target.Kind != "backend_healthz" && code != 200)
+            if (target.Kind is not ("backend_healthz" or "auth_boundary") && code != 200)
+                return Measured(code >= 500 ? "DOWN" : "UNVERIFIED", "HTTP_ERROR", code);
+            if (target.Kind == "auth_boundary" && code != 401)
                 return Measured(code >= 500 ? "DOWN" : "UNVERIFIED", "HTTP_ERROR", code);
             if (target.Kind == "backend_healthz" && code is not (200 or 503))
                 return Measured(code >= 500 ? "DOWN" : "UNVERIFIED", "HTTP_ERROR", code);
@@ -79,6 +83,14 @@ public sealed class PlatformProbeClient(HttpClient httpClient)
             var root = payload.RootElement;
             if (root.ValueKind != JsonValueKind.Object)
                 return Measured("UNVERIFIED", "INVALID_HEALTH_CONTRACT", code);
+            if (target.Kind == "auth_boundary")
+            {
+                if (root.TryGetProperty("code", out var error) && error.ValueKind == JsonValueKind.String
+                    && error.GetString() == "TOKEN_MISSING" && root.TryGetProperty("data", out var data)
+                    && data.ValueKind == JsonValueKind.Null)
+                    return Measured("HEALTHY", "AUTH_BOUNDARY_READY", code);
+                return Measured("UNVERIFIED", "INVALID_HEALTH_CONTRACT", code);
+            }
             if (target.Kind is "runtime_status" or "runtime_node" or "runtime_operation")
             {
                 var result = RuntimeProbeContract.Check(root, target, DateTimeOffset.UtcNow);

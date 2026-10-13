@@ -16,6 +16,16 @@ def profile():
 
 
 class ConfigurationTests(unittest.TestCase):
+    def test_heartbeat_uses_only_its_dedicated_strong_credential_without_a_url(self):
+        config = profile()
+        config["platform_monitor"]["targets"] = [{"target_id": "discord-bot", "kind": "service_heartbeat", "auth_token_env": "BOT_TOKEN"}]
+        with self.assertRaises(ValueError):
+            release.validate_configuration(config, {"BOT_TOKEN": "short"})
+        self.assertEqual(release.validate_configuration(config, {"BOT_TOKEN": "a" * 40}), "BOT_TOKEN=" + "a" * 40 + "\n")
+        config["platform_monitor"]["targets"][0]["url"] = "https://example.com/"
+        with self.assertRaises(ValueError):
+            release.validate_configuration(config, {"BOT_TOKEN": "a" * 40})
+
     def test_observe_only_without_tokens(self):
         self.assertEqual(release.validate_configuration(profile(), {}), "")
 
@@ -73,7 +83,7 @@ class ConfigurationTests(unittest.TestCase):
                                          "SENTINEL_PROBE_SECRETS_JSON": '{"PROBE_TOKEN":"test-only-secret"}',
                                          "SENTINEL_WEB_CONFIG_JSON": json.dumps({
                                              "domain": "sla.example.com", "username": "admin",
-                                             "password_hash": "$2a$12$" + "a" * 53})}):
+                                             "password_hash": 'pbkdf2-sha256$600000$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='})}):
                 release.package(source, root / "bundle.tar.gz")
             with tarfile.open(root / "bundle.tar.gz") as archive:
                 self.assertEqual(set(archive.getnames()),

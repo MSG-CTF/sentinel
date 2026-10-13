@@ -1,6 +1,8 @@
 """EC2-local deployment with a separate candidate check and container rollback."""
 
 import argparse
+import base64
+import secrets
 import http.client
 import ipaddress
 import json
@@ -46,14 +48,16 @@ def validate_web_config(value):
     if not isinstance(username, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{2,31}", username):
         raise ValueError("Invalid administrator username")
     if (not isinstance(password_hash, str)
-            or not re.fullmatch(r"\$2[aby]\$(?:12|13|14)\$[./A-Za-z0-9]{53}", password_hash)):
-        raise ValueError("Administrator password must be a bcrypt hash with cost 12 to 14")
+            or not re.fullmatch(r"pbkdf2-sha256\$600000\$[A-Za-z0-9+/]{22}==\$[A-Za-z0-9+/]{43}=", password_hash)):
+        raise ValueError("Administrator password must be a PBKDF2-SHA256 hash with 600000 iterations")
+    if len(base64.b64decode(password_hash.split("$")[2], validate=True)) != 16 or len(base64.b64decode(password_hash.split("$")[3], validate=True)) != 32:
+        raise ValueError("Invalid administrator password hash")
     return dict(value)
 
 
 def web_caddyfile(config):
     value = validate_web_config(config)
-    # Explicit route ordering puts authentication before every upstream path.
+    # Session authentication lives in ASP.NET; internal control routes stay private.
     return """{
     admin off
     servers {
@@ -68,11 +72,12 @@ https://%s {
         X-Robots-Tag "noindex, nofollow"
     }
     route {
-        basic_auth bcrypt MSG-SLA {
-            %s %s
-        }
         @internal path /internal /internal/*
         respond @internal 404
+        @heartbeat path /ingest/heartbeat/*
+        reverse_proxy @heartbeat 127.0.0.1:8080 {
+            header_up -Proxy-Authorization
+        }
         reverse_proxy 127.0.0.1:8080 {
             header_up -Authorization
             header_up -Proxy-Authorization
@@ -88,7 +93,7 @@ https://%s {
         respond "" {err.status_code}
     }
 }
-""" % (value["domain"], value["username"], value["password_hash"])
+""" % value["domain"]
 
 
 def command(args, *, optional=False):
@@ -117,6 +122,10 @@ def remove_container(name):
 def start(name, image, release, data, port):
     data.mkdir(parents=True, exist_ok=True)
     os.chown(data, 1654, 1654)
+    key_dir = data / "auth-keys"
+    key_dir.mkdir(mode=0o700, exist_ok=True)
+    os.chown(key_dir, 1654, 1654)
+    os.chmod(key_dir, 0o700)
     args = [
         "docker", "run", "-d", "--name", name,
         "--label", OWNER_LABEL + "=" + OWNER,
@@ -129,6 +138,8 @@ def start(name, image, release, data, port):
         "--publish", "127.0.0.1:" + str(port) + ":8080",
         "--mount", "type=bind,src=" + str(release / "profile.json") + ",dst=/config/profile.json,readonly",
         "--mount", "type=bind,src=" + str(data) + ",dst=/app/data",
+        "--mount", "type=bind,src=" + str(release / "auth.json") + ",dst=/config/auth.json,readonly",
+        "--env", "SENTINEL_AUTH_FILE=/config/auth.json",
         "--env-file", str(release / "probe.env"),
         "--env", "ASPNETCORE_URLS=http://+:8080",
         "--env", "SENTINEL_PROFILE_FILE=/config/profile.json",
@@ -149,10 +160,18 @@ def healthy(name, expected_profile, timeout=90):
             return False
         url = "http://127.0.0.1:" + bindings[0]["HostPort"]
         try:
-            with urllib.request.urlopen(url + "/healthz", timeout=3) as response:
-                health = json.load(response)
-            with urllib.request.urlopen(url + "/api/status", timeout=3) as response:
-                status = json.load(response)
+            auth_mount = next((m for m in info.get("Mounts", []) if m["Destination"] == "/config/auth.json"), None)
+            if auth_mount:
+                auth = json.loads(Path(auth_mount["Source"]).read_text())
+                request = urllib.request.Request(url + "/internal/readiness", headers={"Authorization": "Bearer " + auth["ReadinessToken"]})
+                with urllib.request.urlopen(request, timeout=3) as response:
+                    health = status = json.load(response)
+            else:
+                # Rollback can target the previous release that used proxy authentication.
+                with urllib.request.urlopen(url + "/healthz", timeout=3) as response:
+                    health = json.load(response)
+                with urllib.request.urlopen(url + "/api/status", timeout=3) as response:
+                    status = json.load(response)
             if (health.get("status") == "ok" and health.get("mode") == "observe_only"
                     and status.get("profile") == expected_profile
                     and status.get("event_storage_healthy") is True
@@ -348,6 +367,11 @@ def deploy(source):
         shutil.copyfile(source / name, release / name)
         os.chmod(release / name, 0o600)
     os.chown(release / "profile.json", 1654, 1654)
+    auth_path = release / "auth.json"
+    auth_path.write_text(json.dumps({"Enabled": True, "Username": web_config["username"],
+        "PasswordHash": web_config["password_hash"], "ReadinessToken": secrets.token_urlsafe(32)}) + "\n", encoding="utf-8")
+    os.chmod(auth_path, 0o400)
+    os.chown(auth_path, 1654, 1654)
     prepare_web(release, web_config)
     activate(image, release, profile["platform_monitor"]["profile"],
              finalize=lambda: activate_web(release, web_config))

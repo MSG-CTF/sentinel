@@ -24,6 +24,7 @@ public static class PlatformMonitorRegistration
                 AutomaticDecompression = DecompressionMethods.All,
             });
         services.AddSingleton<PlatformMonitor>();
+        services.AddSingleton<HeartbeatStore>();
         services.AddHostedService<PlatformMonitorWorker>();
         return services;
     }

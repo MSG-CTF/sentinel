@@ -4,31 +4,34 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0c1319">
-  <title>MSG CLOUD | 운영 아키텍처</title>
+  <title>Sentinel · Operations</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/dashboard.css">
   <link rel="stylesheet" href="/architecture.css">
+  <link rel="stylesheet" href="/operations.css">
   <script src="/asset-model.js" defer></script>
   <script src="/architecture-model.js" defer></script>
   <script src="/topology.js" defer></script>
   <script src="/data-recovery.js" defer></script>
   <script src="/instance-inventory.js" defer></script>
+  <script src="/operations.js" defer></script>
   <script src="/dashboard.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">본문으로 이동</a>
   <header class="site-header">
     <div class="header-inner">
-      <a class="brand" href="/" aria-label="MSG CLOUD 운영 아키텍처">
+      <a class="brand" href="/" aria-label="Sentinel 운영 현황">
         <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M5 29V11l15 9 15-9v18M5 11l15-8 15 8M20 20v17M5 29l15 8 15-8"/></svg>
-        <span>MSG CLOUD</span><small>SENTINEL</small>
+        <span>SENTINEL</span><small>MSG CTF</small>
       </a>
       <nav class="view-tabs" role="tablist" aria-label="대시보드 보기">
-        <button id="architecture-tab" type="button" role="tab" aria-selected="true" aria-controls="architecture-view">전체 구조</button>
-        <button id="status-tab" type="button" role="tab" aria-selected="false" aria-controls="status-view" tabindex="-1">자산 상태</button>
-        <button id="connections-tab" type="button" role="tab" aria-selected="false" aria-controls="connections-view" tabindex="-1">연결 검토</button>
+        <button id="status-tab" type="button" role="tab" aria-selected="true" aria-controls="status-view">Overview</button>
+        <button id="architecture-tab" type="button" role="tab" aria-selected="false" aria-controls="architecture-view" tabindex="-1">아키텍처</button>
+        <button id="connections-tab" type="button" role="tab" aria-selected="false" aria-controls="connections-view" tabindex="-1">연동 현황</button>
       </nav>
       <div class="header-tools">
+        <button id="logout" class="logout-button" type="button">로그아웃</button>
         <span id="profile" class="profile-label">연결 중</span>
         <button id="refresh" class="icon-button" type="button" aria-label="최신 점검 결과 가져오기" title="새로고침">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M19 11a7 7 0 0 0-12-4L4 10m1 3a7 7 0 0 0 12 4l3-3"/></svg>
@@ -37,12 +40,13 @@
     </div>
   </header>
   <main id="main" class="main" tabindex="-1">
+    <div class="operation-strip"><div><span class="operation-index">S / 01</span><span id="session-label">CONNECTING</span></div><span id="environment-label">ENVIRONMENT</span></div>
     <div id="connection-warning" class="warning" role="alert" hidden></div>
       <div class="page-heading">
         <div><h1 id="page-title">MSG CTF 운영 구조</h1><p id="status-caption">실제 서버의 점검 결과를 불러오는 중</p></div>
         <div class="update-note"><span id="last-update">점검 대기</span><small id="policy"></small></div>
       </div>
-    <section id="architecture-view" role="tabpanel" aria-labelledby="architecture-tab">
+    <section id="architecture-view" role="tabpanel" aria-labelledby="architecture-tab" hidden>
       <div class="map-toolbar">
         <div class="map-legend" aria-label="연결선 확인 범위"><span class="legend-live">실측 연결</span><span class="legend-source">소스 확인</span><span class="legend-design">설계</span><span class="legend-blocked">계약 불일치</span></div>
         <div class="map-tools">
@@ -54,13 +58,26 @@
       <div id="map-viewport" class="map-viewport" tabindex="0" role="region" aria-label="MSG CTF 전체 아키텍처 지도 · 자산과 연결선을 눌러 상세 확인"><div id="map-size" class="map-size"><div id="architecture-map" class="architecture-map"></div></div></div>
       <div class="map-caption"><span>내부·외부 데이터 분리 · 보조 연결: 관리자 리소스 목록과 트랙별 팀 토큰 검증</span><span>운영 배치안 · 로컬은 컨테이너 실행 · 소스 확인은 실연동 성공을 뜻하지 않음</span></div>
     </section>
-    <section id="status-view" role="tabpanel" aria-labelledby="status-tab" hidden>
+    <section id="status-view" role="tabpanel" aria-labelledby="status-tab">
       <div class="status-summary" aria-label="감시 대상 상태 요약">
         <div class="summary-item healthy"><span>정상</span><strong id="healthy-count">-</strong></div>
         <div class="summary-item incident"><span>장애·저하</span><strong id="incident-count">-</strong></div>
         <div class="summary-item unknown"><span>확인 불가</span><strong id="unknown-count">-</strong></div>
         <div class="summary-item pending"><span>미연결</span><strong id="pending-count">-</strong></div>
         <div class="summary-total">감시 대상 <strong id="total-count">-</strong><small id="measurement-note"></small></div>
+      </div>
+      <div class="signal-panels">
+        <section class="signal-panel" aria-labelledby="latency-title">
+          <div class="signal-heading"><h2 id="latency-title">응답 시간 <span>SIGNAL WINDOW</span></h2><div class="signal-reading"><strong id="latency-current">—</strong><small>ms</small></div></div>
+          <div class="latency-plot"><svg id="latency-chart" viewBox="0 0 760 120" preserveAspectRatio="none" role="img" aria-label="응답 시간 점검 대기"><path class="chart-grid" d="M0 14H760M0 62H760M0 110H760"/><path id="latency-path" class="latency-line" d=""/><circle id="latency-point" class="latency-dot" cx="760" cy="60" r="2.5" visibility="hidden"/></svg></div>
+          <div class="chart-foot"><span id="chart-start">—</span><p id="chart-note">첫 번째 점검을 기다리는 중</p><span id="chart-end">—</span></div>
+        </section>
+        <section class="signal-panel telemetry-panel" aria-labelledby="telemetry-title">
+          <div class="signal-heading"><h2 id="telemetry-title">서버 텔레메트리 <span>HEARTBEAT</span></h2><span id="bot-status" class="telemetry-state">연결 대기</span></div>
+          <div class="telemetry-identity"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M6 7h20v7H6zM6 18h20v7H6zM10 10.5h.1m0 11h.1M15 10.5h7m-7 11h7"/></svg><div><p>Discord bot</p><small>msg-ticket-bot.service</small></div></div>
+          <dl class="telemetry-numbers"><div><dt>MEMORY</dt><dd id="bot-memory">—</dd></div><div><dt>DISK</dt><dd id="bot-disk">—</dd></div><div><dt>RESTARTS</dt><dd id="bot-restarts">—</dd></div></dl>
+          <p id="bot-seen" class="telemetry-foot">서버의 첫 상태 보고를 기다리는 중</p>
+        </section>
       </div>
       <div class="assets-heading"><h2>자산별 상태</h2><button id="issues-only" class="text-button" type="button" aria-pressed="false">문제만 보기</button></div>
       <div id="asset-groups" class="asset-groups"><p class="loading-message">점검 결과를 불러오는 중</p></div>
@@ -71,7 +88,7 @@
         <p id="instance-caption" class="scope-note">최근 생성 목록을 불러오는 중</p>
         <p class="scope-note">최근 최대 20개 조회 · 전체 목록 미확인</p>
         <ul id="instance-list" class="instance-list"></ul>
-        <p class="scope-note">로컬 시험 서비스만 기능 점검 연결 · 대회 문제·트랙 매핑·인스턴스 자동 복구는 연결 전</p>
+        <p class="scope-note">인스턴스 목록과 문제별 기능 점검은 별도 연동</p>
       </section>
       <section class="recovery-panel" aria-labelledby="recovery-title">
         <div class="section-heading"><h2 id="recovery-title">자동 복구</h2><span id="recovery-mode">확인 중</span></div>

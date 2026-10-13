@@ -8,6 +8,7 @@ const groupOrder = ["PUBLIC", "ACCESS", "INTERNAL", "EXTERNAL", "CONTROL", "RUNT
 const assetLabels = {"internal-backend":["내부 백엔드","백엔드 API"], "external-backend":["외부 백엔드","백엔드 API"], scheduler:["인스턴스 스케줄러","스케줄러"], broker:["리소스 브로커","리소스 브로커"], runtime:["문제 런타임","런타임 API"], koth:["KoTH 서버","KoTH"], windows:["Windows 문제 서버","Windows"]};
 const roleNotes = {SCHEDULER:"생성·만료 관리", BROKER:"자원 후보·예약", RUNTIME:"문제 생성·삭제", KOTH:"전용 문제 서버", WINDOWS:"전용 문제 서버"};
 const reasonNames = {
+  AUTH_BOUNDARY_READY:"백엔드 인증 API 응답 확인 · DB·Redis는 별도 점검", SERVICE_ACTIVE:"서버의 봇 서비스 실행 확인 · Discord 연결은 별도 확인", SERVICE_INACTIVE:"봇 서비스 실행 중단", HEARTBEAT_PENDING:"서버의 첫 상태 보고 대기", HEARTBEAT_STALE:"서버 상태 보고 수신 지연", NOT_DEPLOYED:"아직 배포되지 않은 자산",
   RUNTIME_WORKLOAD_READY:"연결 시험 컨테이너와 접속 endpoint 준비 완료", RUNTIME_WORKLOAD_NOT_READY:"연결 시험 컨테이너 또는 endpoint 준비 안 됨", RUNTIME_STORE_QUERY_READY:"Runtime의 저장된 작업 기록 조회 정상", K3S_NODE_READY:"로컬 K3s 노드 Ready · pressure 없음", K3S_NODE_NOT_READY:"K3s 노드 Ready 확인 실패", K3S_NODE_PRESSURE:"K3s 노드의 메모리·디스크·프로세스 자원 부족", RUNTIME_IDENTITY_MISMATCH:"등록한 인스턴스·작업과 응답 식별자가 다름", STALE_RUNTIME_OBSERVATION:"Runtime 관측 시각이 유효 범위를 벗어남", INVALID_RUNTIME_STATUS:"Runtime 상태 응답이 계약과 다름", INVALID_RUNTIME_OPERATION:"완료된 연결 시험 작업 기록 확인 실패",
   SCHEDULER_QUERY_READY:"인증된 최근 인스턴스 목록 조회 정상", BROKER_QUERY_READY:"인증된 자산 목록 조회 정상", INVALID_INVENTORY_CONTRACT:"목록 응답 필드·범위·시간이 실제 API 계약과 다름",
   CLUSTER_NOT_CONFIGURED:"실제 K3s 클러스터와 런타임 연결 정보 필요", EXECUTION_TARGET_NOT_CONFIGURED:"실행 중인 문제 서버와 관리 주소 필요", PROVIDER_NOT_CONFIGURED:"클라우드 계정과 VM 연결 필요", SCORING_NOT_CONFIGURED:"채점 서비스와 점수 수집 연결 필요", DELIVERY_NOT_CONNECTED:"배포할 문제·실행 기록·산출물 연결 필요", INGESTION_NOT_IMPLEMENTED:"현재 실행본에 새 산출물 수집 경로 없음",
@@ -46,7 +47,7 @@ let accessCatalog = null, recoverySignature = "";
 const recoveryNames = {QUEUED:"실행 대기", CLAIMED:"실행 중", VERIFYING:"기능 확인 중", SUCCEEDED:"복구 확인", BLOCKED:"조치 중단", CANCELLED:"요청 취소", EXPIRED:"기한 초과"};
 const timeoutRecoveryReason = {CONFIRMED_STOPPED_TIMEOUT:"시간 초과 · 실행기가 컨테이너 정지 확인"};
 const recoveryReasons = {CONFIRMED_CONNECTION_FAILURE:"연속 연결 실패", EXECUTOR_CLAIMED:"실행기가 요청을 인수함", CONTAINER_STARTED:"기동 완료 · 기능 확인 대기", FUNCTION_VERIFIED:"자산별 정상 조건 연속 확인", PRECONDITION_NOT_MET:"컨테이너 정지 또는 의존 서비스 조건 불충족", EXECUTION_FAILED:"실행 실패", OUTCOME_UNKNOWN:"실행 결과 불명 · 중복 실행 보류", EVIDENCE_CHANGED:"장애 근거 변경", MONITOR_RESTARTED:"감시기 재시작 · 이전 대기 요청 취소", RECOVERY_DEADLINE_EXCEEDED:"요청 또는 기능 확인 기한 초과"};
-const viewKeys = ["architecture", "status", "connections"];
+const viewKeys = ["status", "architecture", "connections"];
 let view = "architecture", issuesOnly = false, expandedEvents = false, selection = null, opener = null;
 let assetSignature = "", eventSignature = "", detailEventSignature = "";
 const assetRows = new Map(), groupRows = new Map(), contractRows = new Map(), relatedRows = new Map();
@@ -158,6 +159,7 @@ function rebuildAssets(groups) {
   }
 }
 function render(snapshot, events, offline) {
+  SentinelOperations.render(snapshot, Boolean(offline));
   latest = snapshot; eventData = events; disconnected = Boolean(offline);
   assets = SentinelAssets.buildAssets(snapshot, {offline:disconnected}); architectureNodes = SentinelArchitecture.resolveNodes(assets);
   SentinelTopology.render(architectureNodes,assets,disconnected,true,snapshot.recovery);
@@ -175,7 +177,7 @@ function render(snapshot, events, offline) {
   for (const asset of assets) {
     const item = assetRows.get(asset.asset_id); item.button.className = `asset-row status-${statusClass(asset.status)}`;
     item.state.textContent = statusNames[asset.status];
-    item.reading.textContent = asset.evidence_type === "HEALTHZ_COMPONENT" ? "백엔드 healthz" : asset.status === "STALE" ? "점검 결과 오래됨" : ["UNCONFIGURED", "PENDING"].includes(asset.status) ? (reasonNames[asset.reason_code] || roleNotes[asset.role] || "점검 주소 미설정") : asset.http_status_code != null ? `HTTP ${asset.http_status_code}${asset.latency_ms != null ? ` · ${Math.round(asset.latency_ms)} ms` : ""}` : "응답 없음";
+    item.reading.textContent = asset.evidence_type === "HEALTHZ_COMPONENT" ? "백엔드 healthz" : asset.status === "STALE" ? "점검 결과 오래됨" : ["UNCONFIGURED", "PENDING"].includes(asset.status) ? (reasonNames[asset.reason_code] || roleNotes[asset.role] || "점검 주소 미설정") : asset.http_status_code != null ? `HTTP ${asset.http_status_code}${asset.latency_ms != null ? ` · ${Math.round(asset.latency_ms)} ms` : ""}` : asset.kind === "service_heartbeat" && asset.checked_at ? `최근 보고 ${time(asset.checked_at)}` : "응답 없음";
     item.button.setAttribute("aria-label", `${trackLabel(asset.track)} ${label(asset)} · ${statusNames[asset.status]}`);
     item.li.hidden = issuesOnly && !requiresAttention(asset);
   }
@@ -365,7 +367,7 @@ function renderInspector() {
 function switchView(next) {
   view = next;
   for (const key of viewKeys) {const active = key === next; byId(`${key}-view`).hidden = !active; byId(`${key}-tab`).setAttribute("aria-selected", String(active)); byId(`${key}-tab`).tabIndex = active ? 0 : -1;}
-  byId("page-title").textContent = {architecture:"MSG CTF 운영 구조",status:"플랫폼 자산 상태",connections:"역할별 연결 검토"}[next];
+  byId("page-title").textContent = {architecture:"MSG CTF 운영 구조",status:"운영 현황",connections:"역할별 연결 검토"}[next];
   if (next === "architecture") requestAnimationFrame(SentinelTopology.fit);
 }
 function showWarning(text) {byId("connection-warning").textContent = text; byId("connection-warning").hidden = !text;}
@@ -374,6 +376,7 @@ async function refresh() {
   inFlight = true; byId("refresh").disabled = true;
   try {
     const responses = await Promise.all([fetch("/api/status", {cache:"no-store",signal:AbortSignal.timeout(5000)}), fetch("/api/events", {cache:"no-store",signal:AbortSignal.timeout(5000)})]);
+    if (responses.some(response=>response.status === 401)) { location.replace("/login"); return; }
     if (responses.some(response=>!response.ok)) throw new Error("HTTP_ERROR");
     const [snapshot,feed] = await Promise.all(responses.map(response=>response.json()));
     if (!Array.isArray(snapshot.targets) || !Array.isArray(feed.events)) throw new Error("INVALID_SNAPSHOT");
@@ -405,4 +408,5 @@ rebuildContracts();
 SentinelTopology.mount({catalog,icon,inspect,statusNames,stageNames,statusClass,stageClass,trackLabel});
 SentinelTopology.render(architectureNodes,[],true,false);
 loadAccessPlan();
+switchView(new URLSearchParams(location.search).get("view")?.startsWith("architecture") ? "architecture" : "status");
 refresh();

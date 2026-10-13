@@ -15,6 +15,7 @@ public sealed class PlatformMonitor
     private readonly Dictionary<string, ProbeObservation> _observations = [];
     private readonly Dictionary<string, (int Failures, int Successes, string Reported)> _streaks = [];
     private readonly Queue<MonitorEvent> _events = new();
+    private readonly Queue<MonitorSample> _history = new();
     private readonly SemaphoreSlim _refresh = new(1, 1);
     private readonly TimeProvider _clock;
     private readonly DateTimeOffset _startedAt;
@@ -56,6 +57,9 @@ public sealed class PlatformMonitor
                     ObserveTransition(result);
                 }
                 _updatedAt = _clock.GetUtcNow();
+                _history.Enqueue(new MonitorSample(_updatedAt.Value, results.Select(result => new TargetSample(
+                    result.TargetId, result.Status, result.LatencyMs)).ToArray()));
+                while (_history.Count > 120) _history.Dequeue();
             }
         }
         finally { _refresh.Release(); }
@@ -80,6 +84,11 @@ public sealed class PlatformMonitor
     public IReadOnlyList<MonitorEvent> Events()
     {
         lock (_gate) return _events.Reverse().ToArray();
+    }
+
+    public IReadOnlyList<MonitorSample> History()
+    {
+        lock (_gate) return _history.ToArray();
     }
 
     public string Metrics()
@@ -142,8 +151,8 @@ public sealed class PlatformMonitor
                     var item = JsonSerializer.Deserialize<MonitorEvent>(line, PlatformJson.Options);
                     if (item is not null && !string.IsNullOrWhiteSpace(item.TargetId) &&
                         !string.IsNullOrWhiteSpace(item.Track) && Guid.TryParse(item.EventId, out _) &&
-                        item.Status is "HEALTHY" or "DOWN" or "UNVERIFIED" &&
-                        item.PreviousStatus is "UNKNOWN" or "HEALTHY" or "DOWN" or "UNVERIFIED" &&
+                        item.Status is "HEALTHY" or "DOWN" or "UNVERIFIED" or "STALE" &&
+                        item.PreviousStatus is "UNKNOWN" or "HEALTHY" or "DOWN" or "UNVERIFIED" or "STALE" &&
                         !string.IsNullOrWhiteSpace(item.ReasonCode) && item.CreatedAt != default)
                     {
                         _events.Enqueue(item);
