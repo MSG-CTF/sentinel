@@ -595,7 +595,7 @@ export async function createMechanismScene(element, {still=false} = {}) {
       camera.position.set(distance*.29,distance*.48,distance*.82);
       camera.lookAt(-.20,.17,0);
     }else{
-      const distance=Math.max(13.8,12.1/camera.aspect);
+      const distance=Math.max(12.9,11.4/camera.aspect);
       camera.position.set(distance*.34,distance*.46,distance*.81);
       camera.lookAt(0,-.12,0);
     }

@@ -44,3 +44,5 @@ body{background:radial-gradient(ellipse at 45% 250px,#30363c35,transparent 720px
 @media(min-width:1600px){.signal-panel,.core-panel{min-height:420px}.core-panel .mechanism{inset:25px -1% 30px}}
 @media(max-width:900px){.core-panel{min-height:360px}.core-panel .mechanism{inset:24px 3% 24px}.signal-panel{min-height:285px}}
 @media(max-width:650px){.core-panel{min-height:363px}.core-panel .mechanism{inset:29px -8% 27px}.core-panel-heading h2 span{display:none}.signal-panel{min-height:267px}}
+.core-panel{background:#090c10}
+.core-panel .mechanism{inset:0}
