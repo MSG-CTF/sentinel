@@ -154,6 +154,9 @@ S3 버킷은 Retain으로 남고 배포 묶음은 3일 만료 규칙에 따라 �
 ## 서비스 상태 보고
 
 SSH로 접근하는 봇 서버에는 deploy/telemetry의 보고기와 systemd 타이머를 설치한다
+로그인 셸과 홈 디렉터리가 없는 sentinel-telemetry 시스템 사용자·그룹을 생성해 실행한다
+해당 계정에는 sudo나 서비스 제어 권한을 주지 않는다
+일부 D-Bus 환경은 동적 UID의 systemctl 읽기 요청을 거부하므로 고정된 전용 UID를 사용한다
 reporter.json은 /etc/sentinel-telemetry에 root 소유 0600으로 보관하고 LoadCredential로 전달한다
 설정 필드는 endpoint, token, service이며 token은 GitHub의 SENTINEL_PROBE_SECRETS_JSON에 같은 값으로 등록한다
 대상은 kind=service_heartbeat와 전용 auth_token_env를 사용하고 URL을 지정하지 않는다

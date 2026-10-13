@@ -5,7 +5,8 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-DynamicUser=yes
+User=sentinel-telemetry
+Group=sentinel-telemetry
 LoadCredential=reporter.json:/etc/sentinel-telemetry/reporter.json
 ExecStart=/usr/bin/python3 /opt/sentinel-telemetry/report_service.py
 NoNewPrivileges=true
