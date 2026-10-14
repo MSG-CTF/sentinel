@@ -301,8 +301,11 @@ function makeModel(grain) {
     ceramic:new THREE.MeshPhysicalMaterial({color:0x080c10,metalness:.25,roughness:.27,clearcoat:.24,clearcoatRoughness:.18}),
     rubber:new THREE.MeshStandardMaterial({color:0x080b0e,roughness:.76,metalness:0}),
     copper:machinedMaterial({color:0x786249,metalness:1,roughness:.3},grain,{strength:.55}),
-    glass:new THREE.MeshPhysicalMaterial({color:0x14272a,metalness:0,roughness:.07,envMapIntensity:.32,clearcoat:1,clearcoatRoughness:.05,transmission:.38,thickness:.18,ior:1.52,iridescence:.12,iridescenceIOR:1.3,iridescenceThicknessRange:[180,260]}),
+    // A thin coated cover keeps the emitter visible without a second scene
+    // transmission pass. The dark optical well supplies the depth behind it.
+    glass:new THREE.MeshPhysicalMaterial({color:0x789ba5,metalness:0,roughness:.065,envMapIntensity:.55,clearcoat:1,clearcoatRoughness:.06,transparent:true,opacity:.15,depthWrite:false,iridescence:.10,iridescenceIOR:1.3,iridescenceThicknessRange:[180,260]}),
     emitter:new THREE.MeshStandardMaterial({color:0xe9f6ff,emissive:0xc3eaff,emissiveIntensity:5.0,roughness:.32,metalness:0}),
+    lightGuide:new THREE.MeshStandardMaterial({color:0x254e59,emissive:0x199dbf,emissiveIntensity:1.6,roughness:.33,metalness:.08}),
     seam:new THREE.MeshStandardMaterial({color:0xeee6d5,emissive:0xd8c398,emissiveIntensity:.9,roughness:.36,metalness:0}),
     status:new THREE.MeshStandardMaterial({color:0xbee9ff,emissive:0x73c9ed,emissiveIntensity:2.6,roughness:.25}),
   };
@@ -315,7 +318,7 @@ function makeModel(grain) {
   function torus(parent,radius,tube,y,material=materials.edge){
     const object=mesh(parent,new THREE.TorusGeometry(radius,tube,8,128),material,0,y);
     object.rotation.x=Math.PI/2;
-    if(material===materials.emitter||material===materials.seam){object.castShadow=false;object.receiveShadow=false;}
+    if(material===materials.emitter||material===materials.seam||material===materials.lightGuide){object.castShadow=false;object.receiveShadow=false;}
     return object;
   }
   function instance(parent,geometry,material,transforms){
@@ -437,6 +440,10 @@ function makeModel(grain) {
   ring(cartridge,1.33,1.42,.035,-.10,materials.edge);
   ring(cartridge,1.25,1.35,.035,.125,materials.face);
   radial(cartridge,new THREE.BoxGeometry(.032,.17,.024),materials.body,80,1.403,-.245);
+  // Recessed light-guide windows stay attached to the barrel and are exposed
+  // by its mechanical travel. No floating rings or new postprocessing passes.
+  const lightWindows=radial(cartridge,new THREE.BoxGeometry(.016,.078,.054),materials.lightGuide,16,1.437,-.27,Math.PI/16);
+  lightWindows.castShadow=lightWindows.receiveShadow=false;
   torus(cartridge,1.265,.006,.15,materials.seam);
   radial(cartridge,new THREE.BoxGeometry(.013,.007,.053),materials.bore,60,1.31,.149);
   for(const y of [-.085,-.045,-.005])ring(cartridge,1.32,1.351,.010,y,materials.edge);
@@ -450,7 +457,7 @@ function makeModel(grain) {
   ring(optic,.89,1.12,.29,-.035,materials.bore);
   ring(optic,.91,1.13,.055,.15,materials.face);
   ring(optic,.93,.968,.029,.180,materials.edge);
-  torus(optic,.915,.008,.158,materials.emitter);
+  torus(optic,.895,.007,.183,materials.emitter);
   for(const y of [-.16,-.12,-.08])ring(optic,1.08,1.145,.012,y,materials.edge);
   radial(optic,new THREE.BoxGeometry(.025,.11,.024),materials.body,72,1.115,-.018);
   ring(optic,.968,1.03,.005,.182,materials.bore);
@@ -464,10 +471,25 @@ function makeModel(grain) {
   const etching=new THREE.CanvasTexture(engraving);etching.colorSpace=THREE.SRGBColorSpace;etching.anisotropy=8;textures.add(etching);
   materials.etching=new THREE.MeshStandardMaterial({map:etching,transparent:true,depthWrite:false,roughness:.65,metalness:.2});
   const scale=mesh(optic,new THREE.PlaneGeometry(2.28,2.28),materials.etching,0,.186,0,false);scale.rotation.x=-Math.PI/2;
-  mesh(optic,new THREE.CylinderGeometry(.90,.90,.026,96),materials.ceramic,0,-.12);
-  ring(optic,.32,.72,.028,-.08,materials.bore);
-  torus(optic,.48,.008,-.06,materials.seam);
-  mesh(optic,new THREE.CylinderGeometry(.105,.105,.012,48),materials.emitter,0,-.06,0,false);
+  // A frosted aperture sits in a machined optical well. A radial emission map
+  // rolls off inside the physical surface rather than drawing a screen halo.
+  const phosphor=document.createElement('canvas');phosphor.width=phosphor.height=256;
+  const phosphorContext=phosphor.getContext('2d'),gradient=phosphorContext.createRadialGradient(128,128,6,128,128,128);
+  gradient.addColorStop(0,'#efffff');gradient.addColorStop(.42,'#a5e7ed');gradient.addColorStop(.72,'#3b9fae');gradient.addColorStop(1,'#073340');
+  phosphorContext.fillStyle=gradient;phosphorContext.fillRect(0,0,256,256);
+  const phosphorMap=new THREE.CanvasTexture(phosphor);phosphorMap.colorSpace=THREE.SRGBColorSpace;textures.add(phosphorMap);
+  materials.aperture=new THREE.MeshStandardMaterial({color:0xb3d8dc,roughness:.48,metalness:0,emissive:0xffffff,emissiveMap:phosphorMap,emissiveIntensity:3});
+  materials.lightWell=new THREE.MeshStandardMaterial({color:0x091418,roughness:.42,metalness:.3,emissive:0x176879,emissiveMap:phosphorMap,emissiveIntensity:.65});
+  mesh(optic,new THREE.CylinderGeometry(.89,.89,.026,96),materials.lightWell,0,-.12,0,false);
+  ring(optic,.29,.34,.035,-.065,materials.edge);
+  ring(optic,.35,.81,.023,-.089,materials.bore);
+  const aperture=mesh(optic,new THREE.CylinderGeometry(.278,.278,.020,64),materials.aperture,0,-.066,0,false);aperture.receiveShadow=false;
+  torus(optic,.348,.010,-.06,materials.lightGuide);
+  const lightSegments=radial(optic,arcGeometry(.665,.713,.045,TAU/12-.045,.012,.002),materials.lightGuide,12,0,-.059);
+  lightSegments.castShadow=lightSegments.receiveShadow=false;
+  radial(optic,new THREE.BoxGeometry(.205,.011,.012),materials.nickel,36,.50,-.067);
+  torus(optic,.738,.006,-.059,materials.edge);
+  radial(optic,new THREE.CylinderGeometry(.016,.016,.008,6),materials.edge,6,.79,-.071);
   const glass=mesh(optic,new THREE.SphereGeometry(2.42,96,36,0,TAU,0,.384),materials.glass,0,-2.228);
   glass.castShadow=false;glass.receiveShadow=false;
   radial(optic,new THREE.CylinderGeometry(.018,.018,.009,6),materials.bore,6,1.091,.19);
@@ -478,6 +500,7 @@ function makeModel(grain) {
     const pivot=new THREE.Group();pivot.rotation.y=i/10*TAU;iris.add(pivot);
     const blade=mesh(pivot,bladeGeometry,[materials.bore,materials.body]);blades.push(blade);
   }
+  const lowerAperture=ring(cartridge,.40,.49,.018,.215,materials.lightGuide);lowerAperture.castShadow=lowerAperture.receiveShadow=false;
   const guidePosts=[];
   for(let i=0;i<4;i++){
     const a=Math.PI/4+i/4*TAU,r=2.16,x=Math.cos(a)*r,z=Math.sin(a)*r;
@@ -501,7 +524,7 @@ function makeModel(grain) {
   ring(rotor,.86,.92,.034,.018,materials.copper);
   // A low-power diffuser faces the carriage below the optic. Point sources
   // almost touching the polished rim produced sharp, moving white hotspots.
-  const diffuserLight=new THREE.RectAreaLight(0xb7dae6,1.1,.9,.9);
+  const diffuserLight=new THREE.RectAreaLight(0x8dd5e2,1.8,1.25,1.25);
   diffuserLight.position.y=-.185;diffuserLight.rotation.x=-Math.PI/2;optic.add(diffuserLight);
 
   // An actual decal on one panel, rather than surrounding HUD decoration.
@@ -514,7 +537,6 @@ function makeModel(grain) {
   const plate=mesh(covers[0].panel,new THREE.PlaneGeometry(.60,.15),materials.decal,1.02,.073,2.04,false);plate.rotation.set(-Math.PI/2,0,.45);
 
   let travel={position:0,velocity:0};
-  let lowPower=false;
   function update(time,delta,view,pointer,snap=false,power=1){
     const target=view==='exploded'?1:view==='assembled'?0:cycleProgress(time);
     travel=snap?{position:target,velocity:0}:advanceTravel(travel,target,delta);
@@ -536,18 +558,18 @@ function makeModel(grain) {
     gears.forEach((gear,i)=>{gear.rotation.y=time*(i%2?.042:-.042);});
     // Illumination rises slowly as the optical cartridge clears the housing.
     // No flashing, scanning HUD or independent decorative rings.
-    materials.emitter.emissiveIntensity=(2.6+pose.optic*.8)*power;
+    const breath=1+Math.sin(time*TAU/12)*.035;
+    materials.emitter.emissiveIntensity=(2.1+pose.optic*.6)*power;
+    materials.aperture.emissiveIntensity=(2.8+pose.optic*.9)*power*breath;
+    materials.lightGuide.emissiveIntensity=(1.15+pose.optic*.75)*power*breath;
+    materials.lightWell.emissiveIntensity=(.42+pose.optic*.22)*power;
     materials.seam.emissiveIntensity=(.65+pose.carrier*.3)*power;
-    diffuserLight.intensity=(.6+pose.optic*.5)*power;
+    diffuserLight.intensity=(.8+pose.optic*1.0)*power*breath;
     return pose.presentation;
   }
   function setState(state){
     const color={incident:0xe68b79,attention:0xd2b480,offline:0x526774,healthy:0x93c9bd,standby:0x85cbe7}[state]||0x85cbe7;
     materials.status.color.setHex(color);materials.status.emissive.setHex(color);
-  }
-  function setQuality(mobile){
-    if(lowPower===mobile)return;lowPower=mobile;
-    materials.glass.transmission=mobile?0:.38;materials.glass.needsUpdate=true;
   }
   const focusPosition=new THREE.Vector3();
   function focusPoint(){
@@ -555,7 +577,7 @@ function makeModel(grain) {
     return focusPosition.set(0,.24,0).applyMatrix4(optic.matrixWorld);
   }
   function dispose(){resources.forEach(g=>g.dispose());Object.values(materials).forEach(m=>m.dispose());textures.forEach(t=>t.dispose());root.traverse(o=>{if(o.isInstancedMesh)o.dispose();});}
-  return {root,update,setState,setQuality,focusPoint,dispose};
+  return {root,update,setState,focusPoint,dispose};
 }
 
 
@@ -787,7 +809,6 @@ export async function createMechanismScene(element, {still=false,environmentData
     const box=element.getBoundingClientRect();
     if (!box.width || !box.height) return;
     width=box.width; height=box.height; narrow=window.innerWidth<(hero ? 901 : 700) || width<420;
-    model.setQuality(narrow);
     renderer.setPixelRatio(Math.min(Math.max(window.devicePixelRatio || 1,narrow ? 1.25 : 1.5),narrow ? 1.5 : 1.75));
     renderer.setSize(width,height,false);
     finish.resize(Math.round(width*renderer.getPixelRatio()),Math.round(height*renderer.getPixelRatio()),narrow);
