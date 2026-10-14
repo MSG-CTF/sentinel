@@ -37,7 +37,7 @@ public sealed class AdminAccessTests
             using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
                 { BaseAddress = new Uri("https://localhost"), AllowAutoRedirect = false });
             Assert.Equal(HttpStatusCode.Found, (await client.GetAsync("/")).StatusCode);
-            foreach (var path in new[] { "/api/status", "/api/history", "/metrics", "/healthz", "/asset-access.json", "/dashboard.js" })
+            foreach (var path in new[] { "/api/status", "/api/history", "/metrics", "/healthz", "/asset-access.json", "/dashboard.js", "/api/alerts", "/api/operations/assets/discord-bot", "/asset-operations.js" })
             {
                 var protectedResponse = await client.GetAsync(path);
                 Assert.Equal(HttpStatusCode.Unauthorized, protectedResponse.StatusCode);
@@ -117,9 +117,15 @@ public sealed class AdminAccessTests
             Assert.True(dashboard.Headers.CacheControl?.NoStore);
             // Anonymous CSRF tokens cannot be reused after the identity changes.
             Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsync("/auth/logout", null)).StatusCode);
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync("/api/alerts/test", new { })).StatusCode);
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync("/api/operations/assets/discord-bot/actions",
+                new { action="start", request_id=Guid.NewGuid().ToString(), confirm_asset_id="discord-bot" })).StatusCode);
             csrf = await client.GetFromJsonAsync<JsonElement>("/auth/csrf");
             client.DefaultRequestHeaders.Remove("X-CSRF-TOKEN");
             client.DefaultRequestHeaders.Add("X-CSRF-TOKEN", csrf.GetProperty("request_token").GetString());
+            Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync("/api/operations/assets/discord-bot/actions",
+                new { action="start", request_id=Guid.NewGuid().ToString(), confirm_asset_id="discord-bot" })).StatusCode);
+            Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync("/api/alerts/test", new { })).StatusCode);
             Assert.Equal(HttpStatusCode.OK, (await client.PostAsync("/auth/logout", null)).StatusCode);
             Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/status")).StatusCode);
             Assert.Equal(HttpStatusCode.Found, (await client.GetAsync("/internal/grafana-auth")).StatusCode);

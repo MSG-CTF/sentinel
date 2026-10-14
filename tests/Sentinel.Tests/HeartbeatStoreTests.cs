@@ -8,6 +8,19 @@ namespace Sentinel.Tests;
 public sealed class HeartbeatStoreTests
 {
     [Fact]
+    public void HostResourcesRemainOptionalAndRejectInvalidCapacities()
+    {
+        var clock=new Clock(); var target=new PlatformTarget {TargetId="bot",Name="Bot",Role="DISCORD",Track="CONTROL",Kind="service_heartbeat",AuthTokenEnv="TEST_TOKEN"};
+        var store=new HeartbeatStore(Options.Create(new PlatformOptions {Targets=[target]}),clock);
+        var value=new ServiceHeartbeat(clock.Now,"active",0,25,50,.1,"unverified",CpuUsedPercent:84,CpuLogicalCount:2,CpuModel:"Test CPU",OsName:"Debian GNU/Linux 13",Architecture:"x86_64",MemoryTotalBytes:1000,MemoryUsedBytes:250,DiskTotalBytes:2000,DiskUsedBytes:1000);
+        Assert.False(store.Accept("bot",value with {CpuUsedPercent=double.NaN}));
+        Assert.False(store.Accept("bot",value with {MemoryUsedBytes=1001}));
+        Assert.False(store.Accept("bot",value with {OsName="fake\nOS"}));
+        Assert.True(store.Accept("bot",value)); var observed=store.Read(target);
+        Assert.Equal("84",observed.Components["cpu_used_percent"]); Assert.Equal("Debian GNU/Linux 13",observed.Components["os_name"]);
+        Assert.Equal("WARNING",new RiskEvaluator(new()).Evaluate(observed).Level);
+    }
+    [Fact]
     public async Task FasterHttpPollingDoesNotExpireMinuteReportsOrDuplicateRiskRecovery()
     {
         var clock = new Clock();

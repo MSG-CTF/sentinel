@@ -88,6 +88,7 @@ def package(directory, destination):
     profile = json.loads(os.environ["SENTINEL_PROFILE_JSON"])
     credentials = json.loads(os.environ.get("SENTINEL_PROBE_SECRETS_JSON") or "{}")
     env_file = validate_configuration(profile, credentials)
+    env_file += operations_environment(profile, os.environ)
     web_config = validate_web_config(json.loads(os.environ["SENTINEL_WEB_CONFIG_JSON"]))
     manifest = json.loads((directory / "release.json").read_text())
     manifest["public_web"] = web_config
@@ -105,6 +106,43 @@ def package(directory, destination):
             for name in ("profile.json", "probe.env", "release.json"):
                 archive.add(root / name, arcname=name, recursive=False)
     os.chmod(destination, 0o600)
+
+
+def operations_environment(profile, environment):
+    """Dedicated secrets never enter the public artifact or profile JSON."""
+    lines = []
+    webhook = environment.get('SENTINEL_DISCORD_WEBHOOK_URL', '').strip()
+    if profile.get('discord_alerts', {}).get('enabled'):
+        if not re.fullmatch(r'https://discord\.com/api/(?:v10/)?webhooks/[0-9]{16,22}/[A-Za-z0-9_-]{30,200}', webhook):
+            raise ValueError('Discord notification credential is missing or invalid')
+        if profile['discord_alerts'].get('state_file') != 'data/discord-alerts.json':
+            raise ValueError('Invalid alert state path')
+        lines.append('SENTINEL_DISCORD_WEBHOOK_URL=' + webhook)
+    raw = environment.get('SENTINEL_OPERATIONS_JSON', '').strip()
+    if raw:
+        assets = json.loads(raw)
+        if not isinstance(assets, list) or not 1 <= len(assets) <= 32:
+            raise ValueError('Invalid operations collection')
+        seen = set()
+        for asset in assets:
+            if (not isinstance(asset, dict) or set(asset) != {'asset_id', 'host', 'port', 'username', 'host_key_sha256', 'service', 'private_key_env'}
+                    or not re.fullmatch(r'[a-z][a-z0-9_-]{0,63}', asset['asset_id']) or asset['asset_id'] in seen
+                    or not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9.-]{0,252}', asset['host'])
+                    or not isinstance(asset['port'], int) or not 1 <= asset['port'] <= 65535
+                    or not re.fullmatch(r'[a-z_][a-z0-9_-]{0,31}', asset['username'])
+                    or not re.fullmatch(r'[a-zA-Z0-9_.@-]{1,100}\.service', asset['service'])
+                    or asset['private_key_env'] != 'SENTINEL_SSH_DISCORD_B64'):
+                raise ValueError('Invalid SSH operations binding')
+            if len(base64.b64decode(asset['host_key_sha256'], validate=True)) != 32:
+                raise ValueError('SSH host key pin required')
+            seen.add(asset['asset_id'])
+        key = environment.get('SENTINEL_SSH_DISCORD_B64', '').strip()
+        decoded = base64.b64decode(key, validate=True)
+        if not 100 <= len(decoded) <= 8192 or b'PRIVATE KEY-----' not in decoded:
+            raise ValueError('Dedicated SSH key required')
+        lines.extend(['SENTINEL_OPERATIONS_JSON=' + json.dumps(assets, separators=(',', ':')),
+                      'SENTINEL_SSH_DISCORD_B64=' + key])
+    return ''.join(line + '\n' for line in lines)
 
 
 def digest(path):

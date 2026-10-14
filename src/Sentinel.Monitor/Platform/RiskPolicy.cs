@@ -16,6 +16,8 @@ public sealed class RiskThreshold
 
 public sealed class RiskPolicy
 {
+    [ConfigurationKeyName("cpu_used_percent")]
+    public RiskThreshold CpuUsedPercent { get; set; } = new() { Warning = 80, Critical = 95, ClearMargin = 5 };
     [ConfigurationKeyName("latency_ms")]
     public RiskThreshold LatencyMs { get; set; } = new() { Warning = 1000, Critical = 3000, ClearMargin = 200 };
     [ConfigurationKeyName("memory_used_percent")]
@@ -25,7 +27,7 @@ public sealed class RiskPolicy
     [ConfigurationKeyName("clear_samples")]
     public int ClearSamples { get; set; } = 2;
     public bool IsValid() => ClearSamples is >= 1 and <= 10 && LatencyMs.IsValid(30000)
-        && MemoryUsedPercent.IsValid(100) && DiskUsedPercent.IsValid(100);
+        && MemoryUsedPercent.IsValid(100) && DiskUsedPercent.IsValid(100) && CpuUsedPercent.IsValid(100);
 }
 
 public sealed record RiskSignal(string Metric, double Value, string Unit, string Level,
@@ -90,6 +92,7 @@ public sealed class RiskEvaluator(RiskPolicy policy)
             double? Component(string name) => double.TryParse(observation.Components.GetValueOrDefault(name),
                 NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : null;
             Add("memory_used_percent", Component("memory_used_percent"), "%", policy.MemoryUsedPercent, 100);
+            Add("cpu_used_percent", Component("cpu_used_percent"), "%", policy.CpuUsedPercent, 100);
             Add("disk_used_percent", Component("disk_used_percent"), "%", policy.DiskUsedPercent, 100);
         }
         var statusLevel = BaseLevel(observation.Status);

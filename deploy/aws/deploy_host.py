@@ -180,6 +180,7 @@ def start(name, image, release, data, port):
         "--env", "ASPNETCORE_URLS=http://+:8080",
         "--env", "SENTINEL_PROFILE_FILE=/config/profile.json",
         "--env", "platform_recovery__enabled=false",
+        "--env", "SENTINEL_CANDIDATE=" + ("true" if name == CANDIDATE else "false"),
         image,
     ]
     command(args)

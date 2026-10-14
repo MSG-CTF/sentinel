@@ -63,6 +63,9 @@ aws-production 환경의 Secrets:
 | SENTINEL_ASSET_INVENTORY_JSON | 서버 IP와 미연결 자산을 포함한 운영 자산 목록 |
 | SENTINEL_WEB_CONFIG_JSON | domain, username, password_hash를 담은 JSON 객체 |
 | SENTINEL_ADMIN_PASSWORD | 외부 로그인 검증용 관리자 비밀번호 |
+| SENTINEL_DISCORD_WEBHOOK_URL | 주의·위험·정상 복귀 알림용 Discord 웹후크 |
+| SENTINEL_OPERATIONS_JSON | 자산별 관리 호스트·전용 SSH 계정·포트·서비스·호스트 키 SHA-256·키 환경 변수 이름 |
+| SENTINEL_SSH_DISCORD_B64 | 고정 작업만 허용한 봇 서버 전용 SSH 개인키의 Base64 |
 | BROKER_ADMIN_USERNAME | 브로커 콘솔 관리자 계정 |
 | BROKER_ADMIN_PASSWORD | 브로커 콘솔 관리자 비밀번호 |
 

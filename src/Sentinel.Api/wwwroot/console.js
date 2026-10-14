@@ -80,7 +80,7 @@
     const table = byId("risk-policy-table"); table.replaceChildren();
     if (!policy) {table.append(make("p","서버의 경고 기준을 아직 받지 못했습니다")); return;}
     const header = make("div",undefined,"policy-row policy-head"); for (const text of ["지표","주의 ≥","위험 ≥"]) header.append(make("span",text)); table.append(header);
-    for (const [key,unit] of [["latency_ms","ms"],["memory_used_percent","%"],["disk_used_percent","%"]]) {
+    for (const [key,unit] of [["latency_ms","ms"],["cpu_used_percent","%"],["memory_used_percent","%"],["disk_used_percent","%"]]) {
       const value = policy[key]; if (!value) continue;
       const row = make("div",undefined,"policy-row"); row.append(make("strong",SentinelAssets.metricNames[key]), make("span",`${value.warning}${unit}`), make("span",`${value.critical}${unit}`)); table.append(row);
       const note = make("p",`해제: 주의 ${value.warning-value.clear_margin}${unit} 미만 · 위험 ${value.critical-value.clear_margin}${unit} 미만`,"policy-clear"); table.append(note);
@@ -88,6 +88,7 @@
     byId("risk-policy-description").textContent = `기준 도달 시 즉시 표시 · 해제 기준 아래의 새 측정 ${policy.clear_samples}회 연속 확인 후 해제 · 같은 보고의 재조회는 제외`;
   }
   function inspector(asset) {
+    root.SentinelAssetOps?.render(asset);
     const panel = byId("detail-risk"); panel.replaceChildren(); panel.hidden = !asset?.risk?.signals?.length;
     if (panel.hidden) return;
     panel.append(make("h3","측정값과 경고 기준"));

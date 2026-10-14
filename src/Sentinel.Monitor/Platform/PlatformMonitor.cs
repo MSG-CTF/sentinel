@@ -106,6 +106,8 @@ public sealed class PlatformMonitor
         text.AppendLine("# TYPE sentinel_target_checked_at_seconds gauge");
         text.AppendLine("# HELP sentinel_target_risk_level 0 normal, 1 warning, 2 critical, -1 unknown or pending");
         text.AppendLine("# TYPE sentinel_target_risk_level gauge");
+        foreach (var metric in new[] { "cpu_used_percent", "memory_used_percent", "disk_used_percent" })
+            text.AppendLine($"# TYPE sentinel_host_{metric} gauge");
         foreach (var target in snapshot.Targets)
         {
             var labels = $"target_id=\"{target.TargetId}\"";
@@ -113,6 +115,11 @@ public sealed class PlatformMonitor
             { "NORMAL" => 0, "WARNING" => 1, "CRITICAL" => 2, _ => -1 };
             text.AppendLine($"sentinel_target_risk_level{{{labels}}} {riskLevel}");
             text.AppendLine($"sentinel_target_health{{{labels}}} {(target.Status == "HEALTHY" ? 1 : target.Status == "DOWN" ? 0 : -1)}");
+            if (target.Kind == "service_heartbeat" && target.Status is "HEALTHY" or "DOWN")
+                foreach (var metric in new[] { "cpu_used_percent", "memory_used_percent", "disk_used_percent" })
+                    if (double.TryParse(target.Components.GetValueOrDefault(metric), NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+                        && double.IsFinite(value) && value is >= 0 and <= 100)
+                        text.AppendLine($"sentinel_host_{metric}{{{labels}}} {value.ToString(CultureInfo.InvariantCulture)}");
             if (target.LatencyMs is { } latency)
                 text.AppendLine($"sentinel_target_latency_ms{{{labels}}} {latency.ToString(CultureInfo.InvariantCulture)}");
             if (target.CheckedAt is { } at)

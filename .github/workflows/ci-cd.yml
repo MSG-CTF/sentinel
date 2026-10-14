@@ -21,6 +21,7 @@ jobs:
           node-version: '22'
       - run: dotnet test -c Release --nologo
       - run: node --test local/*.test.cjs
+      - run: python3 -m unittest discover -s deploy/telemetry -p 'test_*.py' -v
       # SSM runs as root; match ownership of its mode-0600 proxy configuration.
       - run: sudo --preserve-env=SENTINEL_DOCKER_TESTS python3 -m unittest discover -s deploy/aws -p 'test_*.py' -v
         env:
@@ -78,6 +79,9 @@ jobs:
           SENTINEL_PROFILE_JSON: ${{ secrets.SENTINEL_PROFILE_JSON }}
           SENTINEL_PROBE_SECRETS_JSON: ${{ secrets.SENTINEL_PROBE_SECRETS_JSON }}
           SENTINEL_WEB_CONFIG_JSON: ${{ secrets.SENTINEL_WEB_CONFIG_JSON }}
+          SENTINEL_DISCORD_WEBHOOK_URL: ${{ secrets.SENTINEL_DISCORD_WEBHOOK_URL }}
+          SENTINEL_OPERATIONS_JSON: ${{ secrets.SENTINEL_OPERATIONS_JSON }}
+          SENTINEL_SSH_DISCORD_B64: ${{ secrets.SENTINEL_SSH_DISCORD_B64 }}
         run: python3 release/release.py deploy
       - name: Verify public HTTPS and administrator access
         if: vars.SENTINEL_PUBLIC_HTTPS_ENABLED == 'true'

@@ -6,6 +6,16 @@ namespace Sentinel.Tests;
 
 public sealed class RiskEvaluatorTests
 {
+    [Theory]
+    [InlineData("79.9", "NORMAL")]
+    [InlineData("80", "WARNING")]
+    [InlineData("95", "CRITICAL")]
+    [InlineData("100", "CRITICAL")]
+    public void CpuThresholdsAreMeasuredIndependently(string value,string level)
+    {
+        var sample=Sample() with { Components=new Dictionary<string,string> {{"cpu_used_percent",value}} };
+        Assert.Equal(level,new RiskEvaluator(new()).Evaluate(sample).Level);
+    }
     private static readonly DateTimeOffset Epoch = DateTimeOffset.Parse("2026-10-14T10:00:00Z");
     private static ProbeObservation Sample(double latency = 20, double memory = 20, double disk = 40, int tick = 0,
         string status = "HEALTHY", string target = "discord-bot") => new(target,"Test","DISCORD","CONTROL",

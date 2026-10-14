@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="/operations.css">
   <link rel="stylesheet" href="/mechanism.css">
   <link rel="stylesheet" href="/console.css">
+  <link rel="stylesheet" href="/asset-operations.css">
   <script src="/sentinel-core.js" defer></script>
   <script src="/asset-model.js" defer></script>
   <script src="/architecture-model.js" defer></script>
@@ -18,6 +19,7 @@
   <script src="/data-recovery.js" defer></script>
   <script src="/instance-inventory.js" defer></script>
   <script src="/operations.js" defer></script>
+  <script src="/asset-operations.js" defer></script>
   <script src="/console.js" defer></script>
   <script src="/dashboard.js" defer></script>
 </head>
@@ -91,7 +93,7 @@
         <section class="signal-panel telemetry-panel" aria-labelledby="telemetry-title">
           <div class="signal-heading"><h2 id="telemetry-title">Discord 서버 <span>HEARTBEAT</span></h2><span id="bot-status" class="telemetry-state">연결 대기</span></div>
           <div class="telemetry-identity"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M6 7h20v7H6zM6 18h20v7H6zM10 10.5h.1m0 11h.1M15 10.5h7m-7 11h7"/></svg><div><p>Discord bot</p><small>msg-ticket-bot.service</small></div></div>
-          <dl class="telemetry-numbers"><div><dt>메모리</dt><dd id="bot-memory">—</dd><meter id="bot-memory-meter" min="0" max="100" value="0" aria-label="서버 메모리 사용률" hidden></meter></div><div><dt>디스크</dt><dd id="bot-disk">—</dd><meter id="bot-disk-meter" min="0" max="100" value="0" aria-label="서버 디스크 사용률" hidden></meter></div><div><dt>재시작</dt><dd id="bot-restarts">—</dd></div></dl>
+          <dl class="telemetry-numbers"><div><dt>CPU</dt><dd id="bot-cpu">—</dd><meter id="bot-cpu-meter" min="0" max="100" value="0" aria-label="서버 CPU 사용률" hidden></meter></div><div><dt>메모리</dt><dd id="bot-memory">—</dd><meter id="bot-memory-meter" min="0" max="100" value="0" aria-label="서버 메모리 사용률" hidden></meter></div><div><dt>디스크</dt><dd id="bot-disk">—</dd><meter id="bot-disk-meter" min="0" max="100" value="0" aria-label="서버 디스크 사용률" hidden></meter></div><div><dt>재시작</dt><dd id="bot-restarts">—</dd></div></dl>
           <p id="bot-seen" class="telemetry-foot">서버의 첫 상태 보고를 기다리는 중</p>
         </section>
 
@@ -106,6 +108,7 @@
       </div>
     </section>
     <section id="workspace-view" role="tabpanel" aria-labelledby="workspace-tab" hidden>
+      <div class="discord-alert-strip"><div><strong>디스코드 알림</strong><span id="discord-alert-state" role="status">연결 확인 중</span></div><button id="discord-alert-test" type="button" disabled>시험 알림 보내기</button></div>
       <nav class="workspace-tabs" role="tablist" aria-label="운영 상세"><button id="instances-pane-tab" role="tab" aria-selected="true" aria-controls="instances-pane" type="button">인스턴스·응답</button><button id="recovery-pane-tab" role="tab" aria-selected="false" aria-controls="recovery-pane" tabindex="-1" type="button">복구</button><button id="events-pane-tab" role="tab" aria-selected="false" aria-controls="events-pane" tabindex="-1" type="button">상태 변경</button></nav>
       <div id="instances-pane" class="workspace-grid" role="tabpanel" aria-labelledby="instances-pane-tab">
       <section class="instance-panel" aria-labelledby="instance-title">
@@ -177,8 +180,8 @@
       <p id="detail-reason" class="detail-reason"></p>
       <section id="detail-risk" class="detail-risk" hidden aria-label="실시간 위험 수치"></section>
       <dl id="detail-metrics" class="detail-metrics"></dl>
-      <section id="detail-access-section" class="detail-source" hidden><h3>접속과 복구</h3><p id="detail-access-state"></p><dl id="detail-access" class="detail-metrics"></dl><p id="detail-access-note"></p></section>
-      <section class="detail-source"><h3>확인 근거</h3><p id="detail-source"></p><p id="detail-source-note"></p><div id="detail-links" class="detail-links"></div></section>
+      <details id="detail-access-section" class="detail-source" hidden><summary>접속·복구 설계 근거</summary><p id="detail-access-state"></p><dl id="detail-access" class="detail-metrics"></dl><p id="detail-access-note"></p></details>
+      <details class="detail-source"><summary>점검 근거와 출처</summary><p id="detail-source"></p><p id="detail-source-note"></p><div id="detail-links" class="detail-links"></div></details>
       <details id="related-section" class="related-section"><summary id="related-title">연결 관계</summary><div id="related-links"></div></details>
       <section id="detail-events-section" class="detail-events"><h3 id="detail-events-title">이 자산의 상태 변경</h3><ol id="detail-events"></ol></section>
     </div>

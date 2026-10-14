@@ -7,6 +7,7 @@ using Sentinel.Monitor.Platform;
 using Sentinel.Monitor.Recovery;
 using Sentinel.Monitor.Instances;
 using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.AspNetCore.Antiforgery;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 4096);
@@ -28,6 +29,9 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 builder.Services.AddPlatformMonitor(builder.Configuration);
 builder.Services.AddPlatformRecovery(builder.Configuration);
 builder.Services.AddInstanceInventory(builder.Configuration);
+builder.Services.AddDiscordAlerts(builder.Configuration);
+builder.Services.AddSingleton<IAssetSshClient, AssetSshClient>();
+builder.Services.AddSingleton<AssetOperations>(sp => new(AssetOperations.Load(), sp.GetRequiredService<IAssetSshClient>()));
 
 var app = builder.Build();
 app.Use(async (context, next) =>
@@ -100,6 +104,24 @@ recoveryApi.MapPost("/requests/{request_id}/claim", (string request_id, Recovery
 recoveryApi.MapPost("/requests/{request_id}/result", (string request_id, RecoveryResult body, RecoveryCoordinator recovery) =>
     recovery.Complete(request_id, body) ? Results.Ok(new { accepted = true }) : Results.Conflict());
 app.MapGet("/api/events", (PlatformMonitor monitor) => Results.Ok(new { events = monitor.Events() }));
+app.MapGet("/api/alerts", (DiscordAlerts alerts) => Results.Ok(alerts.Snapshot()));
+app.MapPost("/api/alerts/test", async (HttpContext context, IAntiforgery antiforgery, DiscordAlerts alerts) =>
+{
+    try { await antiforgery.ValidateRequestAsync(context); }
+    catch (AntiforgeryValidationException) { return Results.BadRequest(new { code = "INVALID_REQUEST" }); }
+    return alerts.QueueTest() ? Results.Accepted() : Results.Conflict(new { code = "ALERT_UNAVAILABLE_OR_COOLDOWN" });
+});
+app.MapGet("/api/operations/assets/{asset_id}", (string asset_id, AssetOperations operations, PlatformMonitor monitor) =>
+    Results.Ok(operations.Snapshot(asset_id, monitor.Snapshot())));
+app.MapPost("/api/operations/assets/{asset_id}/actions", async (string asset_id, AssetActionRequest body,
+    HttpContext context, IAntiforgery antiforgery, AssetOperations operations, PlatformMonitor monitor) =>
+{
+    try { await antiforgery.ValidateRequestAsync(context); }
+    catch (AntiforgeryValidationException) { return Results.BadRequest(new { code = "INVALID_REQUEST" }); }
+    if (context.User.Identity?.IsAuthenticated != true) return Results.Unauthorized();
+    var result = await operations.ExecuteAsync(asset_id, body, context.User.Identity.Name ?? "admin", monitor.Snapshot(), context.RequestAborted);
+    return Results.Json(result, statusCode: result.Status == "REJECTED" ? 409 : 200);
+});
 app.MapGet("/internal/metrics", async (HttpContext context, AdminAccess access, PlatformMonitor monitor,
     PrometheusDjangoHealthMetrics django, CollectorRegistry registry) =>
 {

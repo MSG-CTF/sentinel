@@ -74,7 +74,7 @@
     return counts;
   }
   const riskNames = {NORMAL:"정상", WARNING:"주의", CRITICAL:"위험", UNKNOWN:"미확인", PENDING:"미연결"};
-  const metricNames = {latency_ms:"응답 시간", memory_used_percent:"메모리", disk_used_percent:"디스크"};
+  const metricNames = {latency_ms:"응답 시간", cpu_used_percent:"CPU", memory_used_percent:"메모리", disk_used_percent:"디스크"};
   function resolveRisk(status, reported) {
     const base = status === "DOWN" ? "CRITICAL" : status === "DEGRADED" ? "WARNING" : status === "HEALTHY" ? "NORMAL" : ["PENDING","UNCONFIGURED"].includes(status) ? "PENDING" : "UNKNOWN";
     if (["UNKNOWN","PENDING"].includes(base)) return {level:base, signals:[]};

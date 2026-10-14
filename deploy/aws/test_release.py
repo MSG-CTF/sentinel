@@ -1,4 +1,5 @@
 import json
+import base64
 import os
 from pathlib import Path
 import tarfile
@@ -16,6 +17,21 @@ def profile():
 
 
 class ConfigurationTests(unittest.TestCase):
+    def test_notification_webhook_is_required_only_when_enabled_and_never_accepts_redirect_hosts(self):
+        config=profile(); self.assertEqual(release.operations_environment(config, {}),'')
+        config['discord_alerts']={'enabled':True,'state_file':'data/discord-alerts.json'}
+        value='https://discord.com/api/webhooks/12345678901234567/'+'a'*40
+        self.assertEqual(release.operations_environment(config,{'SENTINEL_DISCORD_WEBHOOK_URL':value}),'SENTINEL_DISCORD_WEBHOOK_URL='+value+'\n')
+        for bad in ['',value.replace('discord.com','discord.com.evil.test'),value+'\nOTHER=secret']:
+            with self.assertRaises(ValueError): release.operations_environment(config,{'SENTINEL_DISCORD_WEBHOOK_URL':bad})
+
+    def test_ssh_key_is_separate_from_binding_and_host_key_is_required(self):
+        asset={'asset_id':'discord-bot','host':'example.com','port':22,'username':'sentinel-ops','service':'bot.service',
+               'host_key_sha256':base64.b64encode(bytes(32)).decode(),'private_key_env':'SENTINEL_SSH_DISCORD_B64'}
+        environment={'SENTINEL_OPERATIONS_JSON':json.dumps([asset]),'SENTINEL_SSH_DISCORD_B64':base64.b64encode(b'-----BEGIN OPENSSH PRIVATE KEY-----\n'+b'a'*120).decode()}
+        self.assertIn('SENTINEL_SSH_DISCORD_B64=',release.operations_environment(profile(),environment))
+        asset['host_key_sha256']=''; environment['SENTINEL_OPERATIONS_JSON']=json.dumps([asset])
+        with self.assertRaises(ValueError): release.operations_environment(profile(),environment)
     def test_heartbeat_uses_only_its_dedicated_strong_credential_without_a_url(self):
         config = profile()
         config["platform_monitor"]["targets"] = [{"target_id": "discord-bot", "kind": "service_heartbeat", "auth_token_env": "BOT_TOKEN"}]

@@ -66,7 +66,7 @@ const linkDates = link => [...new Set([link.source, link.peer_source].filter(Boo
 function renderRecovery() {
   const recovery = latest?.recovery, enabled = recovery?.enabled === true;
   const bindings = recovery?.assets || [], armed = bindings.filter(asset => asset.armed).length;
-  byId("operation-mode").textContent = disconnected ? "Sentinel 연결 끊김 · 복구 상태 미확인" : enabled ? `로컬 자동 복구 · 앱 서비스 ${bindings.length}개 정지 컨테이너 기동` : "관측 전용 · 서버 변경 없음";
+  byId("operation-mode").textContent = disconnected ? "Sentinel 연결 끊김 · 복구 상태 미확인" : enabled ? `로컬 자동 복구 · 앱 서비스 ${bindings.length}개 정지 컨테이너 기동` : "자동 복구 꺼짐 · SSH 연결 자산은 상세에서 수동 복구";
   byId("recovery-mode").textContent = disconnected ? "현재 상태 미확인" : enabled ? "로컬 활성" : "비활성";
   byId("recovery-scope").textContent = `정상 기준 확인 후 연결 실패·시간 초과 ${latest?.failure_threshold || 3}회와 실행기 정지 확인 · 자산별 장애당 최대 1회 · 한 번에 한 서비스 · DB·Redis 자동 기동 제외`;
   byId("recovery-executor").textContent = disconnected ? "최신 실행기 연결과 복구 결과를 확인할 수 없음" : !enabled ? "local-recovery 프로필에서 실행 · 운영 자산은 접속·복구 계획만 등록됨" : !recovery.storage_healthy ? "복구 기록 저장 실패 · 자동 실행 중단" : !recovery.executor_connected ? "실행기 최근 연결 미확인 · 새 복구 요청 대기" : armed === bindings.length ? `실행기 연결됨 · ${armed}개 자산 장애 감시 중` : `실행기 연결됨 · ${armed}/${bindings.length}개 장애 감시 준비 · 나머지는 정상 기준 또는 재실행 대기 시간 확인 중`;

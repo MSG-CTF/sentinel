@@ -64,12 +64,13 @@
     const bot = assets.find(target => target.asset_id === "discord-bot");
     const fresh = bot && !offline && !["UNKNOWN","PENDING"].includes(bot.risk.level);
     const parts = bot?.components || {};
+    byId("bot-cpu").textContent = fresh && parts.cpu_used_percent != null ? `${parts.cpu_used_percent}%` : "—";
     byId("bot-status").textContent = offline || bot?.status === "STALE" ? "수신 지연" : bot?.status === "HEALTHY" ? "서비스 실행 중" : bot?.status === "DOWN" ? "서비스 중지" : "연결 대기";
     byId("bot-status").className = !offline && bot?.status === "HEALTHY" ? "telemetry-state healthy" : "telemetry-state";
     byId("bot-memory").textContent = fresh && parts.memory_used_percent != null ? `${parts.memory_used_percent}%` : "—";
     byId("bot-disk").textContent = fresh && parts.disk_used_percent != null ? `${parts.disk_used_percent}%` : "—";
     byId("bot-restarts").textContent = fresh ? parts.restart_count ?? "—" : "—";
-    for (const key of ["memory", "disk"]) {
+    for (const key of ["cpu", "memory", "disk"]) {
       const value = Number.parseFloat(parts[`${key}_used_percent`]);
       const meter = byId(`bot-${key}-meter`);
       meter.hidden = !fresh || !Number.isFinite(value);
