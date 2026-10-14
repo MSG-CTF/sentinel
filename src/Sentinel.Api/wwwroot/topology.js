@@ -93,9 +93,9 @@
     svg.append(group); paths.set(link.id,{group,stroke,hit,link});
   }
   function applyScale(next) {
-    scale = Math.min(1.5,Math.max(.6,next)); canvas.style.transform = `scale(${scale})`; size.style.width = `${width*scale}px`; size.style.height = `${height*scale}px`;
+    scale = Math.min(1.5,Math.max(.35,next)); canvas.style.transform = `scale(${scale})`; size.style.width = `${width*scale}px`; size.style.height = `${height*scale}px`;
     document.getElementById("map-fit").textContent = `${Math.round(scale*100)}%`;
-    document.getElementById("map-minus").disabled = scale <= .6; document.getElementById("map-plus").disabled = scale >= 1.5;
+    document.getElementById("map-minus").disabled = scale <= .35; document.getElementById("map-plus").disabled = scale >= 1.5;
   }
   function fit(resetPosition = true) {
     if (!viewport.clientWidth) return;
@@ -103,7 +103,7 @@
     const top = resetPosition === false ? viewport.scrollTop / scale : 0;
     fitted = true;
     // A phone pans a readable map instead of reducing all labels to a miniature.
-    applyScale(viewport.clientWidth < 640 ? 1 : Math.max(.7,Math.min(1,(viewport.clientWidth-2)/width)));
+    applyScale(viewport.clientWidth < 640 ? 1 : Math.min(1,(viewport.clientWidth-2)/width,(viewport.clientHeight-2)/height));
     viewport.scrollTo({left:left*scale,top:top*scale});
   }
   function mount(settings) {
@@ -141,7 +141,8 @@
       const item = buttons.get(definition.id); if (!item) continue;
       const reading = definition.reading, cls = reading ? options.statusClass(reading.status) : definition.probe_id ? "pending" : "planned";
       item.button.className = `map-node status-${cls}`;
-      item.state.textContent = reading ? options.statusNames[reading.status] : definition.probe_id ? ready ? "감시 제외" : "점검 대기" : definition.stage === "CODE" ? "소스 확인" : "설계";
+      item.button.dataset.level = reading?.risk?.level || "PENDING";
+      item.state.textContent = reading ? SentinelAssets.riskNames[reading.risk?.level] || options.statusNames[reading.status] : definition.probe_id ? ready ? "감시 제외" : "점검 대기" : definition.stage === "CODE" ? "소스 확인" : "설계";
       item.button.setAttribute("aria-label",`${options.trackLabel(definition.track)} ${definition.name} · ${item.state.textContent}`);
       item.button.title = reading ? `${reading.name} · ${item.state.textContent}` : definition.note || "실행 상태 미확인";
     }

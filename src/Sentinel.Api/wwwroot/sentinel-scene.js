@@ -388,17 +388,19 @@ function makeModel(grain, chamberLight) {
   // A bright ceramic sleeve lives inside the vented lower cartridge. Its hot
   // centre falls to saturated blue at the edges, behind the dark metal fins.
   const operatingPhase={value:0};
+  const chamberEdge={value:new THREE.Color(.006,.14,.95)},chamberHot={value:new THREE.Color(.65,.93,1.0)};
   materials.chamber.onBeforeCompile=shader=>{
     shader.uniforms.uOperatingPhase=operatingPhase;
+    shader.uniforms.uChamberEdge=chamberEdge;shader.uniforms.uChamberHot=chamberHot;
     shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vChamberPosition;')
       .replace('#include <begin_vertex>','#include <begin_vertex>\nvChamberPosition=position;');
-    shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vChamberPosition;uniform float uOperatingPhase;')
+    shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vChamberPosition;uniform float uOperatingPhase;uniform vec3 uChamberEdge;uniform vec3 uChamberHot;')
       .replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
         float flow=pow(.5+.5*cos(atan(vChamberPosition.z,vChamberPosition.x)*3.0-uOperatingPhase),4.0);
         float hot=exp(-abs(vChamberPosition.y)*24.0)*(.44+.56*flow);
-        totalEmissiveRadiance*=mix(vec3(.006,.14,.95),vec3(.65,.93,1.0),hot);`);
+        totalEmissiveRadiance*=mix(uChamberEdge,uChamberHot,hot);`);
   };
-  materials.chamber.customProgramCacheKey=()=> 'sentinel-chamber-v2';
+  materials.chamber.customProgramCacheKey=()=> 'sentinel-chamber-v3';
   materials.energyWell.onBeforeCompile=shader=>{
     shader.uniforms.uOperatingPhase=operatingPhase;
     shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vChannelPosition;')
@@ -872,6 +874,17 @@ function makeModel(grain, chamberLight) {
   function setState(state){
     const color={incident:0xe68b79,attention:0xd2b480,offline:0x526774,healthy:0x93c9bd,standby:0x85cbe7}[state]||0x85cbe7;
     materials.status.color.setHex(color);materials.status.emissive.setHex(color);
+    // The operations warning is visible in the working chamber as well as its status ring.
+    // Standby (login) retains the original blue light and exposure.
+    const warning=state === 'attention', critical=state === 'incident';
+    const spill=critical ? 0xff4538 : warning ? 0xffb62e : 0x38bfff;
+    chamberEdge.value.setRGB(...(critical ? [.95,.015,.006] : warning ? [.8,.20,.005] : [.006,.14,.95]));
+    chamberHot.value.setRGB(...(critical ? [1.0,.68,.50] : warning ? [1.0,.90,.50] : [.65,.93,1.0]));
+    chamberLight.color.setHex(spill);diffuserLight.color.setHex(spill);
+    materials.chamber.color.setHex(critical ? 0xff9c88 : warning ? 0xffde88 : 0x8bdfff);
+    materials.energy.emissive.setHex(critical ? 0xff392d : warning ? 0xffab24 : 0x44caff);
+    materials.energyWell.emissive.setHex(critical ? 0xcd281b : warning ? 0xd87910 : 0x0870ff);
+    materials.lightGuide.emissive.setHex(critical ? 0xe94635 : warning ? 0xdc9e36 : 0x199dbf);
   }
   const focusPosition=new THREE.Vector3();
   function focusPoint(){

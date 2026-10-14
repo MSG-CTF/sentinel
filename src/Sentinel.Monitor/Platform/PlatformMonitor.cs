@@ -21,11 +21,13 @@ public sealed class PlatformMonitor
     private readonly DateTimeOffset _startedAt;
     private DateTimeOffset? _updatedAt;
     private bool _storageHealthy = true;
+    private readonly RiskEvaluator _risk;
 
     public PlatformMonitor(IOptions<PlatformOptions> options, PlatformProbeClient probe, ILogger<PlatformMonitor> logger,
         TimeProvider? timeProvider = null)
     {
         _options = options.Value;
+        _risk = new RiskEvaluator(_options.RiskPolicy);
         _probe = probe;
         _logger = logger;
         _clock = timeProvider ?? TimeProvider.System;
@@ -53,7 +55,7 @@ public sealed class PlatformMonitor
             {
                 foreach (var result in results)
                 {
-                    _observations[result.TargetId] = result;
+                    _observations[result.TargetId] = result with { Risk = _risk.Evaluate(result) };
                     ObserveTransition(result);
                 }
                 _updatedAt = _clock.GetUtcNow();
@@ -69,15 +71,18 @@ public sealed class PlatformMonitor
     {
         lock (_gate) return new(_options.Profile, "observe_only", _startedAt, _updatedAt,
             _options.PollIntervalSeconds, _options.FailureThreshold, _storageHealthy,
-            _options.Targets.Select(target => CurrentObservation(target.TargetId)).ToArray());
+            _options.Targets.Select(target => CurrentObservation(target.TargetId)).ToArray(),
+            RiskPolicy: _options.RiskPolicy, StaleAfterSeconds: 2 * _options.PollIntervalSeconds + _options.TimeoutSeconds + 5);
     }
 
     private ProbeObservation CurrentObservation(string targetId)
     {
         var result = _observations[targetId];
-        var staleAfter = 2 * _options.PollIntervalSeconds + _options.TimeoutSeconds + 5;
-        return result.CheckedAt is { } at && (_clock.GetUtcNow() - at).TotalSeconds > staleAfter
-            ? result with { Status = "STALE", ReasonCode = "MONITOR_REFRESH_STALE" }
+        var collectorDeadline = 2 * _options.PollIntervalSeconds + _options.TimeoutSeconds + 5;
+        var staleAfter = result.Kind == "service_heartbeat" ? 150 : collectorDeadline;
+        var collectorStale = _updatedAt is { } updated && (_clock.GetUtcNow() - updated).TotalSeconds > collectorDeadline;
+        return result.CheckedAt is { } at && (collectorStale || (_clock.GetUtcNow() - at).TotalSeconds > staleAfter)
+            ? result with { Status = "STALE", ReasonCode = "MONITOR_REFRESH_STALE", Risk = RiskEvaluator.Unmeasured("STALE") }
             : result;
     }
 
@@ -99,9 +104,14 @@ public sealed class PlatformMonitor
         text.AppendLine("# TYPE sentinel_target_health gauge");
         text.AppendLine("# TYPE sentinel_target_latency_ms gauge");
         text.AppendLine("# TYPE sentinel_target_checked_at_seconds gauge");
+        text.AppendLine("# HELP sentinel_target_risk_level 0 normal, 1 warning, 2 critical, -1 unknown or pending");
+        text.AppendLine("# TYPE sentinel_target_risk_level gauge");
         foreach (var target in snapshot.Targets)
         {
             var labels = $"target_id=\"{target.TargetId}\"";
+            var riskLevel = (target.Risk?.Level ?? RiskEvaluator.BaseLevel(target.Status)) switch
+            { "NORMAL" => 0, "WARNING" => 1, "CRITICAL" => 2, _ => -1 };
+            text.AppendLine($"sentinel_target_risk_level{{{labels}}} {riskLevel}");
             text.AppendLine($"sentinel_target_health{{{labels}}} {(target.Status == "HEALTHY" ? 1 : target.Status == "DOWN" ? 0 : -1)}");
             if (target.LatencyMs is { } latency)
                 text.AppendLine($"sentinel_target_latency_ms{{{labels}}} {latency.ToString(CultureInfo.InvariantCulture)}");

@@ -3,6 +3,7 @@
   const byId = id => document.getElementById(id);
   let lastHistoryAt = null;
   let historyBusy = false;
+  let historyOffline = false;
   const formatTime = value => new Date(value).toLocaleTimeString("ko-KR", {hour:"2-digit", minute:"2-digit", hour12:false});
   function clearChart(message) {
     byId("latency-path").setAttribute("d", "");
@@ -18,6 +19,7 @@
       if (response.status === 401) { location.replace("/login"); return; }
       if (!response.ok) throw new Error("HISTORY_UNAVAILABLE");
       const {samples} = await response.json();
+      if (historyOffline) return;
       const values = samples.map(sample => {
         const measurements = sample.targets.filter(t => t.latency_ms != null && Number.isFinite(t.latency_ms) && t.status !== "STALE");
         return {at:sample.checked_at, value:measurements.length ? measurements.reduce((sum,t) => sum + t.latency_ms, 0) / measurements.length : null};
@@ -48,30 +50,37 @@
     finally { historyBusy = false; }
   }
   function render(snapshot, offline, assets) {
-    const counts = SentinelAssets.summarize(assets);
-    const state = offline ? "offline" : counts.down + counts.degraded ? "incident" : counts.unknown ? "attention" : counts.healthy ? "healthy" : "standby";
-    byId("core-healthy").textContent = counts.healthy;
+    historyOffline = offline;
+    const counts = SentinelAssets.summarize(assets), risks = SentinelAssets.riskCounts(assets);
+    const state = offline ? "offline" : risks.CRITICAL ? "incident" : risks.WARNING ? "attention" : risks.UNKNOWN ? "offline" : risks.NORMAL ? "healthy" : "standby";
+    byId("core-healthy").textContent = risks.NORMAL;
     byId("core-total").textContent = counts.total;
-    byId("core-condition").textContent = offline ? "연결 끊김 · 최신 상태 미확인" : !counts.total ? "등록된 자산 없음" : counts.down + counts.degraded ? `장애·저하 ${counts.down + counts.degraded}개` : counts.unknown ? `${counts.unknown}개 자산 상태 확인 필요` : counts.pending ? `${counts.pending}개 자산 연결 대기` : "연결된 자산 정상";
+    byId("core-condition").textContent = offline ? "연결 끊김 · 최신 상태 미확인" : !counts.total ? "등록된 자산 없음" : risks.CRITICAL ? `위험 ${risks.CRITICAL}개 · 즉시 확인` : risks.WARNING ? `주의 ${risks.WARNING}개 · 수치 상승` : counts.unknown ? `${counts.unknown}개 자산 상태 확인 필요` : counts.pending ? `${counts.pending}개 자산 연결 대기` : "연결된 자산 정상";
     byId("operations-core").closest(".core-panel").dataset.state = state;
     SentinelCore.setState(byId("operations-core"), state);
     byId("session-label").textContent = offline ? "CONNECTION LOST" : "OBSERVATION ACTIVE";
     byId("session-label").classList.toggle("offline", offline);
     byId("environment-label").textContent = snapshot.profile === "aws" ? "AWS · SEOUL" : "LOCAL ENVIRONMENT";
-    const bot = snapshot.targets.find(target => target.target_id === "discord-bot");
+    const bot = assets.find(target => target.asset_id === "discord-bot");
+    const fresh = bot && !offline && !["UNKNOWN","PENDING"].includes(bot.risk.level);
     const parts = bot?.components || {};
     byId("bot-status").textContent = offline || bot?.status === "STALE" ? "수신 지연" : bot?.status === "HEALTHY" ? "서비스 실행 중" : bot?.status === "DOWN" ? "서비스 중지" : "연결 대기";
     byId("bot-status").className = !offline && bot?.status === "HEALTHY" ? "telemetry-state healthy" : "telemetry-state";
-    byId("bot-memory").textContent = parts.memory_used_percent ? `${parts.memory_used_percent}%` : "—";
-    byId("bot-disk").textContent = parts.disk_used_percent ? `${parts.disk_used_percent}%` : "—";
-    byId("bot-restarts").textContent = parts.restart_count ?? "—";
+    byId("bot-memory").textContent = fresh && parts.memory_used_percent != null ? `${parts.memory_used_percent}%` : "—";
+    byId("bot-disk").textContent = fresh && parts.disk_used_percent != null ? `${parts.disk_used_percent}%` : "—";
+    byId("bot-restarts").textContent = fresh ? parts.restart_count ?? "—" : "—";
     for (const key of ["memory", "disk"]) {
       const value = Number.parseFloat(parts[`${key}_used_percent`]);
       const meter = byId(`bot-${key}-meter`);
-      meter.hidden = offline || bot?.status === "STALE" || !Number.isFinite(value);
+      meter.hidden = !fresh || !Number.isFinite(value);
+      const signal = bot?.risk.signals.find(s=>s.metric === `${key}_used_percent`);
+      byId(`bot-${key}`).parentElement.dataset.level = fresh ? signal?.level || "UNKNOWN" : "UNKNOWN";
+      meter.dataset.level = fresh ? signal?.level || "UNKNOWN" : "UNKNOWN";
       if (!meter.hidden) meter.value = Math.max(0, Math.min(100, value));
     }
-    byId("bot-seen").textContent = bot?.checked_at ? `${formatTime(bot.checked_at)} 수신 · Discord 연결 상태는 별도 확인` : "서버의 첫 상태 보고를 기다리는 중";
+    byId("bot-seen").textContent = bot?.checked_at ? `${formatTime(bot.checked_at)} 수신 · 1분 보고 · Discord 연결 별도 확인` : "서버의 첫 상태 보고를 기다리는 중";
+    byId("bot-status").dataset.level = bot?.risk.level || "UNKNOWN";
+    if (fresh && ["CRITICAL","WARNING"].includes(bot.risk.level)) byId("bot-status").textContent = SentinelAssets.riskNames[bot.risk.level];
     if (offline) clearChart("연결이 끊겨 최신 응답 시간을 확인할 수 없습니다");
     else refreshHistory(snapshot);
     // Local recovery evidence is retained in the local profile only.

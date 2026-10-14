@@ -4,7 +4,6 @@ const catalog = SentinelArchitecture.catalog;
 const statusNames = {HEALTHY:"정상", DOWN:"장애", DEGRADED:"연결 저하", UNVERIFIED:"확인 불가", UNCONFIGURED:"미연결", PENDING:"점검 대기", STALE:"확인 불가"};
 const stageNames = {VERIFIED:"실측", FAILED:"연결 실패", UNKNOWN:"확인 불가", PENDING:"미연결", CODE:"소스 확인", DESIGN:"설계", BLOCKED:"불일치"};
 const groupNames = {PUBLIC:"배포 사이트", INTERNAL:"내부 트랙", EXTERNAL:"외부 트랙", CONTROL:"공통 제어", RUNTIME:"문제 실행", ACCESS:"대회 진입", SCORING:"KoTH 채점", DELIVERY:"문제 발행"};
-const groupOrder = ["PUBLIC", "ACCESS", "INTERNAL", "EXTERNAL", "CONTROL", "RUNTIME", "SCORING", "DELIVERY"];
 const assetLabels = {"internal-backend":["내부 백엔드","백엔드 API"], "external-backend":["외부 백엔드","백엔드 API"], scheduler:["인스턴스 스케줄러","스케줄러"], broker:["리소스 브로커","리소스 브로커"], runtime:["문제 런타임","런타임 API"], koth:["KoTH 서버","KoTH"], windows:["Windows 문제 서버","Windows"]};
 const roleNotes = {SCHEDULER:"생성·만료 관리", BROKER:"자원 후보·예약", RUNTIME:"문제 생성·삭제", KOTH:"전용 문제 서버", WINDOWS:"전용 문제 서버"};
 const reasonNames = {
@@ -47,17 +46,19 @@ let accessCatalog = null, recoverySignature = "";
 const recoveryNames = {QUEUED:"실행 대기", CLAIMED:"실행 중", VERIFYING:"기능 확인 중", SUCCEEDED:"복구 확인", BLOCKED:"조치 중단", CANCELLED:"요청 취소", EXPIRED:"기한 초과"};
 const timeoutRecoveryReason = {CONFIRMED_STOPPED_TIMEOUT:"시간 초과 · 실행기가 컨테이너 정지 확인"};
 const recoveryReasons = {CONFIRMED_CONNECTION_FAILURE:"연속 연결 실패", EXECUTOR_CLAIMED:"실행기가 요청을 인수함", CONTAINER_STARTED:"기동 완료 · 기능 확인 대기", FUNCTION_VERIFIED:"자산별 정상 조건 연속 확인", PRECONDITION_NOT_MET:"컨테이너 정지 또는 의존 서비스 조건 불충족", EXECUTION_FAILED:"실행 실패", OUTCOME_UNKNOWN:"실행 결과 불명 · 중복 실행 보류", EVIDENCE_CHANGED:"장애 근거 변경", MONITOR_RESTARTED:"감시기 재시작 · 이전 대기 요청 취소", RECOVERY_DEADLINE_EXCEEDED:"요청 또는 기능 확인 기한 초과"};
-const viewKeys = ["status", "architecture", "connections"];
+const viewKeys = ["status", "architecture", "connections", "workspace"];
+let contractsPage = 0;
+let contractsPageSize = innerHeight < 800 ? 5 : 7;
 let view = "architecture", issuesOnly = false, expandedEvents = false, selection = null, opener = null;
 let assetSignature = "", eventSignature = "", detailEventSignature = "";
-const assetRows = new Map(), groupRows = new Map(), contractRows = new Map(), relatedRows = new Map();
+const assetRows = new Map(), contractRows = new Map(), relatedRows = new Map();
 const detailFields = new Map();
 const time = value => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleTimeString("en-GB", {hour12:false, timeZone:"Asia/Seoul"}) : "미확인";
 const trackLabel = track => groupNames[track] || track || "미지정";
 const label = asset => {const short = assetLabels[asset.asset_id]; return short && short[0] === asset.name ? short[1] : asset.name || asset.asset_id;};
 const statusClass = status => status === "HEALTHY" ? "healthy" : status === "DOWN" ? "down" : status === "DEGRADED" ? "degraded" : ["UNCONFIGURED", "PENDING"].includes(status) ? "pending" : "unknown";
 const stageClass = state => ({VERIFIED:"verified", FAILED:"failed", UNKNOWN:"unknown", PENDING:"design", CODE:"code", DESIGN:"design", BLOCKED:"blocked"}[state] || "design");
-const requiresAttention = asset => ["DOWN", "DEGRADED", "UNVERIFIED", "STALE"].includes(asset.status);
+const requiresAttention = asset => ["CRITICAL", "WARNING", "UNKNOWN"].includes(asset.risk.level);
 const nodeById = id => architectureNodes.find(item => item.id === id);
 const linkById = id => catalog.links.find(item => item.id === id);
 const sourceDate = key => catalog.sources[key]?.reviewed_at || "2026-10-07";
@@ -93,7 +94,11 @@ function renderAccessDetail() {
   const observation = ["local", "local-recovery"].includes(latest?.profile) ? accessCatalog?.local_observations?.find(item => item.asset_id === id) : null;
   byId("detail-access-state").textContent = !plan ? "접속 계획을 불러오는 중" : local ? disconnected ? "로컬 복구 연결 상태 미확인" : "로컬 복구 활성 · 운영 연결은 미설정" : observation ? disconnected ? "로컬 점검 연결 상태 미확인" : "로컬 점검 연결 · 복구 실행 미연결" : "운영 접속·복구 설계 · 실행 미연결";
   const list = byId("detail-access"); list.replaceChildren();
-  if (!plan) return;
+  if (!plan) {
+    byId("detail-access-state").textContent = accessCatalog ? "등록된 접속·복구 계획 없음" : "접속·복구 계획 미확인";
+    byId("detail-access-note").textContent = "현재 감시 결과만 표시 · 이 화면에서 서버 복구를 실행하지 않음";
+    return;
+  }
   const fields = [["복구 담당", plan.recovery_owner], ["접속 수단", local ? binding.transport : plan.proposed_transport], ["복구 작업", local ? `정지한 ${binding.service} 컨테이너 기동 · 장애당 1회` : plan.candidate_actions.join(" · ") || "자동 실행 작업 미등록"], ["완료 기준", local ? binding.verification : plan.verification], ["호스트 장애 경로", plan.fallback]];
   const restored = SentinelDataRecovery.describe(id);
   if (restored) fields.unshift(["마지막 격리 복원", restored]);
@@ -135,59 +140,53 @@ function icon(role) {
   for (const d of iconPaths[role] || iconPaths.BACKEND) {const path = document.createElementNS(svg.namespaceURI, "path"); path.setAttribute("d", d); svg.append(path);}
   return svg;
 }
-function getGroups() {
-  const tracks = [...new Set(assets.map(asset => asset.track))];
-  tracks.sort((a,b) => (groupOrder.indexOf(a) + 1 || 99) - (groupOrder.indexOf(b) + 1 || 99));
-  return new Map(tracks.map(track => [track, assets.filter(asset => asset.track === track)]));
-}
-function rebuildAssets(groups) {
-  const root = byId("asset-groups"); root.replaceChildren(); assetRows.clear(); groupRows.clear();
-  for (const [track, members] of groups) {
-    const section = node("section", undefined, "asset-group"); section.dataset.track = track;
-    const head = node("div", undefined, "group-heading"), title = node("h3", trackLabel(track)), count = node("span", undefined, "group-count");
-    title.id = `group-${groupRows.size}`; section.setAttribute("aria-labelledby", title.id); head.append(title, count);
-    const list = node("ul", undefined, "asset-list");
-    for (const asset of members) {
-      const li = node("li"), button = node("button", undefined, "asset-row"), copy = node("span", undefined, "asset-copy");
-      const reading = node("span", undefined, "asset-reading"), state = node("span", undefined, "asset-state");
-      button.type = "button"; button.dataset.assetId = asset.asset_id;
-      copy.append(node("span", label(asset), "asset-name"), reading); button.append(icon(asset.role), copy, state);
-      button.addEventListener("click", () => inspect({kind:"asset", id:asset.asset_id}, button)); li.append(button); list.append(li);
-      assetRows.set(asset.asset_id, {button, reading, state, li});
-    }
-    section.append(head, list); root.append(section); groupRows.set(track, {section, count});
+function rebuildAssets() {
+  const root = byId("asset-groups"); root.replaceChildren(); assetRows.clear();
+  const list = node("ul", undefined, "asset-list"); root.append(list);
+  for (const asset of assets) {
+    const li = node("li"), button = node("button", undefined, "asset-row"), copy = node("span", undefined, "asset-copy");
+    const reading = node("span", undefined, "asset-reading"), state = node("span", undefined, "asset-state");
+    button.type = "button"; button.dataset.assetId = asset.asset_id;
+    copy.append(node("span", label(asset), "asset-name"), reading); button.append(icon(asset.role), copy, state);
+    button.addEventListener("click", () => inspect({kind:"asset", id:asset.asset_id}, button)); li.append(button); list.append(li);
+    assetRows.set(asset.asset_id, {button, reading, state, li});
   }
 }
 function render(snapshot, events, offline) {
-  latest = snapshot; eventData = events; disconnected = Boolean(offline);
+  latest = snapshot; eventData = events;
+  const updatedAt = Date.parse(snapshot.updated_at), maxAge = (Number(snapshot.stale_after_seconds) || 2 * (Number(snapshot.poll_interval_seconds) || 15) + 35) * 1000;
+  disconnected = Boolean(offline) || Number.isFinite(updatedAt) && (Date.now() - updatedAt > maxAge || updatedAt - Date.now() > 30000);
   assets = SentinelAssets.buildAssets(snapshot, {offline:disconnected}); architectureNodes = SentinelArchitecture.resolveNodes(assets);
+  SentinelConsole.render(snapshot, disconnected, assets);
   SentinelOperations.render(snapshot, disconnected, assets);
   SentinelTopology.render(architectureNodes,assets,disconnected,true,snapshot.recovery);
-  const groups = getGroups(), signature = JSON.stringify(assets.map(asset => [asset.asset_id, asset.name, asset.role, asset.track]));
-  if (signature !== assetSignature) {rebuildAssets(groups); assetSignature = signature;}
+  const signature = JSON.stringify(assets.map(asset => [asset.asset_id, asset.name, asset.role, asset.track]));
+  if (signature !== assetSignature) {rebuildAssets(); assetSignature = signature;}
   const counts = SentinelAssets.summarize(assets);
-  for (const [id, value] of [["total-count",counts.total], ["healthy-count",counts.healthy], ["incident-count",counts.down+counts.degraded], ["unknown-count",counts.unknown], ["pending-count",counts.pending]]) byId(id).textContent = value;
-  byId("incident-count").title = `장애 ${counts.down} · 연결 저하 ${counts.degraded} / 영향받은 자산 수`;
+  const risks = SentinelAssets.riskCounts(assets);
+  for (const [id, value] of [["total-count",counts.total], ["healthy-count",risks.NORMAL], ["incident-count",risks.CRITICAL], ["warning-count",risks.WARNING], ["unknown-count",risks.UNKNOWN], ["pending-count",risks.PENDING]]) byId(id).textContent = value;
+  byId("incident-count").title = "장애 또는 위험 수치에 도달한 자산 수";
   byId("profile").textContent = snapshot.profile === "local" ? "LOCAL" : snapshot.profile === "local-recovery" ? "LOCAL AUTO" : snapshot.profile === "deployed" ? "DEPLOYED" : (snapshot.profile || "미확인");
   renderRecovery();
   byId("last-update").textContent = disconnected ? "Sentinel 연결 끊김" : `최근 점검 ${time(snapshot.updated_at)}`;
-  byId("policy").textContent = `${Number(snapshot.poll_interval_seconds) || 15}초 간격`;
+  byId("policy").textContent = `HTTP ${Number(snapshot.poll_interval_seconds) || 15}초 · 화면 5초`;
   byId("measurement-note").textContent = `직접 ${assets.filter(asset=>asset.evidence_type === "DIRECT_PROBE" && !["UNCONFIGURED", "PENDING"].includes(asset.status)).length} · 간접 ${assets.filter(asset=>asset.evidence_type === "HEALTHZ_COMPONENT").length}`;
-  byId("status-caption").textContent = disconnected ? "최신 상태를 확인할 수 없어 이전 결과는 정상에서 제외" : counts.down + counts.degraded ? `장애·저하 ${counts.down+counts.degraded}개 · 자산을 눌러 원인 확인` : counts.unknown ? `상태 확인이 필요한 자산 ${counts.unknown}개` : `${counts.observed}개 자산 판정 완료 · ${counts.pending}개는 감시 연결 대기`;
+  byId("status-caption").textContent = disconnected ? "수집 연결을 확인해 주세요" : `위험 수치 · 자산 상태 · 수집 근거를 한곳에서`;
+  const ordered = SentinelConsole.sort(assets), order = ordered.map(a=>a.asset_id).join("|");
+  const list = byId("asset-groups").querySelector("ul");
+  if (list && list.dataset.order !== order) {for (const asset of ordered) list.append(assetRows.get(asset.asset_id).li); list.dataset.order = order;}
   for (const asset of assets) {
-    const item = assetRows.get(asset.asset_id); item.button.className = `asset-row status-${statusClass(asset.status)}`;
-    item.state.textContent = statusNames[asset.status];
-    item.reading.textContent = asset.evidence_type === "HEALTHZ_COMPONENT" ? "백엔드 healthz" : asset.status === "STALE" ? "점검 결과 오래됨" : ["UNCONFIGURED", "PENDING"].includes(asset.status) ? (reasonNames[asset.reason_code] || roleNotes[asset.role] || "점검 주소 미설정") : asset.http_status_code != null ? `HTTP ${asset.http_status_code}${asset.latency_ms != null ? ` · ${Math.round(asset.latency_ms)} ms` : ""}` : asset.kind === "service_heartbeat" && asset.checked_at ? `최근 보고 ${time(asset.checked_at)}` : "응답 없음";
-    item.button.setAttribute("aria-label", `${trackLabel(asset.track)} ${label(asset)} · ${statusNames[asset.status]}`);
-    item.li.hidden = issuesOnly && !requiresAttention(asset);
+    const item = assetRows.get(asset.asset_id); item.button.className = `asset-row status-${statusClass(asset.status)}`; item.button.dataset.level = asset.risk.level;
+    item.state.textContent = SentinelAssets.riskNames[asset.risk.level];
+    const note = asset.evidence_type === "HEALTHZ_COMPONENT" ? "healthz 간접 점검" : asset.status === "STALE" ? "수집 지연" : ["UNCONFIGURED", "PENDING"].includes(asset.status) ? "연결 대기" : asset.kind === "service_heartbeat" && asset.checked_at ? `보고 ${time(asset.checked_at)}` : asset.http_status_code != null ? `HTTP ${asset.http_status_code}${asset.latency_ms != null ? ` · ${Math.round(asset.latency_ms)} ms` : ""}` : "응답 없음";
+    item.reading.textContent = SentinelAssets.riskText(asset) || `${trackLabel(asset.track)} · ${note}`;
+    item.button.setAttribute("aria-label", `${trackLabel(asset.track)} ${label(asset)} · ${SentinelAssets.riskNames[asset.risk.level]}`);
+    item.button.title = `${label(asset)} · ${SentinelAssets.riskText(asset) || reasonNames[asset.reason_code] || asset.reason_code}`;
+    item.li.hidden = !SentinelConsole.matches(asset) || issuesOnly && !requiresAttention(asset);
   }
-  for (const [track, members] of groups) {
-    const group = groupRows.get(track), value = SentinelAssets.summarize(members), incidents = value.down+value.degraded;
-    group.count.textContent = incidents ? `${incidents}개 장애·저하` : value.unknown ? `${value.unknown}개 확인 불가` : value.observed ? `${value.healthy} / ${value.total} 정상` : `미연결 ${value.pending}`;
-    group.count.className = `group-count ${incidents ? "incident" : value.unknown ? "unknown" : value.observed ? "healthy" : "pending"}`;
-    group.section.hidden = issuesOnly && !members.some(requiresAttention);
-  }
-  byId("empty-filter").hidden = !issuesOnly || assets.some(requiresAttention);
+  const visibleAssets = assets.filter(a => SentinelConsole.matches(a) && (!issuesOnly || requiresAttention(a))).length;
+  byId("asset-visible-count").textContent = `${visibleAssets} / ${assets.length}`;
+  byId("empty-filter").hidden = visibleAssets > 0;
   byId("issues-only").textContent = issuesOnly ? "전체 보기" : "문제만 보기";
   byId("issues-only").setAttribute("aria-pressed", String(issuesOnly));
   showWarning(disconnected ? "Sentinel 연결 실패 · 최신 상태 확인 불가" : snapshot.event_storage_healthy === false ? "변경 기록 저장 실패 · 상태 점검은 계속 동작 중" : "");
@@ -196,11 +195,16 @@ function render(snapshot, events, offline) {
 }
 function renderContracts() {
   const counts = {VERIFIED:0, CODE:0, BLOCKED:0, other:0};
+  const matching = catalog.links.filter(matchesFilter);
+  contractsPage = Math.min(contractsPage, Math.max(0, Math.ceil(matching.length / contractsPageSize) - 1));
+  const visible = new Set(matching.slice(contractsPage * contractsPageSize, (contractsPage + 1) * contractsPageSize).map(link=>link.id));
+  byId("contracts-page-status").textContent = matching.length ? `${contractsPage * contractsPageSize + 1}–${Math.min(matching.length,(contractsPage+1)*contractsPageSize)} / ${matching.length}개 연결` : "조건에 맞는 연결 없음";
+  byId("contracts-prev").disabled = contractsPage === 0; byId("contracts-next").disabled = (contractsPage+1)*contractsPageSize >= matching.length;
   for (const link of catalog.links) {
     const resolved = SentinelArchitecture.resolveLink(link, assets), item = contractRows.get(link.id);
     if (Object.hasOwn(counts, resolved.state)) counts[resolved.state]++; else counts.other++;
     item.state.textContent = stageNames[resolved.state]; item.state.className = `contract-state stage-${stageClass(resolved.state)}`;
-    item.row.dataset.stage = resolved.state; item.row.hidden = !matchesFilter(link);
+    item.row.dataset.stage = resolved.state; item.row.hidden = !visible.has(link.id);
   }
   for (const [key, id] of [["VERIFIED","verified-links"], ["CODE","code-links"], ["BLOCKED","blocked-links"], ["other","unverified-links"]]) byId(id).textContent = counts[key];
   for (const [id, item] of relatedRows) {const resolved = SentinelArchitecture.resolveLink(linkById(id), assets); item.textContent = stageNames[resolved.state]; item.className = `stage-${stageClass(resolved.state)}`;}
@@ -268,6 +272,7 @@ function inspect(next, button) {
   const dialog = byId("inspector"); const wasOpen = dialog.open;
   if (!wasOpen) opener = button || document.activeElement;
   selection = next; detailFields.clear(); relatedRows.clear(); detailEventSignature = "";
+  delete byId("detail-status").dataset.level;
   byId("detail-metrics").replaceChildren(); byId("detail-links").replaceChildren(); byId("related-links").replaceChildren(); byId("detail-icon").replaceChildren();
   byId("related-section").open = false; byId("related-section").hidden = true; byId("detail-events-section").hidden = true;
   if (next.kind === "asset") {
@@ -330,6 +335,7 @@ function inspect(next, button) {
 }
 function renderInspector() {
   renderAccessDetail();
+  SentinelConsole.inspector(selection?.kind === "asset" ? assets.find(a=>a.asset_id === selection.id) : null);
   if (!selection) return;
   if (selection.kind === "asset") {
     const definition = nodeById(selection.id), asset = assets.find(item=>item.asset_id === selection.id);
@@ -338,14 +344,15 @@ function renderInspector() {
       byId("detail-reason").textContent = definition.note || "점검 연결 전 · 실제 실행 상태는 아직 확인하지 않음"; return;
     }
     if (!asset) {byId("detail-status").className = "detail-status status-unknown"; byId("detail-status").textContent = latest ? "현재 프로필에서 제외됨" : "점검 결과 대기"; byId("detail-reason").textContent = latest ? "선택한 자산은 더 이상 점검 대상 목록에 없어" : "첫 상태 응답을 아직 받지 못함"; for (const field of detailFields.values()) field.textContent = "미확인"; return;}
-    byId("detail-status").className = `detail-status status-${statusClass(asset.status)}`; byId("detail-status").textContent = statusNames[asset.status];
+    byId("detail-status").className = `detail-status status-${statusClass(asset.status)}`; byId("detail-status").textContent = SentinelAssets.riskNames[asset.risk.level];
+    byId("detail-status").dataset.level = asset.risk.level;
     byId("detail-title").textContent = label(asset); byId("detail-group").textContent = trackLabel(asset.track);
     byId("detail-reason").textContent = [reasonNames[asset.reason_code] || "점검 결과 확인 필요", asset.evidence_scope].filter(Boolean).join(" / ");
-    byId("detail-source").textContent = asset.source_url || "점검 주소 미설정";
+    byId("detail-source").textContent = asset.kind === "service_heartbeat" ? `서버 보고 수신 · /ingest/heartbeat/${asset.asset_id}` : asset.source_url || "점검 주소 미설정";
     detailFields.get("checked").textContent = time(asset.checked_at); detailFields.get("http").textContent = asset.http_status_code != null ? asset.http_status_code : "해당 없음";
     detailFields.get("latency").textContent = asset.latency_ms != null ? `${Math.round(asset.latency_ms)} ms` : "해당 없음";
-    detailFields.get("method").textContent = asset.evidence_type === "HEALTHZ_COMPONENT" ? "백엔드 healthz" : "직접 HTTP 점검";
-    byId("detail-source-note").textContent = asset.evidence_type === "HEALTHZ_COMPONENT" ? "백엔드의 연결 결과 · 이 DB나 Redis를 따로 직접 점검한 것은 아님" : "API 응답 점검 · VM 전원이나 문제 풀이 기능 전체 판정은 아님";
+    detailFields.get("method").textContent = asset.evidence_type === "HEALTHZ_COMPONENT" ? "백엔드 healthz" : asset.kind === "service_heartbeat" ? "서버 상태 보고" : "직접 HTTP 점검";
+    byId("detail-source-note").textContent = asset.evidence_type === "HEALTHZ_COMPONENT" ? "백엔드의 연결 결과 · 이 DB나 Redis를 따로 직접 점검한 것은 아님" : asset.kind === "service_heartbeat" ? "프로세스 실행과 서버 자원 보고 · Discord gateway·티켓 기능은 별도 확인" : "API 응답 점검 · VM 전원이나 문제 풀이 기능 전체 판정은 아님";
     byId("detail-events-section").hidden = false; byId("detail-events-title").textContent = asset.parent_target_id ? "백엔드 상태 변경 (간접 점검)" : "이 자산의 상태 변경";
     const events = eventData.filter(event=>event.target_id === (asset.parent_target_id || asset.asset_id)).slice(0,8), signature = JSON.stringify(events);
     if (signature !== detailEventSignature) {const feed = byId("detail-events"); feed.replaceChildren(); events.forEach(event=>feed.append(eventRow(event))); if (!events.length) feed.append(node("li", ["UNCONFIGURED", "PENDING"].includes(asset.status) ? "점검 미연결 · 변경 기록 없음" : "기록된 상태 변경 없음", "empty-message")); detailEventSignature = signature;}
@@ -365,9 +372,9 @@ function renderInspector() {
   }
 }
 function switchView(next) {
-  view = next;
+  view = next; document.body.dataset.view = next;
   for (const key of viewKeys) {const active = key === next; byId(`${key}-view`).hidden = !active; byId(`${key}-tab`).setAttribute("aria-selected", String(active)); byId(`${key}-tab`).tabIndex = active ? 0 : -1;}
-  byId("page-title").textContent = {architecture:"MSG CTF 운영 구조",status:"운영 현황",connections:"역할별 연결 검토"}[next];
+  byId("page-title").textContent = {architecture:"자산 배치와 운영 구조",status:"운영 현황",connections:"연동 근거",workspace:"운영 상세"}[next];
   if (next === "architecture") requestAnimationFrame(SentinelTopology.fit);
 }
 function showWarning(text) {byId("connection-warning").textContent = text; byId("connection-warning").hidden = !text;}
@@ -383,7 +390,7 @@ async function refresh() {
     render(snapshot,feed.events,false);
   } catch {
     if (latest) render(latest,eventData,true);
-    else {showWarning("Sentinel 연결 실패 · 점검 결과를 가져오지 못함"); byId("status-caption").textContent = "점검 결과를 가져오지 못함"; byId("last-update").textContent = "연결 실패";}
+    else {render({targets:[],poll_interval_seconds:15},[],true); showWarning("Sentinel 연결 실패 · 점검 결과를 가져오지 못함"); byId("status-caption").textContent = "점검 결과를 가져오지 못함"; byId("last-update").textContent = "연결 실패";}
   } finally {
     await Promise.all([SentinelDataRecovery.refresh(disconnected || !latest, latest?.profile), SentinelInstances.refresh()]);
     if (selection) renderAccessDetail();
@@ -393,7 +400,10 @@ async function refresh() {
 byId("refresh").addEventListener("click", refresh);
 byId("issues-only").addEventListener("click", ()=>{issuesOnly = !issuesOnly; if (latest) render(latest,eventData,disconnected);});
 byId("event-expand").addEventListener("click", ()=>{expandedEvents = !expandedEvents; renderEvents();});
-byId("connection-filter").addEventListener("change", renderContracts);
+byId("connection-filter").addEventListener("change", () => {contractsPage = 0; renderContracts();});
+byId("contracts-prev").addEventListener("click", () => {contractsPage--; renderContracts();});
+byId("contracts-next").addEventListener("click", () => {contractsPage++; renderContracts();});
+addEventListener("resize", () => {const size = innerHeight < 800 ? 5 : 7; if (size !== contractsPageSize) {contractsPage = Math.floor(contractsPage * contractsPageSize / size); contractsPageSize = size; renderContracts();}});
 byId("detail-close").addEventListener("click", ()=>byId("inspector").close());
 byId("inspector").addEventListener("click", event=>{if (event.target !== byId("inspector")) return; const box = byId("inspector").getBoundingClientRect(); if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) byId("inspector").close();});
 byId("inspector").addEventListener("close", ()=>{document.body.classList.remove("dialog-open"); selection = null; if (opener?.isConnected && !opener.closest("[hidden]")) opener.focus(); opener = null;});
@@ -407,6 +417,7 @@ architectureNodes = SentinelArchitecture.resolveNodes([]);
 rebuildContracts();
 SentinelTopology.mount({catalog,icon,inspect,statusNames,stageNames,statusClass,stageClass,trackLabel});
 SentinelTopology.render(architectureNodes,[],true,false);
+SentinelConsole.mount({inspect,icon,trackLabel,reason:asset=>reasonNames[asset.reason_code] || asset.reason_code,showAssets:()=>{issuesOnly=false;switchView("status");},changed:()=>{if(latest)render(latest,eventData,disconnected);}});
 loadAccessPlan();
 switchView(new URLSearchParams(location.search).get("view")?.startsWith("architecture") ? "architecture" : "status");
 refresh();

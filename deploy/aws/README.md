@@ -170,3 +170,38 @@ reporter.json은 /etc/sentinel-telemetry에 root 소유 0600으로 보관하고 
 150초 이상 보고가 없으면 최신 정상 상태를 유지하지 않는다
 서비스 실행 여부는 Discord gateway 연결·티켓 처리 성공을 뜻하지 않는다
 개인 SSH 키와 Discord 봇 토큰은 SLA 서버에 전달하지 않는다
+
+## 실시간 관제와 경고 수치
+
+관제 현황은 코어·서버 자원·전체 자산을 한 화면에 표시한다
+아키텍처의 기본 보기는 현재 프로필의 자산 배치이며 설계 구조는 별도 탭에 보존한다
+인스턴스·응답 시간·복구·상태 변경은 운영·기록에서 확인한다
+상단 상태 수를 누르면 해당 자산만 표시하며 경고 기준과 실제 수치는 자산 상세에서 확인한다
+
+SENTINEL_PROFILE_JSON의 platform_monitor.poll_interval_seconds로 HTTP 점검 주기를 설정한다
+운영 권장 초기값은 15초이며 브라우저는 5초마다 서버 판정 결과를 받는다
+Discord 보고는 기존 60초 주기와 150초 유효 시간을 사용한다
+브라우저 연결 실패 또는 수집 주기 만료 시 이전 수치로 정상·경고 판정을 유지하지 않는다
+
+platform_monitor.risk_policy는 아래 초기값을 사용하며 같은 환경 Secret으로 재정의할 수 있다
+
+```json
+{
+  "latency_ms": { "warning": 1000, "critical": 3000, "clear_margin": 200 },
+  "memory_used_percent": { "warning": 80, "critical": 90, "clear_margin": 5 },
+  "disk_used_percent": { "warning": 80, "critical": 90, "clear_margin": 5 },
+  "clear_samples": 2
+}
+```
+
+기준 이상이면 즉시 주의(노랑)·위험(빨강)을 표시한다
+현재 단계 기준에서 clear_margin을 뺀 값 미만을 새 측정 2회 연속 확인해야 단계를 낮춘다
+같은 heartbeat를 재조회해도 해제 횟수는 증가하지 않는다
+예를 들어 메모리 위험은 85% 미만, 주의는 75% 미만에서 해제 확인을 시작한다
+서비스 중지·연결 실패는 수치와 별개로 위험이며 미연결·미확인은 각각 별도 상태다
+이 수치는 초기 운영 경고 기준이며 SLA 가용성 목표나 자동 복구 승인 조건은 아니다
+
+/api/status의 risk_policy와 targets[].risk는 같은 서버 판정을 제공한다
+자산·실제 배치·코어 내부 광원이 이를 공유하며 기존 healthz 계약과 복구 판정은 유지한다
+Prometheus의 sentinel_target_risk_level은 정상 0, 주의 1, 위험 2, 미확인·미연결 -1을 제공한다
+수치 경고는 현재 상태 표시이며 기존 /api/events는 서비스 상태 변경 이력을 유지한다

@@ -8,7 +8,7 @@ public sealed record ProbeObservation(
     string TargetId, string Name, string Role, string Track, string Kind, string? Url,
     bool Enabled, string Status, string ReasonCode, DateTimeOffset? CheckedAt,
     int? HttpStatusCode, double? LatencyMs, IReadOnlyDictionary<string, string> Components,
-    string? EvidenceScope = null);
+    string? EvidenceScope = null, RiskAssessment? Risk = null);
 
 public sealed record MonitorEvent(
     string EventId, string TargetId, string Track, string PreviousStatus, string Status,
@@ -18,7 +18,8 @@ public sealed record PlatformSnapshot(
     string Profile, string Mode, DateTimeOffset StartedAt, DateTimeOffset? UpdatedAt,
     int PollIntervalSeconds, int FailureThreshold, bool EventStorageHealthy,
     IReadOnlyList<ProbeObservation> Targets,
-    Sentinel.Monitor.Recovery.RecoverySnapshot? Recovery = null);
+    Sentinel.Monitor.Recovery.RecoverySnapshot? Recovery = null, RiskPolicy? RiskPolicy = null,
+    int StaleAfterSeconds = 65);
 
 public sealed class UtcTimestampConverter : JsonConverter<DateTimeOffset>
 {

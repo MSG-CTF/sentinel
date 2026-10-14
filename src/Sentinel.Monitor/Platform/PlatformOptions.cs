@@ -18,6 +18,8 @@ public sealed class PlatformOptions
     [ConfigurationKeyName("event_file")]
     public string EventFile { get; set; } = "data/events.jsonl";
     public List<PlatformTarget> Targets { get; set; } = [];
+    [ConfigurationKeyName("risk_policy")]
+    public RiskPolicy RiskPolicy { get; set; } = new();
 
     public bool IsValid()
     {
@@ -29,7 +31,7 @@ public sealed class PlatformOptions
             && !string.IsNullOrWhiteSpace(EventFile) && EventFile.Length <= 500
             && Targets.Count is > 0 and <= 32
             && Targets.Select(target => target.TargetId).Distinct().Count() == Targets.Count
-            && Targets.All(target => target.IsValid());
+            && Targets.All(target => target.IsValid()) && RiskPolicy.IsValid();
     }
 }
 
