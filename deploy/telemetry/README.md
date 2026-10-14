@@ -50,3 +50,18 @@ discord_alerts.enabled=true, state_file=data/discord-alerts.json, dashboard_url=
 운영·기록의 시험 알림은 실제 장애와 구분되는 메시지를 보내며 1분당 1회로 제한한다
 Discord의 [웹후크 실행 계약](https://docs.discord.com/developers/resources/webhook#execute-webhook)에 따라 wait=true와 비어 있는 allowed_mentions를 사용한다
 SSH 연결은 [SSH.NET](https://sshnet.github.io/SSH.NET/)의 호스트 키 검증과 비동기 명령 실행을 사용한다
+
+## 백엔드 과부하와 알림 경로
+
+SLA 서버가 백엔드를 외부에서 점검하고 Discord 웹후크에 직접 전송한다
+백엔드 애플리케이션과 디스코드 봇 프로세스는 알림 발송 경로에 포함되지 않는다
+HTTP 지연은 risk_policy 기준으로 주의·위험을 판정하고 연결 실패·시간 초과·5xx는 위험으로 처리한다
+429는 요청 제한이 확인된 주의 상태이며 서버 CPU 과부하로 단정하지 않는다
+503에서 HTML·잘못된 JSON을 받아도 서비스 이용 불가를 알리되 DB·Redis 장애를 추정하지 않는다
+알림에는 HTTP 상태와 감지 근거를 포함하고 응답 본문이나 인증 정보를 넣지 않는다
+
+외부 응답 점검만으로 CPU·메모리·DB 풀 포화나 요청 실패율을 측정할 수는 없다
+백엔드 관리 접속 후 호스트 보고기와 정상 healthz 경로, 애플리케이션 지표를 연결해야 한다
+현재 인증 API 진입 점검은 DB 작업·실제 사용자 요청 성공을 보장하지 않는다
+SLA 자체가 정지하면 내부 알림도 멈추므로 별도 호스트나 외부 서비스의 감시가 추가로 필요하다
+Discord 전체 장애에는 저장 후 재시도만 가능하며 별도 수신 채널은 아직 연결하지 않았다

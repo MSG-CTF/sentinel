@@ -31,7 +31,7 @@ public sealed class PlatformProbeTests
     [InlineData(503, "down", "ok", "down", "DOWN", "CACHE_DOWN")]
     [InlineData(503, "down", "down", "down", "DOWN", "DATABASE_AND_CACHE_DOWN")]
     [InlineData(200, "down", "ok", "down", "UNVERIFIED", "INCONSISTENT_HEALTH_CONTRACT")]
-    [InlineData(503, "ok", "ok", "ok", "UNVERIFIED", "INCONSISTENT_HEALTH_CONTRACT")]
+    [InlineData(503, "ok", "ok", "ok", "DOWN", "HTTP_UNAVAILABLE")]
     [InlineData(200, "healthy", "healthy", "healthy", "UNVERIFIED", "INVALID_HEALTH_CONTRACT")]
     public async Task ActualBackendContractIsRequired(int code, string status, string database, string cache,
         string expectedStatus, string reason)
@@ -57,6 +57,38 @@ public sealed class PlatformProbeTests
         { Content = new StringContent(body, Encoding.UTF8, mediaType) })).CheckAsync(Target(), 2);
         Assert.Equal("UNVERIFIED", result.Status);
         Assert.Equal(reason, result.ReasonCode);
+    }
+
+    [Theory]
+    [InlineData("backend_healthz")]
+    [InlineData("auth_boundary")]
+    [InlineData("http")]
+    [InlineData("json_fields")]
+    public async Task RateLimitingIsAWarningWithoutInventingHostOverload(string kind)
+    {
+        var target = Target(); target.Kind = kind;
+        target.ExpectedFields = new() { ["status"] = "UP" };
+        var result = await Client(new Handler(_ => new(HttpStatusCode.TooManyRequests)
+        { Content = new StringContent("rate limited") })).CheckAsync(target, 2);
+        Assert.Equal("DEGRADED", result.Status);
+        Assert.Equal("HTTP_RATE_LIMITED", result.ReasonCode);
+        Assert.Equal(429, result.HttpStatusCode);
+        Assert.Empty(result.Components);
+    }
+
+    [Theory]
+    [InlineData("text/html", "<html>proxy unavailable</html>")]
+    [InlineData("application/json", "{oops")]
+    [InlineData("application/json", "{}")]
+    [InlineData("application/json", "[]")]
+    public async Task UnavailableResponseStillAlertsWhenHealthContractIsMissing(string mediaType, string body)
+    {
+        var result = await Client(new Handler(_ => new(HttpStatusCode.ServiceUnavailable)
+        { Content = new StringContent(body, Encoding.UTF8, mediaType) })).CheckAsync(Target(), 2);
+        Assert.Equal("DOWN", result.Status);
+        Assert.Equal("HTTP_UNAVAILABLE", result.ReasonCode);
+        Assert.Equal(503, result.HttpStatusCode);
+        Assert.Empty(result.Components);
     }
 
     [Theory]

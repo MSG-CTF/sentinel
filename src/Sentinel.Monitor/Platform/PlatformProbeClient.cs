@@ -33,11 +33,15 @@ public sealed class PlatformProbeClient(HttpClient httpClient, HeartbeatStore? h
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
         var clock = Stopwatch.StartNew();
+        int? observedCode = null;
         try
         {
             using var response = await httpClient.SendAsync(
                 request, HttpCompletionOption.ResponseHeadersRead, deadline.Token);
             var code = (int)response.StatusCode;
+            observedCode = code;
+            if (code == 429)
+                return Measured("DEGRADED", "HTTP_RATE_LIMITED", code);
             if (code is >= 300 and < 400)
                 return Measured("UNVERIFIED", "REDIRECT_BLOCKED", code);
             if (code is 401 or 403 && target.Kind != "auth_boundary")
@@ -154,13 +158,19 @@ public sealed class PlatformProbeClient(HttpClient httpClient, HeartbeatStore? h
         }
         catch (OperationCanceledException) { throw; }
         catch (HttpRequestException) { return Measured("DOWN", "CONNECTION_FAILED", null); }
-        catch (JsonException) { return Measured("UNVERIFIED", "INVALID_JSON", null); }
+        catch (JsonException) { return Measured("UNVERIFIED", "INVALID_JSON", observedCode); }
         catch (IOException) { return Measured("DOWN", "RESPONSE_READ_FAILED", null); }
 
         ProbeObservation Measured(string status, string reason, int? code,
             IReadOnlyDictionary<string, string>? components = null)
-            => Result(target, status, reason, DateTimeOffset.UtcNow, code,
+        {
+            // A 503 remains unavailable even when a proxy supplies HTML or broken JSON.
+            // Without a valid health contract, no database/cache state can be inferred.
+            if (target.Kind == "backend_healthz" && code >= 500 && status == "UNVERIFIED")
+            { status = "DOWN"; reason = "HTTP_UNAVAILABLE"; components = null; }
+            return Result(target, status, reason, DateTimeOffset.UtcNow, code,
                 Math.Round(clock.Elapsed.TotalMilliseconds, 1), components);
+        }
     }
 
     private static bool NonNegativeInt(JsonElement root, string key, out int value)

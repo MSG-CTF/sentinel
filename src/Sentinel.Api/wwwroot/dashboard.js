@@ -17,6 +17,7 @@ const reasonNames = {
   PARENT_HEALTH_UNVERIFIED:"백엔드 응답으로 구성 요소 상태를 확인하지 못함 · DB·Redis 장애로 단정할 수 없음", EXPECTED_JSON_RECEIVED_OTHER:"healthz JSON이 아닌 응답 · 백엔드 상태 확인 불가", INVALID_HEALTH_CONTRACT:"응답 필드나 상태 값이 백엔드 계약과 다름", INCONSISTENT_HEALTH_CONTRACT:"HTTP 상태와 DB·Redis 판정이 일치하지 않음",
   AUTH_REQUIRED:"점검 API 인증 필요", AUTH_TOKEN_NOT_CONFIGURED:"점검용 인증 토큰 미설정", ENDPOINT_NOT_FOUND:"점검 API 경로 없음", REDIRECT_BLOCKED:"다른 주소로 이동하는 응답 · 점검 주소 확인 필요",
   TIMEOUT:"점검 제한 시간 초과 · 원인 자산은 미확인", CONNECTION_FAILED:"서비스 연결 실패 · VM 전원 상태를 뜻하지는 않음", RESPONSE_READ_FAILED:"응답을 끝까지 읽지 못함", HTTP_ERROR:"예상한 HTTP 상태와 다름", INVALID_JSON:"JSON 응답을 읽을 수 없음", RESPONSE_TOO_LARGE:"점검 응답 크기 제한 초과",
+  HTTP_RATE_LIMITED:"요청 제한 응답 · 서버 과부하 여부는 추가 확인 필요", HTTP_UNAVAILABLE:"서비스 이용 불가 응답 · DB·Redis 상태는 확인되지 않음",
   ENDPOINT_NOT_CONFIGURED:"점검 주소 미설정 · 정상·장애 판정에서 제외", NOT_CHECKED_YET:"실제 서버의 첫 응답 대기", PAGE_IDENTITY_MISMATCH:"대회 사이트 내용과 응답이 일치하지 않음", HEALTH_FIELD_MISMATCH:"상태 필드가 설정과 다름", MONITOR_REFRESH_STALE:"최신 점검 확인 불가 · 이전 결과로 정상 판정하지 않음", INVALID_CONFIGURATION:"점검 주소 설정 확인 필요"
 };
 const iconPaths = {

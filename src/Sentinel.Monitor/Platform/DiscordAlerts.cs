@@ -21,7 +21,8 @@ public sealed class DiscordAlertOptions
 }
 
 public sealed record RiskNotification(string EventId, string TargetId, string Name, string PreviousLevel,
-    string Level, string ReasonCode, DateTimeOffset CreatedAt, IReadOnlyList<RiskSignal> Signals, bool Test = false);
+    string Level, string ReasonCode, DateTimeOffset CreatedAt, IReadOnlyList<RiskSignal> Signals, bool Test = false,
+    int? HttpStatusCode = null);
 public sealed class AlertTargetState
 {
     public string Level { get; set; } = "NORMAL";
@@ -108,7 +109,7 @@ public sealed class DiscordAlerts
                 if (level == state.Level || level == "NORMAL" && state.NormalSamples < 2) continue;
                 if (_journal.Pending.Count >= 200) { _storageHealthy = false; return; }
                 _journal.Pending.Add(new(Guid.NewGuid().ToString(), item.TargetId, item.Name, state.Level,
-                    level, item.ReasonCode, _clock.GetUtcNow(), item.Risk?.Signals ?? []));
+                    level, item.ReasonCode, _clock.GetUtcNow(), item.Risk?.Signals ?? [], HttpStatusCode: item.HttpStatusCode));
                 state.Level = level;
             }
             if (changed) Persist();
@@ -140,12 +141,24 @@ public sealed class DiscordAlerts
         var description = item.Test ? "연결 시험 메시지입니다. 실제 장애 알림이 아닙니다. 주의·위험·정상 복귀를 이 채널로 전달합니다." :
             item.Level == "NORMAL" ? "새 정상 측정 2회가 확인되었습니다." : item.PreviousLevel == "CRITICAL" && item.Level == "WARNING" ?
                 "위험 단계는 해제됐지만 주의 기준이 남아 있습니다." : "자산 상태나 수치가 경고 기준에 도달했습니다.";
+        var reason = item.ReasonCode switch
+        {
+            "HTTP_RATE_LIMITED" => "요청 제한 응답 · 서버 과부하 여부는 추가 확인 필요",
+            "HTTP_UNAVAILABLE" => "서비스 이용 불가 응답 · DB·Redis 상태는 확인되지 않음",
+            "HTTP_ERROR" => "예상한 HTTP 상태와 다른 응답",
+            "TIMEOUT" => "점검 제한 시간 안에 응답하지 않음",
+            "CONNECTION_FAILED" => "서비스 연결 실패 · 호스트 또는 네트워크 확인 필요",
+            "RESPONSE_READ_FAILED" => "응답을 끝까지 읽지 못함",
+            _ => item.ReasonCode,
+        };
+        if (item.HttpStatusCode is { } code) reason = $"HTTP {code} · {reason}";
         return new { username = "Sentinel", allowed_mentions = new { parse = Array.Empty<string>() },
             embeds = new[] { new { title, description, url = dashboardUrl,
                 color = item.Level == "CRITICAL" ? 0xEF6666 : item.Level == "WARNING" ? 0xE8BD5A : 0x70BA9E,
                 timestamp = item.CreatedAt, fields = new[] {
                     new { name = "대상", value = item.TargetId, inline = true },
                     new { name = "상태", value = item.Test ? "연결 시험" : item.PreviousLevel + " → " + item.Level, inline = true },
+                    new { name = "감지 근거", value = reason, inline = false },
                     new { name = "측정 근거", value = values.Length == 0 ? item.ReasonCode : string.Join("\n", values), inline = false } },
                 footer = new { text = "Sentinel · " + item.EventId } } } };
     }
