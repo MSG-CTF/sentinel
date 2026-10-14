@@ -77,9 +77,10 @@ class WebProxyIntegrationTests(unittest.TestCase):
                 '\nhttp://127.0.0.1:8080 {\n route {\n'
                 ' handle /internal/grafana-auth {\n'
                 '  @session header Cookie session=fixture\n'
+                '  @anonymous not header Cookie session=fixture\n'
                 '  header @session X-Sentinel-User admin\n'
                 '  respond @session "" 200\n'
-                '  redir /login 302\n }\n' + graphic_rules +
+                '  redir @anonymous /login 302\n }\n' + graphic_rules +
                 ' header /login.js Content-Type "text/javascript"\n'
                 ' respond /login.js ' + json.dumps(asset_body) + ' 401\n'
                 ' respond "upstream:{http.request.header.Authorization}|'
@@ -151,7 +152,7 @@ class WebProxyIntegrationTests(unittest.TestCase):
                     self.assertEqual(request(path)[0],404)
                 for path in ('/grafana/', '/grafana/api/search', '/grafana/public/build/app.js'):
                     status, headers, body = request(path, extra_headers={'X-Sentinel-User':'forged'})
-                    self.assertEqual(status,302)
+                    self.assertEqual(status,302,(path,headers,body))
                     self.assertEqual(headers['location'],'/login')
                     status, headers, body = request(path, extra_headers={
                         'Cookie':'session=fixture','X-Sentinel-User':'forged','Authorization':'Bearer forged'})
