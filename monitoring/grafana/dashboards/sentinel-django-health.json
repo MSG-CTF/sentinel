@@ -3,7 +3,7 @@
   "uid": "sentinel-django-health",
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 3,
+  "version": 4,
   "refresh": "15s",
   "panels": [
     {
@@ -23,7 +23,9 @@
           },
           "expr": "sentinel_django_check_success",
           "legendFormat": "{{target_id}}",
-          "refId": "A"
+          "refId": "A",
+          "instant": true,
+          "range": false
         }
       ],
       "fieldConfig": {
@@ -32,13 +34,15 @@
             {
               "options": {
                 "0": {
-                  "text": "Failed"
+                  "text": "계약 미확인",
+                  "color": "orange"
                 },
                 "1": {
-                  "text": "Completed"
+                  "text": "검증 완료",
+                  "color": "green"
                 },
                 "-1": {
-                  "text": "Unverified",
+                  "text": "미확인",
                   "color": "orange"
                 }
               },
@@ -73,8 +77,12 @@
             "lastNotNull"
           ],
           "fields": "",
-          "values": true
+          "values": false
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
       }
     },
     {
@@ -94,7 +102,9 @@
           },
           "expr": "sentinel_django_component_health",
           "legendFormat": "{{target_id}} / {{component}}",
-          "refId": "A"
+          "refId": "A",
+          "instant": true,
+          "range": false
         }
       ],
       "fieldConfig": {
@@ -104,15 +114,15 @@
               "type": "value",
               "options": {
                 "-1": {
-                  "text": "Unverified",
+                  "text": "미확인",
                   "color": "orange"
                 },
                 "0": {
-                  "text": "Down",
+                  "text": "장애",
                   "color": "red"
                 },
                 "1": {
-                  "text": "Healthy",
+                  "text": "정상",
                   "color": "green"
                 }
               }
@@ -146,8 +156,12 @@
             "lastNotNull"
           ],
           "fields": "",
-          "values": true
+          "values": false
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
       }
     },
     {
@@ -201,6 +215,10 @@
           "displayMode": "list",
           "placement": "bottom"
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
       }
     },
     {
@@ -220,7 +238,9 @@
           },
           "expr": "sentinel_target_latency_ms",
           "legendFormat": "{{target_id}}",
-          "refId": "A"
+          "refId": "A",
+          "instant": true,
+          "range": false
         }
       ],
       "fieldConfig": {
@@ -240,8 +260,12 @@
             "lastNotNull"
           ],
           "fields": "",
-          "values": true
+          "values": false
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
       }
     },
     {
@@ -263,7 +287,8 @@
             "uid": "Prometheus"
           },
           "expr": "up{job=\"sentinel\"}",
-          "instant": true
+          "instant": true,
+          "range": false
         }
       ],
       "options": {
@@ -272,7 +297,9 @@
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
-          ]
+          ],
+          "fields": "",
+          "values": false
         }
       },
       "fieldConfig": {
@@ -295,6 +322,10 @@
           ]
         },
         "overrides": []
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
       }
     },
     {
@@ -316,7 +347,8 @@
             "uid": "Prometheus"
           },
           "expr": "sentinel_event_storage_healthy",
-          "instant": true
+          "instant": true,
+          "range": false
         }
       ],
       "options": {
@@ -325,7 +357,9 @@
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
-          ]
+          ],
+          "fields": "",
+          "values": false
         }
       },
       "fieldConfig": {
@@ -348,6 +382,10 @@
           ]
         },
         "overrides": []
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
       }
     }
   ],
@@ -368,5 +406,14 @@
       "targetBlank": false,
       "icon": "dashboard"
     }
-  ]
+  ],
+  "timepicker": {
+    "refresh_intervals": [
+      "15s",
+      "30s",
+      "1m",
+      "5m",
+      "15m"
+    ]
+  }
 }

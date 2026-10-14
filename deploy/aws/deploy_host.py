@@ -375,6 +375,11 @@ scrape_configs:
     os.chown(secret, 65534, 65534)
     datasource = root / "grafana" / "provisioning" / "datasources" / "prometheus.yml"
     datasource.write_text(datasource.read_text().replace("http://prometheus:9090", "http://127.0.0.1:9090") + "    editable: false\n", encoding="utf-8")
+    dashboard_path = root / "grafana" / "dashboards" / "sentinel-django-health.json"
+    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+    # Grafana resolves slash-prefixed links beneath its own /grafana/ base.
+    dashboard["links"][0]["url"] = "https://" + config["domain"] + "/"
+    dashboard_path.write_text(json.dumps(dashboard, ensure_ascii=False), encoding="utf-8")
     (root / "grafana.ini").write_text("""[server]
 http_addr = 127.0.0.1
 http_port = 3000

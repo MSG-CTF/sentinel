@@ -183,6 +183,14 @@ def verify_web():
     status, _, body = request("/grafana/api/datasources/proxy/uid/Prometheus/api/v1/query?query=sentinel_target_health", authenticated=True)
     if status != 200 or not json.loads(body).get("data", {}).get("result"):
         raise RuntimeError("Grafana has no collected Sentinel target metrics")
+    for metric in ("sentinel_django_component_health", "sentinel_django_check_success", "sentinel_target_latency_ms"):
+        end = int(time.time() * 1000)
+        query = {"queries": [{"refId": "A", "datasource": {"uid": "Prometheus", "type": "prometheus"},
+                 "expr": metric, "instant": True, "range": False, "intervalMs": 15000, "maxDataPoints": 400}],
+                 "from": str(end - 3600000), "to": str(end)}
+        status, _, body = request("/grafana/api/ds/query", "POST", query, authenticated=True)
+        if status != 200 or not json.loads(body).get("results", {}).get("A", {}).get("frames"):
+            raise RuntimeError("Grafana panel query failed: " + metric)
     _, _, body = request("/auth/csrf", authenticated=True)
     csrf = json.loads(body)["request_token"]
     if request("/auth/logout", "POST", csrf=csrf, authenticated=True)[0] != 200:
