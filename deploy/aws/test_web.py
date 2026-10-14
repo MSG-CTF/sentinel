@@ -86,7 +86,8 @@ class WebProxyIntegrationTests(unittest.TestCase):
                 ' respond "upstream:{http.request.header.Authorization}|'
                 '{http.request.header.Proxy-Authorization}" 200\n}\n}\n'
                 'http://127.0.0.1:3000 {\n respond "grafana:{http.request.header.X-Sentinel-User}|'
-                '{http.request.header.Cookie}|{http.request.header.Authorization}" 200\n}\n')
+                '{http.request.header.Cookie}|{http.request.header.Authorization}|'
+                '{http.request.header.X-Panel-Title}|{http.request.header.X-Dashboard-Title}" 200\n}\n')
             (root / "Caddyfile").write_text(proxy_config, encoding="utf-8")
             try:
                 docker(["run", "-d", "--name", proxy, "--network", "bridge",
@@ -155,9 +156,10 @@ class WebProxyIntegrationTests(unittest.TestCase):
                     self.assertEqual(status,302,(path,headers,body))
                     self.assertEqual(headers['location'],'/login')
                     status, headers, body = request(path, extra_headers={
-                        'Cookie':'session=fixture','X-Sentinel-User':'forged','Authorization':'Bearer forged'})
+                        'Cookie':'session=fixture','X-Sentinel-User':'forged','Authorization':'Bearer forged',
+                        'X-Panel-Title':'Django · DB · Redis','X-Dashboard-Title':'Sentinel · Operations'})
                     self.assertEqual(status,200)
-                    self.assertEqual(body,b'grafana:admin||')
+                    self.assertEqual(body,b'grafana:admin||||')
                 status, headers, body = request("/ingest/heartbeat/discord-bot", "admin", "fixture-token")
                 self.assertEqual(status, 200)
                 self.assertIn(b"upstream:Basic ", body)

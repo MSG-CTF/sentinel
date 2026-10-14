@@ -92,6 +92,10 @@ https://%s {
         handle @grafana {
             route {
                 request_header -X-Sentinel-User
+                # Grafana sends Latin-1 display titles as diagnostic headers.
+                # They are not identity and can fail Kestrel's UTF-8 parser.
+                request_header -X-Panel-Title
+                request_header -X-Dashboard-Title
                 forward_auth 127.0.0.1:8080 {
                     uri /internal/grafana-auth
                     copy_headers X-Sentinel-User

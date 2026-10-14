@@ -123,10 +123,10 @@ def verify_web():
     domain = config["domain"]
     cookies = http.cookies.SimpleCookie()
 
-    def request(path, method="GET", data=None, csrf=None, authenticated=False, https=True):
+    def request(path, method="GET", data=None, csrf=None, authenticated=False, https=True, extra_headers=None):
         conn_type = http.client.HTTPSConnection if https else http.client.HTTPConnection
         conn = conn_type(domain, timeout=15)
-        headers = {}
+        headers = dict(extra_headers or {})
         if authenticated and cookies:
             headers["Cookie"] = "; ".join(key + "=" + value.value for key, value in cookies.items())
         if csrf: headers["X-CSRF-TOKEN"] = csrf
@@ -188,7 +188,8 @@ def verify_web():
         query = {"queries": [{"refId": "A", "datasource": {"uid": "Prometheus", "type": "prometheus"},
                  "expr": metric, "instant": True, "range": False, "intervalMs": 15000, "maxDataPoints": 400}],
                  "from": str(end - 3600000), "to": str(end)}
-        status, _, body = request("/grafana/api/ds/query", "POST", query, authenticated=True)
+        status, _, body = request("/grafana/api/ds/query", "POST", query, authenticated=True,
+                                 extra_headers={"X-Panel-Title": "Django · DB · Redis", "X-Dashboard-Title": "Sentinel · Operations"})
         if status != 200 or not json.loads(body).get("results", {}).get("A", {}).get("frames"):
             raise RuntimeError("Grafana panel query failed: " + metric)
     _, _, body = request("/auth/csrf", authenticated=True)
