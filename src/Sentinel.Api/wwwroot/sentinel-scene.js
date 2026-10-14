@@ -305,7 +305,7 @@ async function photographicEnvironment(renderer,element,source) {
   }
 }
 
-function makeModel(grain) {
+function makeModel(grain, chamberLight) {
   const root=new THREE.Group(), resources=new Set(), textures=new Set();
   const materials={
     body:machinedMaterial({color:0x666965,metalness:1,roughness:.31,anisotropy:.35,envMapIntensity:1.0},grain,{strength:.65}),
@@ -323,10 +323,22 @@ function makeModel(grain) {
     emitter:new THREE.MeshStandardMaterial({color:0xe9f6ff,emissive:0xc3eaff,emissiveIntensity:5.0,roughness:.32,metalness:0}),
     lightGuide:new THREE.MeshStandardMaterial({color:0x254e59,emissive:0x199dbf,emissiveIntensity:1.6,roughness:.33,metalness:.08}),
     energy:new THREE.MeshStandardMaterial({color:0x8bdeff,emissive:0x44caff,emissiveIntensity:3.4,roughness:.3,metalness:.05}),
-    energyWell:new THREE.MeshStandardMaterial({color:0x020c1e,emissive:0x006cb5,emissiveIntensity:.24,roughness:.29,metalness:.28}),
+    energyWell:new THREE.MeshStandardMaterial({color:0x032035,emissive:0x0870ff,emissiveIntensity:3.4,roughness:.29,metalness:.08}),
+    chamber:new THREE.MeshStandardMaterial({color:0x8bdfff,emissive:0xffffff,emissiveIntensity:7.0,roughness:.38,metalness:0}),
     seam:new THREE.MeshStandardMaterial({color:0xeee6d5,emissive:0xd8c398,emissiveIntensity:.9,roughness:.36,metalness:0}),
     status:new THREE.MeshStandardMaterial({color:0xbee9ff,emissive:0x73c9ed,emissiveIntensity:2.6,roughness:.25}),
   };
+  // A bright ceramic sleeve lives inside the vented lower cartridge. Its hot
+  // centre falls to saturated blue at the edges, behind the dark metal fins.
+  materials.chamber.onBeforeCompile=shader=>{
+    shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vChamberPosition;')
+      .replace('#include <begin_vertex>','#include <begin_vertex>\nvChamberPosition=position;');
+    shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vChamberPosition;')
+      .replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
+        float hot=exp(-abs(vChamberPosition.y)*24.0);
+        totalEmissiveRadiance*=mix(vec3(.006,.14,.95),vec3(.65,.93,1.0),hot);`);
+  };
+  materials.chamber.customProgramCacheKey=()=> 'sentinel-chamber-v1';
   const keep=g=>{resources.add(g);return g;};
   function mesh(parent,geometry,material,x=0,y=0,z=0,shadow=true){
     keep(geometry);const object=new THREE.Mesh(geometry,material);
@@ -513,11 +525,16 @@ function makeModel(grain) {
   }
 
   const cartridge=new THREE.Group();root.add(cartridge);
-  const barrelProfile=[[1.15,-.40],[1.37,-.40],[1.43,-.35],[1.43,-.14],[1.36,-.10],[1.34,.09],[1.26,.16],[1.19,.16],[1.15,.10],[1.15,-.40]];
+  // The lower barrel is open between its ribs, so the internal source is
+  // visible through real slots instead of being painted onto a solid wall.
+  const barrelProfile=[[1.15,-.15],[1.43,-.15],[1.36,-.10],[1.34,.09],[1.26,.16],[1.19,.16],[1.15,.10],[1.15,-.15]];
   mesh(cartridge,new THREE.LatheGeometry(barrelProfile.map(p=>new THREE.Vector2(...p)),160),materials.bore);
+  const chamber=ring(cartridge,1.22,1.35,.19,-.263,materials.chamber);chamber.castShadow=chamber.receiveShadow=false;
+  ring(cartridge,1.20,1.435,.040,-.381,materials.bore);
+  ring(cartridge,1.32,1.444,.025,-.36,materials.edge);
   ring(cartridge,1.33,1.42,.035,-.10,materials.edge);
   ring(cartridge,1.25,1.35,.035,.125,materials.face);
-  radial(cartridge,new THREE.BoxGeometry(.032,.17,.024),materials.body,80,1.403,-.245);
+  radial(cartridge,new THREE.BoxGeometry(.032,.22,.024),materials.body,80,1.403,-.26);
   // Recessed light-guide windows stay attached to the barrel and are exposed
   // by its mechanical travel. No floating rings or new postprocessing passes.
   const lightWindows=radial(cartridge,new THREE.BoxGeometry(.016,.078,.054),materials.lightGuide,16,1.437,-.27,Math.PI/16);
@@ -671,10 +688,14 @@ function makeModel(grain) {
   const turbineBlade=keep(arcGeometry(.85,1.41,-.055,.10,.014,.003));
   radial(rotor,turbineBlade,materials.bore,32,0,0,.1);
   ring(rotor,.86,.92,.034,.018,materials.copper);
-  // A low-power diffuser faces the carriage below the optic. Point sources
-  // almost touching the polished rim produced sharp, moving white hotspots.
-  const diffuserLight=new THREE.RectAreaLight(0x169be8,1.6,2.2,2.2);
-  diffuserLight.position.y=-.185;diffuserLight.rotation.x=-Math.PI/2;optic.add(diffuserLight);
+  // The light comes from the lower power chamber, not the top lens. Broad
+  // area sources spill onto the deck without tiny specular point-light disks.
+  const diffuserLight=new THREE.RectAreaLight(0x35bdff,6.0,2.2,2.2);
+  diffuserLight.position.y=-.39;diffuserLight.rotation.x=-Math.PI/2;cartridge.add(diffuserLight);
+  // Reuse the set's bounce source for the chamber spill. Keeping the same
+  // light count avoids recompiling every physical-material light variant.
+  chamberLight.color.setHex(0x38bfff);chamberLight.width=1.8;chamberLight.height=.20;
+  chamberLight.position.set(0,-.26,1.32);chamberLight.lookAt(0,-.26,3);cartridge.add(chamberLight);
 
   // An actual decal on one panel, rather than surrounding HUD decoration.
   const label=document.createElement('canvas');label.width=1024;label.height=256;
@@ -741,10 +762,12 @@ function makeModel(grain) {
     materials.aperture.emissiveIntensity=(2.8+pose.optic*.9)*power*breath;
     materials.lightGuide.emissiveIntensity=(1.15+pose.optic*.75)*power*breath;
     materials.energy.emissiveIntensity=(2.8+pose.lift*.7)*power*breath;
-    materials.energyWell.emissiveIntensity=(.16+pose.lift*.10)*power;
+    materials.energyWell.emissiveIntensity=(2.4+pose.lift*1.2)*power*breath;
+    materials.chamber.emissiveIntensity=(5.0+pose.carrier*2.5)*power*breath;
     materials.lightWell.emissiveIntensity=(.42+pose.optic*.22)*power;
     materials.seam.emissiveIntensity=(.65+pose.carrier*.3)*power;
-    diffuserLight.intensity=(.7+pose.optic*.9)*power*breath;
+    diffuserLight.intensity=(3.0+pose.carrier*4.0)*power*breath;
+    chamberLight.intensity=(4.0+pose.carrier*5.0)*power*breath;
     return pose.presentation;
   }
   function setState(state){
@@ -861,7 +884,7 @@ function createFinish(renderer) {
           density*=1.0-smoothstep(1.0,1.54,edge);
           float opacity=1.0-exp(-density*stepLength*.85*uMistPower);
           float blue=exp(-length(p.xz)*.32)*(.55+.45*eddy);
-          vec3 tint=mix(vec3(.22,.27,.31),vec3(.075,.28,.43),blue);
+          vec3 tint=mix(vec3(.22,.27,.31),vec3(.09,.48,.86),blue);
           scatter+=transmittance*opacity*tint;
           transmittance*=1.0-opacity;
           cursor+=stepLength;
@@ -888,7 +911,7 @@ function createFinish(renderer) {
         color=color*(1.0-vapor.a)+vapor.rgb;
         // Keep a narrow optical fringe at the emitters. The low vapor volume
         // above is independent of bloom and never washes over the whole scene.
-        color+=texture2D(tBloom,vUv).rgb*.12;
+        color+=texture2D(tBloom,vUv).rgb*.22;
         vec2 p=vUv-.5;
         color*=1.0-.24*dot(p,p);
         gl_FragColor=vec4(color,1.0);
@@ -989,7 +1012,6 @@ export async function createMechanismScene(element, {still=false,environmentData
     const cue=ignitionPose(ignition);
     lighting.softbox.intensity=8.5*(.12+.88*cue.key);
     lighting.strip.intensity=16*(.08+.92*cue.rim);
-    lighting.bounce.intensity=6.5*(.1+.9*cue.key);
     lighting.key.intensity=1.35*(.15+.85*cue.key);
     lighting.strip.position.set(-2+cue.travel*6,4-cue.travel*2,-1-cue.travel*2);
     lighting.strip.lookAt(0,0,0);
@@ -1099,7 +1121,7 @@ export async function createMechanismScene(element, {still=false,environmentData
     onProgress('geometry');
     await new Promise(resolve=>setTimeout(resolve,0));signal?.throwIfAborted();
     grain=surfaceTexture();
-    model=makeModel(grain); scene.add(model.root);
+    model=makeModel(grain,lighting.bounce); scene.add(model.root);
     await new Promise(resolve=>setTimeout(resolve,0));signal?.throwIfAborted();
     studio=makeStudio(grain);scene.add(studio.root);
     onProgress('environment');

@@ -13,9 +13,11 @@ connector pins; pocketed support bridges, control packages and copper contacts;
 independent coated lid, telescopic posts and six pivoting emitter shutters
 Illumination: frosted white aperture, cyan perimeter guides and recessed windows
 Lower plates: split titanium quadrants, louvered pockets, service cassettes,
-bearing supports and captive cyan-white conduits over dark electric-blue wells
+bearing supports and cyan-white conduits over bright electric-blue wells
+Power chamber: open lower cartridge with a hot ceramic sleeve behind metal ribs,
+cyan-white centre, blue edges, downward illumination and outward reflected spill
 Lighting: settled ignition cue with a cold-white strip, broad neutral key and
-restrained champagne bounce; dark satin floor and narrow local bloom without a
+blue chamber spill; dark satin floor and narrow local bloom without a
 synthetic light cone or broad halo; low procedural silver-blue coolant vapor
 confined to the mounting deck and clipped by the scene's opaque depth buffer
 Studio lighting environment: studio-small-09.hdr, see studio-small-09-LICENSE.txt
