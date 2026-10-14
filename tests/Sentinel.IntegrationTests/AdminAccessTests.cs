@@ -27,7 +27,7 @@ public sealed class AdminAccessTests
             Rfc2898DeriveBytes.Pbkdf2(Password, salt, 600000, HashAlgorithmName.SHA256, 32));
         var file = Path.Combine(temp, "auth.json");
         await File.WriteAllTextAsync(file, JsonSerializer.Serialize(new AdminAccess
-            { Enabled = true, Username = "admin", PasswordHash = hash, ReadinessToken = new string('r', 40) }));
+            { Enabled = true, Username = "admin", PasswordHash = hash, ReadinessToken = new string('r', 40), MetricsToken = new string('m', 40) }));
         var before = Environment.GetEnvironmentVariable("SENTINEL_AUTH_FILE");
         Environment.SetEnvironmentVariable("SENTINEL_AUTH_FILE", file);
         try
@@ -75,6 +75,24 @@ public sealed class AdminAccessTests
             Assert.Equal("image/jpeg", visual.Content.Headers.ContentType?.MediaType);
             Assert.True(visual.Headers.CacheControl?.Public);
             Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/internal/readiness")).StatusCode);
+            client.DefaultRequestHeaders.Add("X-Sentinel-User", "forged-admin");
+            var deniedGrafana = await client.GetAsync("/internal/grafana-auth");
+            Assert.Equal(HttpStatusCode.Found, deniedGrafana.StatusCode);
+            Assert.Equal("/login", deniedGrafana.Headers.Location?.ToString());
+            Assert.False(deniedGrafana.Headers.Contains("X-Sentinel-User"));
+            foreach (var token in new[] { "", "Bearer " + new string('r', 40), "Bearer invalid" })
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Get, "/internal/metrics");
+                request.Headers.TryAddWithoutValidation("Authorization", token);
+                Assert.Equal(HttpStatusCode.Unauthorized, (await client.SendAsync(request)).StatusCode);
+            }
+            using (var request = new HttpRequestMessage(HttpMethod.Get, "/internal/metrics"))
+            {
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", new string('m', 40));
+                var metrics = await client.SendAsync(request);
+                Assert.Equal(HttpStatusCode.OK, metrics.StatusCode);
+                Assert.Contains("sentinel_", await metrics.Content.ReadAsStringAsync());
+            }
             var credentials = new { username = "admin", password = Password };
             Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync("/auth/login", credentials)).StatusCode);
             var csrf = await client.GetFromJsonAsync<JsonElement>("/auth/csrf");
@@ -89,6 +107,11 @@ public sealed class AdminAccessTests
             var authenticatedStatus = await client.GetAsync("/api/status");
             Assert.Equal(HttpStatusCode.OK, authenticatedStatus.StatusCode);
             Assert.True(authenticatedStatus.Headers.CacheControl?.NoStore);
+            var grafana = await client.GetAsync("/internal/grafana-auth");
+            Assert.Equal(HttpStatusCode.OK, grafana.StatusCode);
+            Assert.Equal("admin", Assert.Single(grafana.Headers.GetValues("X-Sentinel-User")));
+            Assert.True(grafana.Headers.CacheControl?.NoStore);
+            Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/internal/metrics")).StatusCode);
             var dashboard = await client.GetAsync("/");
             Assert.Equal(HttpStatusCode.OK, dashboard.StatusCode);
             Assert.True(dashboard.Headers.CacheControl?.NoStore);
@@ -99,6 +122,7 @@ public sealed class AdminAccessTests
             client.DefaultRequestHeaders.Add("X-CSRF-TOKEN", csrf.GetProperty("request_token").GetString());
             Assert.Equal(HttpStatusCode.OK, (await client.PostAsync("/auth/logout", null)).StatusCode);
             Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/status")).StatusCode);
+            Assert.Equal(HttpStatusCode.Found, (await client.GetAsync("/internal/grafana-auth")).StatusCode);
         }
         finally { Environment.SetEnvironmentVariable("SENTINEL_AUTH_FILE", before); Directory.Delete(temp, true); }
     }

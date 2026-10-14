@@ -24,7 +24,7 @@
   <header class="site-header">
     <div class="header-inner">
       <a class="brand" href="/" aria-label="Sentinel 운영 현황">
-        <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M5 29V11l15 9 15-9v18M5 11l15-8 15 8M20 20v17M5 29l15 8 15-8"/></svg>
+        <svg class="sentinel-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M24 6H12L6 12v6h14v3H7v5h13l6-6V13H12v-1l1-1h11Z"/><path class="mark-signal" d="M26 6h2v5h-2Z"/></svg>
         <span>SENTINEL</span><small>MSG CTF</small>
       </a>
       <nav class="view-tabs" role="tablist" aria-label="대시보드 보기">
@@ -33,6 +33,7 @@
         <button id="connections-tab" type="button" role="tab" aria-selected="false" aria-controls="connections-view" tabindex="-1">연동 현황</button>
       </nav>
       <div class="header-tools">
+        <a class="grafana-link" href="/grafana/d/sentinel-django-health" aria-label="Grafana 지표 대시보드 열기"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 4v12h14M6 12l3-4 3 2 4-6"/></svg><span>Grafana</span><svg class="link-arrow" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 15 15 5M6 5h9v9"/></svg></a>
         <button class="motion-toggle" data-motion-toggle type="button" aria-label="모션 끄기" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4v8m5-8v8m5-8v8"/></svg><span>MOTION ON</span></button>
         <button id="logout" class="logout-button" type="button">로그아웃</button>
         <span id="profile" class="profile-label">연결 중</span>

@@ -16,6 +16,7 @@ public sealed class AdminAccess
     public string Username { get; init; } = "";
     public string PasswordHash { get; init; } = "";
     public string ReadinessToken { get; init; } = "";
+    public string MetricsToken { get; init; } = "";
     public string Stamp => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Username + PasswordHash)));
 
     public static AdminAccess Load(IConfiguration configuration)
@@ -115,7 +116,7 @@ public static class AdminAccessRegistration
         {
             var path = context.Request.Path;
             var publicFile = path.Value is "/login" or "/login.html" || IsPublicStaticAsset(path);
-            var ownAuthentication = path.Value is "/auth/csrf" or "/auth/login" or "/internal/readiness"
+            var ownAuthentication = path.Value is "/auth/csrf" or "/auth/login" or "/internal/readiness" or "/internal/metrics" or "/internal/grafana-auth"
                 || path.StartsWithSegments("/internal/recovery") || path.StartsWithSegments("/ingest/heartbeat");
             if (access.Enabled && !publicFile && !ownAuthentication && context.User.Identity?.IsAuthenticated != true)
             {
@@ -130,6 +131,15 @@ public static class AdminAccessRegistration
 
     public static void MapAdminAccess(this WebApplication app)
     {
+        // Caddy checks every Grafana request, including API and static assets.
+        // It supplies the username itself; client-provided identity is ignored.
+        app.MapGet("/internal/grafana-auth", (HttpContext context, AdminAccess access) =>
+        {
+            if (!access.Enabled || context.User.Identity?.IsAuthenticated != true)
+                return Results.Redirect("/login");
+            context.Response.Headers["X-Sentinel-User"] = access.Username;
+            return Results.Ok();
+        });
         app.MapGet("/auth/csrf", (HttpContext context, IAntiforgery antiforgery) =>
             Results.Ok(new { request_token = antiforgery.GetAndStoreTokens(context).RequestToken }));
         app.MapPost("/auth/login", async (LoginRequest body, HttpContext context, IAntiforgery antiforgery, AdminAccess access) =>

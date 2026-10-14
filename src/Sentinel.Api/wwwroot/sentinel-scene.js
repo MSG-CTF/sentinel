@@ -56,6 +56,20 @@ export function advanceTravel(state, target, delta) {
   return {position:clamp(target + (offset + impulse * dt) * decay, 0, 1), velocity:(state.velocity - omega * impulse * dt) * decay};
 }
 
+// Cold exhaust keeps momentum, loses speed to drag, and settles onto the
+// mounting deck. This small bounded simulation shares the scene's pause clock.
+export function advanceCoolant(puff, delta) {
+  const dt=clamp(delta,0,.08),drag=Math.exp(-1.15*dt);
+  const vx=puff.vx*drag,vz=puff.vz*drag,vy=(puff.vy-.78*dt)*drag;
+  const x=puff.x+vx*dt,z=puff.z+vz*dt;
+  const deckX=.9872*x+.1593*z,deckZ=-.1593*x+.9872*z;
+  const floor=Math.abs(deckX)<3.20&&Math.abs(deckZ)<2.78?-1.98:-2.42;
+  const y=Math.max(floor,puff.y+vy*dt);
+  return {...puff,x,y,z,vx,vy:y<=floor?0:vy,vz,age:puff.age+dt,radius:Math.min(.74,puff.radius+dt*.20)};
+}
+
+export function coolantPressure(velocity) {return clamp((Math.abs(velocity)-.025)*2.6,0,1);}
+
 // A continuous camera rail: broad lateral travel, a small crane and dolly.
 // The returning arc is smooth at the loop boundary; it never cuts shots.
 export function cameraRail(time) {
@@ -731,6 +745,10 @@ function makeModel(grain, chamberLight) {
   const plate=mesh(covers[0].panel,new THREE.PlaneGeometry(.60,.15),materials.decal,1.02,.073,2.04,false);plate.rotation.set(-Math.PI/2,0,.45);
 
   let travel={position:0,velocity:0};
+  const exhaust=Array.from({length:12},()=>({age:10}));
+  const ventClocks=[0,0,0,0],previousLifts=[0,0,0,0];
+  const ventPosition=new THREE.Vector3(),ventDirection=new THREE.Vector3();
+  let exhaustIndex=0,pressure=0;
   function update(time,delta,view,pointer,snap=false,power=1){
     const target=view==='exploded'||view==='detail'?1:view==='assembled'?0:cycleProgress(time);
     travel=snap?{position:target,velocity:0}:advanceTravel(travel,target,delta);
@@ -771,6 +789,29 @@ function makeModel(grain, chamberLight) {
       panel.position.y=bridges[i].lift*1.20;
       latch.position.y=-.19+bridges[i].unlock*.10;
     });
+    // Emission belongs to each moving bridge, including a mid-travel reversal.
+    // A static view change cannot create a burst, and an idle device has no jet.
+    root.updateWorldMatrix(true,true);
+    let demand=0;
+    for(let i=0;i<4;i++){
+      const speed=!snap&&delta>0?(bridges[i].lift-previousLifts[i])*1.20/delta:0;
+      previousLifts[i]=bridges[i].lift;
+      const strength=coolantPressure(speed);demand=Math.max(demand,strength);
+      ventClocks[i]+=delta*strength*4.5;
+      if(strength===0)ventClocks[i]=0;
+      if(ventClocks[i]>=1){
+        ventClocks[i]%=1;
+        const angle=(i+.5)*TAU/4;
+        ventPosition.set(Math.cos(angle)*1.91,-.80+bridges[i].lift*1.20,Math.sin(angle)*1.91).applyMatrix4(root.matrixWorld);
+        ventDirection.set(Math.cos(angle),-.25,Math.sin(angle)).transformDirection(root.matrixWorld);
+        exhaust[exhaustIndex]={x:ventPosition.x,y:ventPosition.y,z:ventPosition.z,
+          vx:ventDirection.x*(.65+strength*.75),vy:-.24-Math.max(0,-speed)*.35,vz:ventDirection.z*(.65+strength*.75),
+          age:0,radius:.16,strength,seed:exhaustIndex*.73};
+        exhaustIndex=(exhaustIndex+1)%exhaust.length;
+      }
+    }
+    for(let i=0;i<exhaust.length;i++)if(exhaust[i].age<4.2)exhaust[i]=advanceCoolant(exhaust[i],delta);
+    pressure=THREE.MathUtils.damp(pressure,demand,demand>pressure?8:2.2,delta);
     blades.forEach((blade,i)=>{blade.position.x=pose.iris*.09;blade.rotation.y=-pose.iris*.16;blade.position.y=i*.002;});
     guidePosts.forEach(({rod,sleeve,collar},i)=>{
       const bottom=-.96,top=cover.position.y+covers[(4-i)%4].panel.position.y-.18,length=top-bottom;
@@ -791,12 +832,12 @@ function makeModel(grain, chamberLight) {
     materials.aperture.emissiveIntensity=(2.8+pose.optic*.9)*power*breath;
     materials.lightGuide.emissiveIntensity=(1.15+pose.optic*.75)*power*breath;
     materials.energy.emissiveIntensity=(2.8+pose.lift*.7)*power*breath;
-    materials.energyWell.emissiveIntensity=(2.4+pose.lift*1.2)*power*breath;
+    materials.energyWell.emissiveIntensity=(2.4+pose.lift*1.2+pressure*.65)*power*breath;
     materials.chamber.emissiveIntensity=(5.0+pose.carrier*2.5)*power*breath;
     materials.lightWell.emissiveIntensity=(.42+pose.optic*.22)*power;
     materials.seam.emissiveIntensity=(.65+pose.carrier*.3)*power;
-    diffuserLight.intensity=(3.0+pose.carrier*4.0)*power*breath;
-    chamberLight.intensity=(4.0+pose.carrier*5.0)*power*breath;
+    diffuserLight.intensity=(3.0+pose.carrier*4.0+pressure*1.3)*power*breath;
+    chamberLight.intensity=(4.0+pose.carrier*5.0+pressure*2.0)*power*breath;
     return pose.presentation;
   }
   function setState(state){
@@ -809,7 +850,7 @@ function makeModel(grain, chamberLight) {
     return focusPosition.set(0,.24,0).applyMatrix4(optic.matrixWorld);
   }
   function dispose(){resources.forEach(g=>g.dispose());Object.values(materials).forEach(m=>m.dispose());textures.forEach(t=>t.dispose());root.traverse(o=>{if(o.isInstancedMesh)o.dispose();});}
-  return {root,update,setState,focusPoint,driveAngle:()=>gears[0].rotation.y,dispose};
+  return {root,update,setState,focusPoint,driveAngle:()=>gears[0].rotation.y,coolant:()=>({exhaust,pressure}),dispose};
 }
 
 
@@ -848,7 +889,8 @@ function createFinish(renderer) {
       gl_FragColor=vec4(c,1.0);}`});
   const uniforms={tColor:{value:target.texture},tDepth:{value:target.depthTexture},tBloom:{value:bloomA.texture},
     uPixel:{value:new THREE.Vector2(1,1)},uProjectionInverse:{value:new THREE.Matrix4()},uViewInverse:{value:new THREE.Matrix4()},
-    uFocus:{value:10},uNear:{value:.1},uFar:{value:80},uQuality:{value:1},uTime:{value:0},uMistPower:{value:1}};
+    uFocus:{value:10},uNear:{value:.1},uFar:{value:80},uQuality:{value:1},uTime:{value:0},uMistPower:{value:1},
+    uPuffs:{value:Array.from({length:12},()=>new THREE.Vector4())},uPuffDensity:{value:new Float32Array(12)},uPressure:{value:0}};
   const material=new THREE.ShaderMaterial({uniforms,depthTest:false,depthWrite:false,vertexShader,
     fragmentShader:`
       varying vec2 vUv;
@@ -856,6 +898,7 @@ function createFinish(renderer) {
       uniform vec2 uPixel;
       uniform mat4 uProjectionInverse,uViewInverse;
       uniform float uFocus,uNear,uFar,uQuality,uTime,uMistPower;
+      uniform vec4 uPuffs[12];uniform float uPuffDensity[12],uPressure;
       float noise(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
       vec3 viewPosition(vec2 uv){
         vec4 p=uProjectionInverse*vec4(uv*2.0-1.0,texture2D(tDepth,uv).x*2.0-1.0,1.0);
@@ -888,15 +931,15 @@ function createFinish(renderer) {
         vec3 ray=normalize(endWorld-origin);
         vec3 inv=1.0/(max(abs(ray),vec3(.00001))*sign(ray+vec3(.000001)));
         vec3 a=(vec3(-4.8,-2.475,-4.1)-origin)*inv;
-        vec3 b=(vec3(4.8,-1.45,4.1)-origin)*inv;
+        vec3 b=(vec3(4.8,1.4,4.1)-origin)*inv;
         vec3 lo=min(a,b),hi=max(a,b);
         float entry=max(max(lo.x,lo.y),max(lo.z,0.0));
         float exit=min(min(hi.x,hi.y),min(hi.z,length(endWorld-origin)));
         if(exit<=entry||uMistPower<.001)return vec4(0.0);
-        float steps=uQuality<.5?6.0:12.0,stepLength=(exit-entry)/steps;
+        float steps=uQuality<.5?10.0:18.0,stepLength=(exit-entry)/steps;
         float cursor=entry+stepLength*(.25+.5*noise(vUv/uPixel));
         vec3 scatter=vec3(0.0);float transmittance=1.0;
-        for(int i=0;i<12;i++){
+        for(int i=0;i<18;i++){
           if(float(i)>=steps)break;
           vec3 p=origin+ray*cursor;
           vec2 deck=mat2(.9872,.1593,-.1593,.9872)*p.xz;
@@ -911,9 +954,26 @@ function createFinish(renderer) {
           float density=billow*exp(-max(height,0.0)*6.0);
           density*=smoothstep(-.07,.025,height)*(1.0-smoothstep(.35,.85,height));
           density*=1.0-smoothstep(1.0,1.54,edge);
+          float jets=0.0;
+          for(int j=0;j<12;j++){
+            if(uPuffDensity[j]<.001)continue;
+            vec3 offset=(p-uPuffs[j].xyz)/max(uPuffs[j].w,.01);
+            vec2 outward=normalize(uPuffs[j].xz+vec2(.001));
+            offset.xz-=outward*dot(offset.xz,outward)*.40;
+            offset.y*=mix(.72,2.2,1.0-smoothstep(-2.0,-1.3,uPuffs[j].y));
+            float distanceSquared=dot(offset,offset);
+            if(distanceSquared<2.25){
+              float curl=vaporNoise(p.xz*5.0+vec2(p.y*3.0-uTime*.32,float(j)));
+              jets+=exp(-distanceSquared*1.8)*(1.0-smoothstep(.35,2.25,distanceSquared))*smoothstep(.12,.82,curl)*uPuffDensity[j];
+            }
+          }
+          density+=jets;
           float opacity=1.0-exp(-density*stepLength*.85*uMistPower);
           float blue=exp(-length(p.xz)*.32)*(.55+.45*eddy);
           vec3 tint=mix(vec3(.22,.27,.31),vec3(.09,.48,.86),blue);
+          float sourceLight=exp(-length(p.xz)*.55)*(1.0+uPressure*.55);
+          tint=mix(tint,vec3(.32,.39,.43),min(jets,.8));
+          tint+=vec3(.04,.14,.23)*sourceLight*min(jets,1.0);
           scatter+=transmittance*opacity*tint;
           transmittance*=1.0-opacity;
           cursor+=stepLength;
@@ -961,7 +1021,7 @@ function createFinish(renderer) {
       bright.uniforms.uSourcePixel.value.set(1/width,1/height);
       bw=Math.max(1,Math.round(width/2));bh=Math.max(1,Math.round(height/2));bloomA.setSize(bw,bh);bloomB.setSize(bw,bh);
     },
-    render(source,sourceCamera,time,focus,mistPower=1){
+    render(source,sourceCamera,time,focus,mistPower=1,coolant){
       renderer.setRenderTarget(target);renderer.render(source,sourceCamera);
       uniforms.uProjectionInverse.value.copy(sourceCamera.projectionMatrixInverse);
       uniforms.uViewInverse.value.copy(sourceCamera.matrixWorld);
@@ -969,6 +1029,12 @@ function createFinish(renderer) {
       uniforms.uFocus.value=-focusInView.z;
       uniforms.uTime.value=time;
       uniforms.uMistPower.value=mistPower;
+      uniforms.uPressure.value=coolant.pressure;
+      coolant.exhaust.forEach((p,i)=>{
+        const alive=p.age<4.2;
+        uniforms.uPuffs.value[i].set(alive?p.x:0,alive?p.y:0,alive?p.z:0,alive?p.radius:0);
+        uniforms.uPuffDensity.value[i]=alive?ease(p.age/.18)*(1-ease((p.age-1.3)/2.9))*(.9+p.strength*.8):0;
+      });
       pass(bloomA,bright);
       // Bilinear Gaussian offsets assume adjacent texels; widening the step
       // skips texels and turns a small highlight into a visible grid of dots.
@@ -1123,7 +1189,7 @@ export async function createMechanismScene(element, {still=false,environmentData
     camera.position.set(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch)).multiplyScalar(distance).add(cameraFocus);
     camera.lookAt(cameraFocus.addScaledVector(cameraRight,shift));
     renderer.info.reset();
-    finish.render(scene,camera,elapsed,model.focusPoint(),cue.key);
+    finish.render(scene,camera,elapsed,model.focusPoint(),cue.key,model.coolant());
     if(failed){useFallback();return;}
     frames++;
     // DOM diagnostics allow smoke tests to verify that the GPU surface advances.
@@ -1135,6 +1201,8 @@ export async function createMechanismScene(element, {still=false,environmentData
       canvas.dataset.view=view;
       canvas.dataset.assembly=expansion.toFixed(4);
       canvas.dataset.drive=model.driveAngle().toFixed(4);
+      canvas.dataset.exhaust=String(model.coolant().exhaust.filter(p=>p.age<4.2).length);
+      canvas.dataset.pressure=model.coolant().pressure.toFixed(3);
       canvas.dataset.camera=cameraMode;
       canvas.dataset.cameraPose=[orbit.yaw,orbit.pitch,orbit.zoom].map(value=>value.toFixed(4)).join(',');
     }

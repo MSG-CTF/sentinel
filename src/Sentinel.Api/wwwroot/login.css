@@ -39,3 +39,5 @@ input{height:49px;width:100%;padding:0 42px;border:1px solid #63717a48;border-ra
 @media(max-width:420px){.identity-panel>.scene-controls{gap:12px}.identity-panel>.scene-controls .motion-toggle{padding-left:9px}.identity-panel>.scene-controls [data-core-view]>span{margin-right:4px}}
 @media(max-width:900px){.identity-panel>.camera-controls{left:25px;bottom:0;gap:15px}.camera-controls button{padding-block:13px}.camera-controls .camera-reset{height:40px;width:36px}.camera-hint{font-size:7px}}
 @media(max-width:360px){.identity-panel>.camera-controls{gap:11px}.camera-hint{display:none}}
+
+.sentinel-mark{fill:currentColor;stroke:none}.sentinel-mark .mark-signal{fill:#81c9dc}

@@ -100,15 +100,25 @@ recoveryApi.MapPost("/requests/{request_id}/claim", (string request_id, Recovery
 recoveryApi.MapPost("/requests/{request_id}/result", (string request_id, RecoveryResult body, RecoveryCoordinator recovery) =>
     recovery.Complete(request_id, body) ? Results.Ok(new { accepted = true }) : Results.Conflict());
 app.MapGet("/api/events", (PlatformMonitor monitor) => Results.Ok(new { events = monitor.Events() }));
-app.MapGet("/metrics", async (PlatformMonitor monitor, PrometheusDjangoHealthMetrics django, CollectorRegistry registry) =>
+app.MapGet("/internal/metrics", async (HttpContext context, AdminAccess access, PlatformMonitor monitor,
+    PrometheusDjangoHealthMetrics django, CollectorRegistry registry) =>
+{
+    var supplied = context.Request.Headers.Authorization.ToString();
+    if (!supplied.StartsWith("Bearer ", StringComparison.Ordinal) ||
+        !AdminAccess.TokenMatches(supplied[7..], access.MetricsToken)) return Results.Unauthorized();
+    return await ExportMetrics(monitor, django, registry);
+});
+app.MapGet("/metrics", ExportMetrics);
+app.Run();
+
+static async Task<IResult> ExportMetrics(PlatformMonitor monitor, PrometheusDjangoHealthMetrics django, CollectorRegistry registry)
 {
     foreach (var target in monitor.Snapshot().Targets.Where(target => target.Kind == "backend_healthz"))
         django.RecordPlatform(target);
     using var stream = new MemoryStream();
     await registry.CollectAndExportAsTextAsync(stream);
     return Results.Text(monitor.Metrics() + Encoding.UTF8.GetString(stream.ToArray()), "text/plain; version=0.0.4; charset=utf-8");
-});
-app.Run();
+}
 
 // 통합 테스트에서 WebApplicationFactory가 진입점을 찾을 수 있도록 공개합니다.
 public partial class Program

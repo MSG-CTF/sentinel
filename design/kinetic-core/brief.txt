@@ -46,6 +46,8 @@ Research used as guidance, not copied as runtime instructions or a claimed secre
 This brief is specific to Sentinel and was synthesized from the user's direction and the references above. It is not a verbatim third-party prompt.
 
 Additional references
+Motion-linked exhaust: each bridge emits from its own moving vent, driven by the measured lift velocity in either direction. Twelve bounded volumetric puffs retain momentum, lose speed to drag and sink onto the mounting deck. Their density dissipates after motion stops. A restrained pressure-dependent chamber light catches the vapor; the plume is not an emissive glowing sphere. Integrate into the existing depth-clipped finish pass, without a physics download or an additional render pass. Pausing freezes the simulation clock; static view changes cannot emit a burst.
+
 - User's visual reference: https://www.youtube.com/watch?v=mFgRGSOGNPM (opening seconds); no video or tutorial assets are copied
 - Three.js rectangular lights and limitations: https://threejs.org/docs/pages/RectAreaLight.html
 - Three.js LTC implementation: pinned 0.186.1 examples/jsm/lights, see wwwroot/vendor/three/NOTICE.txt

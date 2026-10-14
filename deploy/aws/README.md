@@ -18,6 +18,12 @@ EC2, EBS, 퍼블릭 IPv4, S3 사용량은 무료 혜택과 크레딧 범위에 �
 - S3에는 암호화한 비공개 배포 묶음을 저장하고 3일 후 만료시킨다
 - 런타임은 읽기 전용 파일 시스템, 비관리자 사용자, 메모리 512MiB, CPU 0.5 제한으로 실행한다
 - 이벤트 파일은 매시간 회전 조건을 확인하고 Docker 로그와 함께 보관 크기를 제한한다
+- Grafana와 Prometheus도 같은 호스트에서 실행하며 메모리는 각각 512MiB, 256MiB로 제한한다
+- Grafana는 /grafana/에서 기존 관리자 세션으로 접속하고 모든 페이지·API 요청에서 세션을 재검사한다
+- Prometheus는 15초 간격으로 전용 토큰이 있는 내부 metrics 경로를 수집한다
+- TSDB 보관은 최대 7일 또는 블록 256MB이며 WAL 용량은 별도다
+- 데이터는 /opt/msg-sentinel/grafana-data와 prometheus-data에 보존한다
+- Grafana는 읽기 권한으로 연결되며 대시보드 변경은 저장소의 monitoring 구성을 배포한다
 
 현재 AWS 프로필은 observe_only 모드다
 원격 자동 복구와 인스턴스 목록 조회는 별도 인증·계약 검증을 마친 뒤 연결해야 한다

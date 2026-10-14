@@ -5,6 +5,22 @@ const path = require('node:path');
 
 const scene = import(pathToFileURL(path.resolve(__dirname, '../src/Sentinel.Api/wwwroot/sentinel-scene.js')));
 
+test('cold exhaust responds in both directions and dissipates without idle emission', async () => {
+  const {advanceCoolant,coolantPressure}=await scene;
+  assert.equal(coolantPressure(0),0);
+  assert.equal(coolantPressure(.015),0);
+  assert.equal(coolantPressure(.3),coolantPressure(-.3));
+  assert.equal(coolantPressure(100),1);
+  let puff={x:1.9,y:0,z:0,vx:1,vy:-.2,vz:.2,age:0,radius:.16};
+  assert.deepEqual(advanceCoolant(puff,0),puff,'paused simulation drifted');
+  for(let i=0;i<240;i++)puff=advanceCoolant(puff,1/60);
+  assert.ok(puff.x>1.9&&puff.vx<.02,'exhaust must retain then lose momentum');
+  assert.equal(puff.y,-1.98,'cold exhaust must settle on the mounting deck');
+  assert.ok(puff.age>3.9&&puff.radius<=.74);
+  assert.ok(Object.values(puff).every(Number.isFinite));
+  assert.deepEqual(advanceCoolant(puff,100),advanceCoolant(puff,.08),'resuming must not teleport vapor');
+});
+
 test('camera rail loops without a shot cut, reversal jerk or unsafe dolly', async () => {
   const {cameraRail}=await scene,h=.0001;
   for(const time of [0,11,22,33,44,88]) {

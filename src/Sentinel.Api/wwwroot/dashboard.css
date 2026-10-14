@@ -24,6 +24,9 @@ h1,h2,h3,p {margin:0}
 .view-tabs button[aria-selected=true] {color:var(--ink)}
 .view-tabs button[aria-selected=true]::after {content:"";position:absolute;bottom:-1px;left:0;right:0;height:2px;background:#becdd7}
 .header-tools {margin-left:auto;display:flex;align-items:center;gap:19px}
+.grafana-link{display:inline-flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid #34434e;border-radius:5px;color:#c4d6df;font-size:12px;white-space:nowrap}.grafana-link:hover{background:#1a2831;border-color:#6c8b9e}.grafana-link svg{width:17px;height:17px}.grafana-link .link-arrow{width:12px;height:12px;color:#849ba9}
+@media(max-width:1250px){.header-inner{gap:24px}.header-tools{gap:10px}.brand small{display:none}}
+@media(max-width:600px){.grafana-link{padding:7px}.grafana-link span,.grafana-link .link-arrow{display:none}}
 .profile-label {color:var(--muted);font-size:12px;font-weight:650;letter-spacing:.06em}
 .icon-button {display:grid;place-items:center;width:38px;height:38px;background:transparent;border-radius:6px}
 .icon-button:hover {background:var(--surface)}
@@ -197,3 +200,5 @@ body.dialog-open {overflow:hidden}
 #detail-access dd {font-size:13px;line-height:1.6;overflow-wrap:anywhere}
 #detail-access-note {font-size:12px;line-height:1.8;color:var(--muted)}
 @media (max-width:600px) {.recovery-row {grid-template-columns:70px minmax(0,1fr);gap:8px;font-size:12px}.recovery-row span {grid-column:1/-1}.access-row {grid-template-columns:1fr;gap:7px}.site-footer div {flex-wrap:wrap}}
+
+.sentinel-mark{fill:currentColor;stroke:none}.sentinel-mark .mark-signal{fill:#81c9dc}

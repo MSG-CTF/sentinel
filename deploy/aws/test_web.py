@@ -74,11 +74,18 @@ class WebProxyIntegrationTests(unittest.TestCase):
                 f' respond @graphic{index} ' + json.dumps(asset_body) + ' 200\n'
                 for index, (path, mime) in enumerate(graphics.items()))
             proxy_config = production.replace("https://sla.example.com", "http://:8088") + (
-                '\nhttp://127.0.0.1:8080 {\n' + graphic_rules +
+                '\nhttp://127.0.0.1:8080 {\n route {\n'
+                ' handle /internal/grafana-auth {\n'
+                '  @session header Cookie session=fixture\n'
+                '  header @session X-Sentinel-User admin\n'
+                '  respond @session "" 200\n'
+                '  redir /login 302\n }\n' + graphic_rules +
                 ' header /login.js Content-Type "text/javascript"\n'
                 ' respond /login.js ' + json.dumps(asset_body) + ' 401\n'
                 ' respond "upstream:{http.request.header.Authorization}|'
-                '{http.request.header.Proxy-Authorization}" 200\n}\n')
+                '{http.request.header.Proxy-Authorization}" 200\n}\n}\n'
+                'http://127.0.0.1:3000 {\n respond "grafana:{http.request.header.X-Sentinel-User}|'
+                '{http.request.header.Cookie}|{http.request.header.Authorization}" 200\n}\n')
             (root / "Caddyfile").write_text(proxy_config, encoding="utf-8")
             try:
                 docker(["run", "-d", "--name", proxy, "--network", "bridge",
@@ -140,6 +147,16 @@ class WebProxyIntegrationTests(unittest.TestCase):
                 self.assertEqual(request("/internal/readiness")[0], 404)
                 self.assertEqual(request("/internal/recovery")[0], 404)
                 self.assertEqual(request("/internal")[0], 404)
+                for path in ('/internal/metrics','/internal/grafana-auth'):
+                    self.assertEqual(request(path)[0],404)
+                for path in ('/grafana/', '/grafana/api/search', '/grafana/public/build/app.js'):
+                    status, headers, body = request(path, extra_headers={'X-Sentinel-User':'forged'})
+                    self.assertEqual(status,302)
+                    self.assertEqual(headers['location'],'/login')
+                    status, headers, body = request(path, extra_headers={
+                        'Cookie':'session=fixture','X-Sentinel-User':'forged','Authorization':'Bearer forged'})
+                    self.assertEqual(status,200)
+                    self.assertEqual(body,b'grafana:admin||')
                 status, headers, body = request("/ingest/heartbeat/discord-bot", "admin", "fixture-token")
                 self.assertEqual(status, 200)
                 self.assertIn(b"upstream:Basic ", body)

@@ -151,8 +151,12 @@ def verify_web():
     for path in ("/api/status", "/api/history", "/api/instances", "/api/events", "/api/recovery", "/metrics", "/healthz", "/asset-access.json"):
         if request(path)[0] != 401:
             raise RuntimeError("Operational endpoint did not require administrator authentication")
-    if request("/internal/readiness")[0] != 404 or request("/internal/recovery")[0] != 404:
+    if any(request(path)[0] != 404 for path in ("/internal/readiness", "/internal/recovery", "/internal/metrics", "/internal/grafana-auth")):
         raise RuntimeError("Internal endpoints are exposed through the public proxy")
+    for path in ("/grafana/", "/grafana/api/search"):
+        status, headers, _ = request(path)
+        if status != 302 or headers.get("Location") != "/login":
+            raise RuntimeError("Grafana did not require Sentinel administrator authentication")
     if request("/ingest/heartbeat/discord-bot", method="POST", data={})[0] != 401:
         raise RuntimeError("Heartbeat endpoint did not require its dedicated credential")
     status, _, body = request("/auth/csrf")
@@ -173,13 +177,21 @@ def verify_web():
         raise RuntimeError("Authenticated monitoring verification failed")
     if request("/", authenticated=True)[0] != 200 or request("/metrics", authenticated=True)[0] != 200:
         raise RuntimeError("Authenticated dashboard or metrics verification failed")
+    status, _, body = request("/grafana/api/dashboards/uid/sentinel-django-health", authenticated=True)
+    if status != 200 or json.loads(body).get("dashboard", {}).get("uid") != "sentinel-django-health":
+        raise RuntimeError("Authenticated Grafana dashboard verification failed")
+    status, _, body = request("/grafana/api/datasources/proxy/uid/Prometheus/api/v1/query?query=sentinel_target_health", authenticated=True)
+    if status != 200 or not json.loads(body).get("data", {}).get("result"):
+        raise RuntimeError("Grafana has no collected Sentinel target metrics")
     _, _, body = request("/auth/csrf", authenticated=True)
     csrf = json.loads(body)["request_token"]
     if request("/auth/logout", "POST", csrf=csrf, authenticated=True)[0] != 200:
         raise RuntimeError("Administrator logout failed")
     if request("/api/status", authenticated=True)[0] != 401:
         raise RuntimeError("Logged-out browser can still read monitoring data")
-    print("Public HTTPS, login form, protected APIs, CSRF, heartbeat boundary and logout checks passed")
+    if request("/grafana/api/search", authenticated=True)[0] != 302:
+        raise RuntimeError("Logged-out browser can still read Grafana data")
+    print("Public HTTPS, administrator login, Grafana metrics, CSRF, heartbeat boundary and logout checks passed")
 
 
 def deploy(directory):

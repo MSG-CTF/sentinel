@@ -25,6 +25,9 @@ WEB_CURRENT = "msg-sentinel-web"
 WEB_PREVIOUS = "msg-sentinel-web-previous"
 # Official Caddy 2.11.7 multi-platform image; upgrades require a reviewed digest.
 WEB_IMAGE = "caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f"
+GRAFANA_IMAGE = "grafana/grafana:13.2.4@sha256:dbbc38ea21103cefb50396340cd88afec779c7e070b0a7bf5a75b4ce46651d3f"
+PROMETHEUS_IMAGE = "prom/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e"
+MONITORS = ("msg-sentinel-prometheus", "msg-sentinel-grafana")
 
 
 class DeploymentError(RuntimeError):
@@ -84,6 +87,24 @@ https://%s {
     route {
         @internal path /internal /internal/*
         respond @internal 404
+        @grafana path /grafana /grafana/*
+        handle @grafana {
+            route {
+                request_header -X-Sentinel-User
+                forward_auth 127.0.0.1:8080 {
+                    uri /internal/grafana-auth
+                    copy_headers X-Sentinel-User
+                    header_up -Authorization
+                    header_up -Proxy-Authorization
+                }
+                reverse_proxy 127.0.0.1:3000 {
+                    header_up -Authorization
+                    header_up -Proxy-Authorization
+                    header_up -Cookie
+                    header_up -X-WEBAUTH-USER
+                }
+            }
+        }
         @heartbeat path /ingest/heartbeat/*
         reverse_proxy @heartbeat 127.0.0.1:8080 {
             header_up -Proxy-Authorization
@@ -325,16 +346,182 @@ def activate_web(release, config):
         raise DeploymentError("Initial HTTPS activation failed; public proxy remains closed") from error
 
 
+def prepare_monitoring(image, release, config, token):
+    # Ship Minsoo's provisioned dashboard inside the tested application image;
+    # the SSM bundle's strict file allowlist therefore stays unchanged.
+    name = "msg-sentinel-monitoring-assets"
+    remove_container(name)
+    try:
+        command(["docker", "create", "--name", name, "--label", OWNER_LABEL + "=" + OWNER, image])
+        command(["docker", "cp", name + ":/opt/sentinel-monitoring", str(release / "monitoring")])
+    finally:
+        remove_container(name)
+    root = release / "monitoring"
+    (root / "prometheus" / "prometheus.yml").write_text("""global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+scrape_configs:
+  - job_name: sentinel
+    metrics_path: /internal/metrics
+    authorization:
+      credentials_file: /etc/prometheus/metrics.token
+    static_configs:
+      - targets: ['127.0.0.1:8080']
+""", encoding="utf-8")
+    secret = root / "prometheus" / "metrics.token"
+    secret.write_text(token, encoding="utf-8")
+    os.chmod(secret, 0o400)
+    os.chown(secret, 65534, 65534)
+    datasource = root / "grafana" / "provisioning" / "datasources" / "prometheus.yml"
+    datasource.write_text(datasource.read_text().replace("http://prometheus:9090", "http://127.0.0.1:9090") + "    editable: false\n", encoding="utf-8")
+    (root / "grafana.ini").write_text("""[server]
+http_addr = 127.0.0.1
+http_port = 3000
+domain = %s
+root_url = https://%s/grafana/
+serve_from_sub_path = true
+[security]
+disable_initial_admin_creation = true
+cookie_secure = true
+cookie_samesite = strict
+allow_embedding = false
+data_source_proxy_whitelist = 127.0.0.1:9090
+[auth]
+disable_login_form = true
+disable_signout_menu = true
+[auth.basic]
+enabled = false
+[auth.anonymous]
+enabled = false
+[auth.proxy]
+enabled = true
+header_name = X-Sentinel-User
+header_property = username
+auto_sign_up = true
+whitelist = 127.0.0.1
+enable_login_token = false
+[users]
+allow_sign_up = false
+auto_assign_org_role = Viewer
+default_theme = dark
+[dashboards]
+default_home_dashboard_path = /etc/sentinel-dashboards/sentinel-django-health.json
+[analytics]
+reporting_enabled = false
+check_for_updates = false
+check_for_plugin_updates = false
+[news]
+news_feed_enabled = false
+[plugins]
+preinstall_disabled = true
+[unified_alerting]
+enabled = false
+[live]
+max_connections = 0
+[log]
+mode = console
+level = warn
+""" % (config["domain"], config["domain"]), encoding="utf-8")
+    provider = root / "grafana" / "provisioning" / "dashboards" / "sentinel.yml"
+    provider.write_text(provider.read_text().replace("/var/lib/grafana/dashboards", "/etc/sentinel-dashboards"), encoding="utf-8")
+    for service, uid in (("prometheus", 65534), ("grafana", 472)):
+        data = BASE / (service + "-data")
+        data.mkdir(exist_ok=True)
+        os.chown(data, uid, uid)
+        os.chmod(data, 0o700)
+    for image_ref in (PROMETHEUS_IMAGE, GRAFANA_IMAGE):
+        command(["docker", "pull", image_ref])
+    command(["docker", "run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL",
+             "--mount", "type=bind,src=" + str(root / "prometheus") + ",dst=/etc/prometheus,readonly",
+             "--entrypoint", "/bin/promtool", PROMETHEUS_IMAGE, "check", "config", "/etc/prometheus/prometheus.yml"])
+
+
+def start_monitoring(name, release):
+    prometheus = name == MONITORS[0]
+    root = release / "monitoring"
+    args = ["docker", "run", "-d", "--name", name, "--label", OWNER_LABEL + "=" + OWNER,
+            "--restart", "unless-stopped", "--network", "host", "--read-only", "--cap-drop", "ALL",
+            "--security-opt", "no-new-privileges:true", "--memory", "256m" if prometheus else "512m",
+            "--cpus", "0.35" if prometheus else "0.5", "--pids-limit", "128",
+            "--log-driver", "json-file", "--log-opt", "max-size=5m", "--log-opt", "max-file=3",
+            "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m"]
+    def mount(source, destination, readonly=True):
+        args.extend(["--mount", "type=bind,src=" + str(source) + ",dst=" + destination + (",readonly" if readonly else "")])
+    if prometheus:
+        mount(root / "prometheus", "/etc/prometheus")
+        mount(BASE / "prometheus-data", "/prometheus", False)
+        args += [PROMETHEUS_IMAGE, "--config.file=/etc/prometheus/prometheus.yml", "--web.listen-address=127.0.0.1:9090",
+                 "--storage.tsdb.path=/prometheus", "--storage.tsdb.retention.time=7d", "--storage.tsdb.retention.size=256MB",
+                 "--query.max-concurrency=4", "--query.max-samples=100000", "--query.timeout=15s"]
+    else:
+        mount(root / "grafana.ini", "/etc/grafana/grafana.ini")
+        mount(root / "grafana" / "provisioning", "/etc/grafana/provisioning")
+        mount(root / "grafana" / "dashboards", "/etc/sentinel-dashboards")
+        mount(BASE / "grafana-data", "/var/lib/grafana", False)
+        args += [GRAFANA_IMAGE]
+    command(args)
+
+
+def monitoring_ready(username, timeout=90):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen("http://127.0.0.1:9090/api/v1/query?query=up%7Bjob%3D%22sentinel%22%7D", timeout=3) as response:
+                result = json.load(response)["data"]["result"]
+            request = urllib.request.Request("http://127.0.0.1:3000/grafana/api/dashboards/uid/sentinel-django-health",
+                                             headers={"X-Sentinel-User": username})
+            with urllib.request.urlopen(request, timeout=3) as response:
+                dashboard = json.load(response)["dashboard"]
+            if result and result[0]["value"][1] == "1" and dashboard["uid"] == "sentinel-django-health":
+                return True
+        except (OSError, ValueError, KeyError, urllib.error.URLError):
+            pass
+        time.sleep(2)
+    return False
+
+
+def activate_monitoring(release, config, finalize):
+    moved, started = [], []
+    try:
+        for name in MONITORS:
+            if container(name):
+                previous = container(name + "-previous")
+                if previous and previous["State"]["Running"]:
+                    raise DeploymentError("Previous monitoring service is still running")
+                remove_container(name + "-previous")
+                command(["docker", "stop", "--time", "15", name])
+                # Include stopped-but-not-renamed containers in rollback too.
+                moved.append((name, False))
+                command(["docker", "rename", name, name + "-previous"])
+                moved[-1] = (name, True)
+            started.append(name)
+            start_monitoring(name, release)
+        if not monitoring_ready(config["username"]):
+            raise DeploymentError("Grafana provisioning or Prometheus collection failed")
+        finalize()
+    except Exception:
+        for name in reversed(started):
+            remove_container(name)
+        for name, renamed in reversed(moved):
+            if renamed:
+                remove_container(name)
+                command(["docker", "rename", name + "-previous", name])
+            command(["docker", "start", name])
+        raise
+
+
 def prune_releases():
     # Only this application's stopped images and config directories are eligible.
     retained = set()
     images = set()
-    for name in (CURRENT, PREVIOUS, WEB_CURRENT, WEB_PREVIOUS):
+    for name in (CURRENT, PREVIOUS, WEB_CURRENT, WEB_PREVIOUS, *MONITORS, *(n + "-previous" for n in MONITORS)):
         info = container(name)
         if info:
             images.add(info["Image"])
-            retained.update(Path(m["Source"]).parent.resolve() for m in info["Mounts"]
-                            if m["Destination"] in {"/config/profile.json", "/etc/caddy/Caddyfile"})
+            for mount in info["Mounts"]:
+                path = Path(mount["Source"]).resolve()
+                retained.update(parent for parent in (path, *path.parents)
+                                if parent.parent == (BASE / "releases").resolve())
     releases = (BASE / "releases").resolve()
     for path in releases.iterdir():
         if (path.is_dir() and not path.is_symlink() and path.resolve().parent == releases
@@ -378,13 +565,22 @@ def deploy(source):
         os.chmod(release / name, 0o600)
     os.chown(release / "profile.json", 1654, 1654)
     auth_path = release / "auth.json"
+    token_path = BASE / "metrics.token"
+    if not token_path.exists():
+        token_path.write_text(secrets.token_urlsafe(32), encoding="utf-8")
+        os.chmod(token_path, 0o600)
+    token = token_path.read_text()
+    if not re.fullmatch(r"[A-Za-z0-9_-]{43}", token):
+        raise DeploymentError("Invalid private metrics credential")
     auth_path.write_text(json.dumps({"Enabled": True, "Username": web_config["username"],
-        "PasswordHash": web_config["password_hash"], "ReadinessToken": secrets.token_urlsafe(32)}) + "\n", encoding="utf-8")
+        "PasswordHash": web_config["password_hash"], "ReadinessToken": secrets.token_urlsafe(32),
+        "MetricsToken": token}) + "\n", encoding="utf-8")
     os.chmod(auth_path, 0o400)
     os.chown(auth_path, 1654, 1654)
     prepare_web(release, web_config)
+    prepare_monitoring(image, release, web_config, token)
     activate(image, release, profile["platform_monitor"]["profile"],
-             finalize=lambda: activate_web(release, web_config))
+             finalize=lambda: activate_monitoring(release, web_config, lambda: activate_web(release, web_config)))
     prune_releases()
     print(json.dumps({"status": "deployed", "revision": revision, "mode": "observe_only"}))
 

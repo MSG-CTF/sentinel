@@ -6,6 +6,7 @@ RUN dotnet publish src/Sentinel.Api/Sentinel.Api.csproj -c Release -o /publish -
 FROM mcr.microsoft.com/dotnet/aspnet:8.0@sha256:a3cd573ac05cf88ca496e3309cb7f7c44aa16664352d1ee41eda93154f50cdbf
 WORKDIR /app
 COPY --from=build /publish/ .
+COPY monitoring /opt/sentinel-monitoring
 RUN mkdir /app/data && chown app:app /app/data
 USER app
 EXPOSE 8080
