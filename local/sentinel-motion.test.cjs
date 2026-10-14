@@ -15,10 +15,39 @@ test('cold exhaust responds in both directions and dissipates without idle emiss
   assert.deepEqual(advanceCoolant(puff,0),puff,'paused simulation drifted');
   for(let i=0;i<240;i++)puff=advanceCoolant(puff,1/60);
   assert.ok(puff.x>1.9&&puff.vx<.02,'exhaust must retain then lose momentum');
-  assert.equal(puff.y,-1.98,'cold exhaust must settle on the mounting deck');
+  assert.ok(Math.abs(puff.y+1.98)<1e-12,'cold exhaust must settle on the mounting deck');
   assert.ok(puff.age>3.9&&puff.radius<=.74);
   assert.ok(Object.values(puff).every(Number.isFinite));
   assert.deepEqual(advanceCoolant(puff,100),advanceCoolant(puff,.08),'resuming must not teleport vapor');
+});
+
+test('cold stream stays attached to a moving vent and preserves its tail on reversal', async () => {
+  const {createCoolantTrail,advanceCoolantTrail,coolantDensity}=await scene;
+  let trail=createCoolantTrail();
+  for(let frame=0;frame<300;frame++){
+    const source={x:2,y:Math.sin(frame/60)*.4,z:0,vx:.7,vy:-.2,vz:0,strength:1};
+    const previous=trail;
+    trail=advanceCoolantTrail(trail,source,1/60);
+    assert.equal(trail.head.y,source.y,'stream detached from the vent');
+    assert.ok(trail.history.length>0&&trail.history.length<10);
+    assert.ok(trail.history[0].age<=.38+1e-10,'gap at the start of the stream');
+    const evicted=previous.history.filter(p=>!trail.history.some(q=>Math.abs(q.age-p.age-1/60)<1e-10));
+    evicted.forEach(p=>assert.equal(coolantDensity(p),0,'a visible tail was recycled'));
+  }
+  assert.deepEqual(advanceCoolantTrail(trail,{...trail.head,y:100},0),trail,'pause moved a trail');
+  for(let i=0;i<300;i++)trail=advanceCoolantTrail(trail,{...trail.head,strength:0},1/60);
+  assert.ok([trail.head,...trail.history].every(p=>coolantDensity(p)===0),'idle mist failed to clear');
+});
+
+test('cold vapor has the same free-fall path at 30 and 60 fps', async () => {
+  const {advanceCoolant}=await scene;
+  const simulate=hz=>{
+    let point={x:2,y:4,z:0,vx:.8,vy:-.2,vz:.1,age:0,radius:.085};
+    for(let i=0;i<hz*2;i++)point=advanceCoolant(point,1/hz);
+    return point;
+  };
+  const a=simulate(30),b=simulate(60);
+  for(const key of Object.keys(a))assert.ok(Math.abs(a[key]-b[key])<1e-10,key);
 });
 
 test('camera rail loops without a shot cut, reversal jerk or unsafe dolly', async () => {
