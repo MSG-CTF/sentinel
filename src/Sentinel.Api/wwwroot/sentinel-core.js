@@ -27,6 +27,12 @@
     controllers.forEach(controller => controller.scene?.setRunning(!stopped && controller.visible && !document.hidden));
   }
 
+  function syncCamera(element, mode) {
+    document.querySelectorAll(`[data-core-controls="${element.dataset.sentinelCore}"] [data-core-camera]`).forEach(button=>{
+      button.setAttribute('aria-pressed',String(button.dataset.coreCamera===mode));
+    });
+  }
+
   async function load(element, controller) {
     if (controller.loading || controller.scene || disposed) return;
     controller.loading = true;
@@ -56,7 +62,7 @@
       sceneModule ??= import("/sentinel-scene.js");
       const {createMechanismScene} = await sceneModule;
       if (disposed) return;
-      const scene = await createMechanismScene(element, {still:paused || reduced.matches, environmentData, onProgress:stage, signal:abort.signal});
+      const scene = await createMechanismScene(element, {still:paused || reduced.matches, environmentData, onProgress:stage, onCameraChange:mode=>syncCamera(element,mode), signal:abort.signal});
       if (disposed) { scene.dispose(); return; }
       controller.scene = scene;
       scene.setState(element.dataset.state || "standby");
@@ -97,6 +103,13 @@
     controller.view = button.dataset.coreView;
     controls.querySelectorAll("[data-core-view]").forEach(candidate => candidate.setAttribute("aria-pressed", String(candidate === button)));
     controller.scene?.setView(controller.view);
+  }));
+  document.querySelectorAll('[data-core-camera],[data-camera-reset]').forEach(button=>button.addEventListener('click',()=>{
+    const controls=button.closest('[data-core-controls]');
+    const element=elements.find(candidate=>candidate.dataset.sentinelCore===controls.dataset.coreControls);
+    const scene=controllers.get(element)?.scene;
+    if(button.hasAttribute('data-camera-reset'))scene?.resetCamera();
+    else scene?.setCamera(button.dataset.coreCamera);
   }));
   reduced.addEventListener("change", sync);
   document.addEventListener("visibilitychange", sync);

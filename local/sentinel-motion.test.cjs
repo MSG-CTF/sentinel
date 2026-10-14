@@ -5,6 +5,33 @@ const path = require('node:path');
 
 const scene = import(pathToFileURL(path.resolve(__dirname, '../src/Sentinel.Api/wwwroot/sentinel-scene.js')));
 
+test('camera rail loops without a shot cut, reversal jerk or unsafe dolly', async () => {
+  const {cameraRail}=await scene,h=.0001;
+  for(const time of [0,11,22,33,44,88]) {
+    const before=cameraRail(time-h),at=cameraRail(time),after=cameraRail(time+h);
+    for(const key of Object.keys(at)) {
+      assert.ok(Math.abs(after[key]-before[key])<.00002,`${time}/${key} position discontinuity`);
+      assert.ok(Math.abs((after[key]-2*at[key]+before[key])/(h*h))<.02,`${time}/${key} acceleration`);
+    }
+  }
+  for(let i=0;i<=440;i++){
+    const pose=cameraRail(i/10);
+    assert.ok(Math.abs(pose.yaw)<=.43&&pose.pitch>=0&&pose.pitch<=.12);
+    assert.ok(pose.zoom>=.90&&pose.zoom<=1);
+  }
+});
+
+test('manual camera limits reject oversized gestures and preserve a valid pose', async () => {
+  const {limitCamera}=await scene;
+  for(const multiplier of [-1,1]){
+    const pose=limitCamera({yaw:multiplier*100,pitch:multiplier*100,zoom:multiplier*100});
+    assert.ok(pose.yaw>=-1.10&&pose.yaw<=.88);
+    assert.ok(pose.pitch>=-.18&&pose.pitch<=.43);
+    assert.ok(pose.zoom>=.84&&pose.zoom<=1.16);
+    assert.deepEqual(limitCamera(pose),pose,'clamping repeatedly introduces drift');
+  }
+});
+
 test('ignition reveals the rim before the optic and settles without a repeated flash', async () => {
   const {ignitionPose}=await scene;
   assert.ok(Object.values(ignitionPose(0)).every(value=>value===0));

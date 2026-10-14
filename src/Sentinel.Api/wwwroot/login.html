@@ -10,7 +10,7 @@
 </head>
 <body>
   <main class="access-shell">
-    <div class="access-scene" aria-hidden="true">
+    <div class="access-scene">
       <div class="mechanism" data-sentinel-core="access"><div class="mechanism-assembly"><img class="mechanism-image" src="/assets/sentinel-optic-poster.jpg" width="1000" height="1000" alt="" fetchpriority="high" decoding="async" draggable="false"></div></div>
     </div>
     <div class="scene-shade" aria-hidden="true"></div>
@@ -24,6 +24,12 @@
       <div class="scene-controls" data-core-controls="access" hidden aria-label="코어 움직임">
         <button type="button" data-core-view="auto" aria-pressed="true"><span>01</span> 자동</button><button type="button" data-core-view="exploded" aria-pressed="false"><span>02</span> 분해</button><button type="button" data-core-view="assembled" aria-pressed="false"><span>03</span> 조립</button><button type="button" data-core-view="detail" aria-pressed="false"><span>04</span> 내부</button>
         <button class="motion-toggle" data-motion-toggle type="button" aria-label="모션 끄기" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4v8m8-8v8"/></svg><span>MOTION ON</span></button>
+      </div>
+      <div class="camera-controls" data-core-controls="access" hidden aria-label="카메라 시점">
+        <svg class="camera-glyph" viewBox="0 0 20 20" aria-hidden="true"><path d="m10 3 6 3v7l-6 4-6-4V6l6-3Zm-6 3 6 4 6-4M10 10v7"/></svg>
+        <button type="button" data-core-camera="cinematic" aria-pressed="true">자동 카메라</button><button type="button" data-core-camera="orbit" aria-pressed="false">자유 시점</button>
+        <span class="camera-hint">드래그로 둘러보기</span>
+        <button type="button" class="camera-reset" data-camera-reset aria-label="카메라 초기화" title="카메라 초기화"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 8a6 6 0 1 1 0 5M4 3v5h5"/></svg></button>
       </div>
     </section>
     <section class="login-panel" aria-labelledby="login-title">

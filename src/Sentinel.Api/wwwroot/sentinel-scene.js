@@ -56,6 +56,17 @@ export function advanceTravel(state, target, delta) {
   return {position:clamp(target + (offset + impulse * dt) * decay, 0, 1), velocity:(state.velocity - omega * impulse * dt) * decay};
 }
 
+// A continuous camera rail: broad lateral travel, a small crane and dolly.
+// The returning arc is smooth at the loop boundary; it never cuts shots.
+export function cameraRail(time) {
+  const phase=time*TAU/44;
+  return {yaw:.42*Math.sin(phase),pitch:.055*(1-Math.cos(phase)),zoom:1-.045*(1-Math.cos(phase))};
+}
+
+export function limitCamera(pose) {
+  return {yaw:clamp(pose.yaw,-1.10,.88),pitch:clamp(pose.pitch,-.18,.43),zoom:clamp(pose.zoom,.84,1.16)};
+}
+
 function surfaceTexture() {
   const size = 1024, data = new Uint8Array(size * size * 4);
   let seed = 713;
@@ -330,15 +341,28 @@ function makeModel(grain, chamberLight) {
   };
   // A bright ceramic sleeve lives inside the vented lower cartridge. Its hot
   // centre falls to saturated blue at the edges, behind the dark metal fins.
+  const operatingPhase={value:0};
   materials.chamber.onBeforeCompile=shader=>{
+    shader.uniforms.uOperatingPhase=operatingPhase;
     shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vChamberPosition;')
       .replace('#include <begin_vertex>','#include <begin_vertex>\nvChamberPosition=position;');
-    shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vChamberPosition;')
+    shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vChamberPosition;uniform float uOperatingPhase;')
       .replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
-        float hot=exp(-abs(vChamberPosition.y)*24.0);
+        float flow=pow(.5+.5*cos(atan(vChamberPosition.z,vChamberPosition.x)*3.0-uOperatingPhase),4.0);
+        float hot=exp(-abs(vChamberPosition.y)*24.0)*(.44+.56*flow);
         totalEmissiveRadiance*=mix(vec3(.006,.14,.95),vec3(.65,.93,1.0),hot);`);
   };
-  materials.chamber.customProgramCacheKey=()=> 'sentinel-chamber-v1';
+  materials.chamber.customProgramCacheKey=()=> 'sentinel-chamber-v2';
+  materials.energyWell.onBeforeCompile=shader=>{
+    shader.uniforms.uOperatingPhase=operatingPhase;
+    shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vChannelPosition;')
+      .replace('#include <begin_vertex>','#include <begin_vertex>\nvChannelPosition=position;');
+    shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vChannelPosition;uniform float uOperatingPhase;')
+      .replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
+        float flow=.5+.5*cos(atan(vChannelPosition.z,vChannelPosition.x)*5.0-uOperatingPhase);
+        totalEmissiveRadiance*=.72+.50*flow*flow;`);
+  };
+  materials.energyWell.customProgramCacheKey=()=> 'sentinel-channel-flow-v1';
   const keep=g=>{resources.add(g);return g;};
   function mesh(parent,geometry,material,x=0,y=0,z=0,shadow=true){
     keep(geometry);const object=new THREE.Mesh(geometry,material);
@@ -545,7 +569,7 @@ function makeModel(grain, chamberLight) {
   // Exposed ball race under the lens: a real gap between two polished tracks.
   ring(cartridge,1.13,1.19,.032,.185,materials.edge);
   ring(cartridge,1.25,1.30,.032,.185,materials.edge);
-  radial(cartridge,new THREE.SphereGeometry(.037,16,10),materials.edge,32,1.22,.181);
+  const bearingCage=radial(cartridge,new THREE.SphereGeometry(.037,16,10),materials.edge,32,1.22,.181);
   ring(cartridge,1.192,1.246,.010,.171,materials.copper);
 
   const optic=new THREE.Group();root.add(optic);
@@ -737,7 +761,7 @@ function makeModel(grain, chamberLight) {
     tower.position.y=-.055+inside.emitter*.20;
     // Thin overlapping shutters swivel on vertical pivots, exposing the source
     // without forming an opaque cone or crossing the coil cartridges.
-    petals.forEach(petal=>{petal.rotation.y=inside.shutter*1.62;});
+    petals.forEach((petal,i)=>{petal.rotation.y=inside.shutter*(1.54+.08*Math.sin(time*.72-i*.35));});
     for(let i=0;i<3;i++){
       const a=i/3*TAU,bottom=-.096,top=tower.position.y;
       cellDummy.position.set(Math.cos(a)*.22,(bottom+top)/2,Math.sin(a)*.22);cellDummy.rotation.set(0,0,0);cellDummy.scale.set(1,top-bottom,1);cellDummy.updateMatrix();towerPosts.setMatrixAt(i,cellDummy.matrix);
@@ -753,8 +777,13 @@ function makeModel(grain, chamberLight) {
       rod.position.y=(bottom+top)/2;rod.scale.y=Math.max(.08,length);
       sleeve.position.y=bottom+.055;collar.position.y=bottom+.13;
     });
-    rotor.rotation.y=pose.carrier*.18;
-    gears.forEach((gear,i)=>{gear.rotation.y=(i%2?1:-1)*(bridges[i].lift*.8+pose.carrier*.2);});
+    // Operating motion uses the shared elapsed clock, not the assembly cam.
+    // It continues at held poses but freezes with pause/reduced motion.
+    const drive=time*.24;
+    rotor.rotation.y=drive*3+pose.carrier*.18;
+    bearingCage.rotation.y=-drive*.5;
+    gears.forEach((gear,i)=>{gear.rotation.y=(i%2?1:-1)*(drive+bridges[i].lift*.8+pose.carrier*.2);});
+    operatingPhase.value=time*.9;
     // Illumination rises slowly as the optical cartridge clears the housing.
     // No flashing, scanning HUD or independent decorative rings.
     const breath=1+Math.sin(time*TAU/12)*.035;
@@ -780,7 +809,7 @@ function makeModel(grain, chamberLight) {
     return focusPosition.set(0,.24,0).applyMatrix4(optic.matrixWorld);
   }
   function dispose(){resources.forEach(g=>g.dispose());Object.values(materials).forEach(m=>m.dispose());textures.forEach(t=>t.dispose());root.traverse(o=>{if(o.isInstancedMesh)o.dispose();});}
-  return {root,update,setState,focusPoint,dispose};
+  return {root,update,setState,focusPoint,driveAngle:()=>gears[0].rotation.y,dispose};
 }
 
 
@@ -954,7 +983,7 @@ function createFinish(renderer) {
 let areaLightsReady=false;
 
 
-export async function createMechanismScene(element, {still=false,environmentData,onProgress=()=>{},signal} = {}) {
+export async function createMechanismScene(element, {still=false,environmentData,onProgress=()=>{},onCameraChange=()=>{},signal} = {}) {
   const canvas = document.createElement("canvas");
   canvas.className = "mechanism-canvas";
   canvas.setAttribute("aria-hidden", "true");
@@ -964,14 +993,20 @@ export async function createMechanismScene(element, {still=false,environmentData
   let ignition=still||!hero?4:0;
   let view="auto", width=1, height=1, narrow=false, displayedState;
   let framing={position:0,velocity:0};
+  let cameraMode='cinematic',drag=null;
+  let orbit={yaw:0,pitch:0,zoom:1},orbitTarget={...orbit};
+  const cameraStart=elapsed;
+  const cameraFocus=new THREE.Vector3(),cameraRight=new THREE.Vector3();
+  const cameraListeners={pointerdown:startDrag,pointermove:movePointer,pointerup:endDrag,pointercancel:endDrag,lostpointercapture:endDrag,pointerleave:leavePointer,keydown:cameraKey};
   const pointer = {x:0,y:0}, targetPointer = {x:0,y:0};
   const scene = new THREE.Scene();
   scene.background=new THREE.Color(0x090c10);
   scene.fog=new THREE.FogExp2(0x090c10,.024);
   const camera = new THREE.PerspectiveCamera(36,1,.1,80);
   function removeListeners() {
-    element.removeEventListener("pointermove", movePointer);
-    element.removeEventListener("pointerleave", leavePointer);
+    Object.entries(cameraListeners).forEach(([name,handler])=>element.removeEventListener(name,handler));
+    endDrag();
+    element.removeAttribute('tabindex');element.removeAttribute('role');element.removeAttribute('aria-label');
     canvas.removeEventListener("webglcontextlost", contextLost);
     resizeObserver?.disconnect();
   }
@@ -998,14 +1033,60 @@ export async function createMechanismScene(element, {still=false,environmentData
     dispose();
   }
   function contextLost(event) {event.preventDefault();useFallback();}
+  function setCamera(mode) {
+    const next=mode==='orbit'?'orbit':'cinematic';
+    if(next===cameraMode)return;
+    // Take over exactly where the automatic camera is, without a jump.
+    orbitTarget={...orbit};cameraMode=next;
+    element.dataset.camera=cameraMode;onCameraChange(cameraMode);
+    if(!running)draw(0,false,true);
+  }
+  function resetCamera() {
+    setCamera('orbit');orbitTarget={yaw:0,pitch:0,zoom:1};
+    if(!running)draw(0,false,true);
+  }
+  function startDrag(event) {
+    if(event.button!==0||!ready||failed||drag)return;
+    drag={id:event.pointerId,x:event.clientX,y:event.clientY,lastX:event.clientX,lastY:event.clientY,touch:event.pointerType==='touch',active:false};
+  }
   function movePointer(event) {
+    if(drag&&event.pointerId===drag.id){
+      const dx=event.clientX-drag.x,dy=event.clientY-drag.y;
+      if(!drag.active){
+        if(Math.hypot(dx,dy)<5)return;
+        // Vertical touch movement belongs to page scrolling, including when
+        // the graphic happens to cover most of a small phone's viewport.
+        if(drag.touch&&Math.abs(dy)>Math.abs(dx)){drag=null;return;}
+        setCamera('orbit');drag.active=true;element.setPointerCapture(event.pointerId);
+        element.dataset.dragging='true';
+      }
+      orbitTarget=limitCamera({...orbitTarget,yaw:orbitTarget.yaw-(event.clientX-drag.lastX)*.0045,pitch:orbitTarget.pitch+(drag.touch?0:(event.clientY-drag.lastY)*.0035)});
+      drag.lastX=event.clientX;drag.lastY=event.clientY;
+      if(!running)draw(0,false,true);
+      return;
+    }
     if (event.pointerType !== "mouse" || !running) return;
     const box=element.getBoundingClientRect();
     targetPointer.x=clamp((event.clientX-box.left)/box.width-.5,-.5,.5);
     targetPointer.y=clamp((event.clientY-box.top)/box.height-.5,-.5,.5);
   }
-  function leavePointer() {targetPointer.x=targetPointer.y=0;}
-  function draw(delta=0, snap=false) {
+  function endDrag(event) {
+    if(!drag||(event&&event.pointerId!==drag.id))return;
+    const id=drag.id;drag=null;delete element.dataset.dragging;
+    if(element.hasPointerCapture(id))element.releasePointerCapture(id);
+  }
+  function leavePointer() {targetPointer.x=targetPointer.y=0;if(drag&&!drag.active)drag=null;}
+  function cameraKey(event) {
+    if(event.target!==element||event.altKey||event.ctrlKey||event.metaKey)return;
+    const keys={ArrowLeft:['yaw',-.12],ArrowRight:['yaw',.12],ArrowUp:['pitch',.09],ArrowDown:['pitch',-.09],'+':['zoom',-.06],'=':['zoom',-.06],'-':['zoom',.06]};
+    if(event.key==='Home'){event.preventDefault();resetCamera();return;}
+    if(event.key==='Escape'){event.preventDefault();setCamera('cinematic');return;}
+    const change=keys[event.key];if(!change)return;
+    event.preventDefault();setCamera('orbit');
+    orbitTarget=limitCamera({...orbitTarget,[change[0]]:orbitTarget[change[0]]+change[1]});
+    if(!running)draw(0,false,true);
+  }
+  function draw(delta=0, snap=false, cameraSnap=false) {
     if (destroyed || failed || !ready) return;
     pointer.x=THREE.MathUtils.damp(pointer.x,targetPointer.x,3,delta);
     pointer.y=THREE.MathUtils.damp(pointer.y,targetPointer.y,3,delta);
@@ -1021,15 +1102,26 @@ export async function createMechanismScene(element, {still=false,environmentData
     const targetFrame=view==='detail'?1:0;
     framing=snap?{position:targetFrame,velocity:0}:advanceTravel(framing,targetFrame,delta);
     const close=framing.position;
+    const desired=cameraMode==='cinematic'?cameraRail(elapsed-cameraStart):orbitTarget;
+    for(const key of ['yaw','pitch','zoom'])orbit[key]=snap||cameraSnap?desired[key]:THREE.MathUtils.damp(orbit[key],desired[key],4,delta);
+    let baseX,baseY,baseZ,focusY,shift;
     if(hero && !narrow){
       const dolly=.94+.06*cue.travel;
-      camera.position.set(3.9-close*1.45+Math.sin(elapsed*.055)*.04+pointer.x*.12,(4.5+expansion*.22+close*1.10)*dolly,(10.6+expansion*.32-close*4.8)*dolly);
-      camera.lookAt(1.55-close*.52,-.28+expansion*.15+close*.98,0);
+      baseX=3.9-close*1.45;baseY=(4.5+expansion*.22+close*1.10)*dolly;baseZ=(10.6+expansion*.32-close*4.8)*dolly;
+      focusY=-.28+expansion*.15+close*.98;shift=1.60-close*.55;
     }else{
       const base=hero?Math.max(12.6,10.2/camera.aspect):Math.max(12.9,11.4/camera.aspect),distance=base*(1-close*.31);
-      camera.position.set(distance*(hero?.29:.34),distance*(hero?.48:.46),distance*(hero?.82:.81));
-      camera.lookAt(hero?-.20:0,(hero?.17:-.12)+close*.65,0);
+      baseX=distance*(hero?.29:.34);baseY=distance*(hero?.48:.46);baseZ=distance*(hero?.82:.81);
+      focusY=(hero?.17:-.12)+close*.65;shift=hero?-.20:0;
     }
+    // Orbit the subject, then offset the look target along camera-right.
+    // This preserves space for the login form throughout the entire arc.
+    const yaw=Math.atan2(baseX,baseZ)+orbit.yaw+pointer.x*.012;
+    const pitch=clamp(Math.atan2(baseY-focusY,Math.hypot(baseX,baseZ))+orbit.pitch,.24,1.05);
+    const distance=Math.hypot(baseX,baseY-focusY,baseZ)*orbit.zoom;
+    cameraFocus.set(0,focusY,0);cameraRight.set(Math.cos(yaw),0,-Math.sin(yaw));
+    camera.position.set(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch)).multiplyScalar(distance).add(cameraFocus);
+    camera.lookAt(cameraFocus.addScaledVector(cameraRight,shift));
     renderer.info.reset();
     finish.render(scene,camera,elapsed,model.focusPoint(),cue.key);
     if(failed){useFallback();return;}
@@ -1041,6 +1133,10 @@ export async function createMechanismScene(element, {still=false,environmentData
       canvas.dataset.triangles=String(renderer.info.render.triangles);
       canvas.dataset.ignition=ignition<3.8?'lighting':'complete';
       canvas.dataset.view=view;
+      canvas.dataset.assembly=expansion.toFixed(4);
+      canvas.dataset.drive=model.driveAngle().toFixed(4);
+      canvas.dataset.camera=cameraMode;
+      canvas.dataset.cameraPose=[orbit.yaw,orbit.pitch,orbit.zoom].map(value=>value.toFixed(4)).join(',');
     }
   }
   function tick(now) {
@@ -1141,10 +1237,12 @@ export async function createMechanismScene(element, {still=false,environmentData
     element.dataset.renderer="webgl";
     canvas.dataset.motion="paused";
     canvas.addEventListener("webglcontextlost",contextLost);
-    element.addEventListener("pointermove",movePointer);
-    element.addEventListener("pointerleave",leavePointer);
+    element.tabIndex=0;element.setAttribute('role','group');
+    element.setAttribute('aria-label','3D 코어 시점 · 드래그 또는 방향키로 회전, 더하기와 빼기로 확대, Home으로 초기화');
+    element.dataset.camera=cameraMode;
+    Object.entries(cameraListeners).forEach(([name,handler])=>element.addEventListener(name,handler));
     resizeObserver=new ResizeObserver(resize); resizeObserver.observe(element);
-    return {setRunning,setState:state=>{
+    return {setRunning,setCamera,resetCamera,setState:state=>{
       if (state===displayedState) return;
       displayedState=state;
       model.setState(state);

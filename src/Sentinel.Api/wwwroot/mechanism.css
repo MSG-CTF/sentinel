@@ -7,6 +7,20 @@
 .mechanism[data-renderer=webgl] .mechanism-canvas{opacity:1}
 .mechanism[data-renderer=webgl] .mechanism-assembly{opacity:0}
 .mechanism[data-renderer=fallback] .mechanism-assembly{opacity:1}
+.mechanism[data-renderer=webgl]{cursor:grab;user-select:none}
+.mechanism[data-dragging=true]{cursor:grabbing}
+.mechanism:focus-visible{outline:1px solid #afd9ee88;outline-offset:-6px}
+.camera-controls{display:flex;align-items:center;gap:16px;pointer-events:auto;color:#8b9ba6}
+.camera-controls[hidden]{display:none}
+.camera-controls button{border:0;padding:10px 0;background:none;color:#80929d;font:9px var(--font,system-ui);white-space:nowrap;cursor:pointer;transition:color .2s}
+.camera-controls button:hover,.camera-controls button[aria-pressed=true]{color:#d4e7ef}
+.camera-controls button[aria-pressed=true]{text-decoration:underline;text-underline-offset:5px;text-decoration-color:#799daa66}
+.camera-glyph{width:17px;height:17px;color:#8aadb9;flex:none}
+.camera-hint{color:#5e717e;font:8px var(--font,system-ui);letter-spacing:.03em;white-space:nowrap}
+.camera-controls .camera-reset{display:grid;place-items:center;width:32px;height:32px;margin-left:0;padding:7px;border-left:1px solid #52636f44}
+.camera-reset svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round}
+.core-panel>.camera-controls{position:absolute;left:18px;bottom:51px;z-index:3;gap:13px}
+.core-panel>.camera-controls button{font-size:8px}
 .mechanism[data-boot=loading] .mechanism-image,.mechanism[data-boot=ready] .mechanism-image{filter:brightness(.22) saturate(.45)}
 .mechanism-startup{position:absolute;z-index:2;left:50%;top:48%;width:160px;transform:translate(-50%,-50%);pointer-events:none;transition:opacity .55s,transform .8s;opacity:1;color:#a9b8be}
 .startup-instrument{position:relative;width:136px;height:136px;margin:0 auto 19px}
