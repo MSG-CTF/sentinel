@@ -138,6 +138,107 @@ function arcGeometry(inner, outer, start, end, height, bevel = .025) {
   return geometry;
 }
 
+function milledSlab(width, depth, height, radius, bevel=.02) {
+  const x=width/2,z=depth/2,r=radius,shape=new THREE.Shape();
+  shape.moveTo(-x+r,-z);shape.lineTo(x-r,-z);shape.quadraticCurveTo(x,-z,x,-z+r);
+  shape.lineTo(x,z-r);shape.quadraticCurveTo(x,z,x-r,z);
+  shape.lineTo(-x+r,z);shape.quadraticCurveTo(-x,z,-x,z-r);
+  shape.lineTo(-x,-z+r);shape.quadraticCurveTo(-x,-z,-x+r,-z);
+  const geometry=new THREE.ExtrudeGeometry(shape,{depth:height,bevelEnabled:true,bevelThickness:bevel,bevelSize:bevel,bevelSegments:3,steps:1,curveSegments:12});
+  geometry.rotateX(Math.PI/2);geometry.translate(0,height/2,0);
+  return geometry;
+}
+
+// A physical set gives the instrument a scale, contact shadow and a place to
+// sit. No background image or screen-space light streaks are composited here.
+function makeStudio() {
+  const root=new THREE.Group(),geometries=new Set(),textures=new Set();
+  const grain=surfaceTexture();textures.add(grain);
+  const materials={
+    floor:new THREE.MeshStandardMaterial({color:0x171c20,metalness:.18,roughness:.62,envMapIntensity:.18}),
+    wall:new THREE.MeshStandardMaterial({color:0x192126,metalness:.34,roughness:.57,envMapIntensity:.24}),
+    reveal:new THREE.MeshStandardMaterial({color:0x070b0e,metalness:.35,roughness:.65}),
+    edge:machinedMaterial({color:0x495860,metalness:1,roughness:.32,envMapIntensity:.7},grain,{style:1,strength:.5}),
+    base:machinedMaterial({color:0x252f36,metalness:.88,roughness:.34,envMapIntensity:.65},grain,{style:1,strength:.6}),
+    inset:machinedMaterial({color:0x11191e,metalness:.68,roughness:.45,envMapIntensity:.42},grain,{style:1,strength:.6}),
+    steel:machinedMaterial({color:0x8c979b,metalness:1,roughness:.23,envMapIntensity:.7},grain,{strength:.4}),
+    light:new THREE.MeshStandardMaterial({color:0xcbdde3,emissive:0xc0dce6,emissiveIntensity:.95,roughness:.6}),
+  };
+  function add(parent,geometry,material,position,shadow=false){
+    geometries.add(geometry);const object=new THREE.Mesh(geometry,material);
+    object.position.set(...position);object.castShadow=shadow;object.receiveShadow=true;parent.add(object);return object;
+  }
+  const floor=add(root,new THREE.PlaneGeometry(120,120),materials.floor,[0,-2.48,0]);floor.rotation.x=-Math.PI/2;
+  // Recessed wall panels and a strip diffuser live behind the focus plane.
+  // Their highlights continue onto the metal, rather than floating in the air.
+  add(root,new THREE.BoxGeometry(27,14,.3),materials.reveal,[0,3.5,-5.5]);
+  for(const x of [-9.8,-4.8,.2,5.2,10.2]){
+    add(root,new THREE.BoxGeometry(4.96,13,.18),materials.wall,[x,3.8,-5.28]);
+    add(root,new THREE.BoxGeometry(.018,13,.025),materials.edge,[x-2.45,3.8,-5.17]);
+  }
+  const ribs=new THREE.InstancedMesh(new THREE.BoxGeometry(.042,8,.11),materials.reveal,32);
+  geometries.add(ribs.geometry);const dummy=new THREE.Object3D();
+  for(let i=0;i<32;i++){dummy.position.set(-6.6+i*.11,1.6,-5.1);dummy.updateMatrix();ribs.setMatrixAt(i,dummy.matrix);}
+  ribs.instanceMatrix.needsUpdate=true;root.add(ribs);
+  add(root,new THREE.BoxGeometry(.14,5.8,.07),materials.reveal,[1.9,.5,-5.1]);
+  add(root,new THREE.BoxGeometry(.026,5.6,.012),materials.light,[1.9,.5,-5.045]);
+  const wallWash=new THREE.RectAreaLight(0xb3ccda,2.6,.14,5.6);
+  wallWash.position.set(1.9,.5,-4.99);wallWash.lookAt(0,-.5,0);root.add(wallWash);
+  // Oversized deck joints establish perspective without a decorative grid.
+  for(const x of [-8,-3.8,4.3])add(root,new THREE.BoxGeometry(.015,.005,26),materials.reveal,[x,-2.474,0]);
+  for(const z of [-3.9,3.7])add(root,new THREE.BoxGeometry(28,.005,.015),materials.reveal,[0,-2.474,z]);
+
+  const base=new THREE.Group();base.rotation.y=-.16;root.add(base);
+  add(base,milledSlab(6.5,5.65,.21,.20,.035),materials.base,[0,-2.28,0],true);
+  add(base,milledSlab(6.39,5.54,.035,.19,.012),materials.steel,[0,-2.146,0],true);
+  add(base,milledSlab(6.31,5.46,.07,.18,.016),materials.inset,[0,-2.075,0],true);
+  for(const x of [-2.65,2.65])for(const z of [-2.25,2.25])add(base,new THREE.CylinderGeometry(.18,.19,.10,24),materials.reveal,[x,-2.43,z],true);
+  // The lens rests on a ball seat, allowing the housing's small gimbal motion.
+  const profile=[[0,-2.03],[.87,-2.03],[.94,-1.98],[.94,-1.92],[.62,-1.87],[.54,-1.68],[0,-1.68]];
+  add(root,new THREE.LatheGeometry(profile.map(p=>new THREE.Vector2(...p)),96),materials.base,[0,0,0],true);
+  add(root,ringGeometry(.56,.69,.045,.008),materials.steel,[0,-1.82,0],true);
+  add(root,new THREE.SphereGeometry(.43,48,24),materials.inset,[0,-1.58,0],true);
+  for(const x of [-2.94,2.94])for(const z of [-2.52,2.52]){
+    add(base,ringGeometry(.041,.081,.022,.004),materials.steel,[x,-2.025,z],true);
+    add(base,new THREE.CylinderGeometry(.026,.026,.008,6),materials.reveal,[x,-2.018,z]);
+  }
+  // A small physical maker's plate and fine indexing cuts on the deck edge.
+  const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=128;
+  const ctx=canvas.getContext('2d');ctx.fillStyle='#a5b3ba';ctx.font='500 29px monospace';
+  ctx.fillText('SENTINEL',36,52);ctx.fillStyle='#6d7b82';ctx.font='18px monospace';ctx.fillText('OPTICAL INSTRUMENT     /     S—01',36,88);
+  const plateMap=new THREE.CanvasTexture(canvas);plateMap.colorSpace=THREE.SRGBColorSpace;plateMap.anisotropy=8;textures.add(plateMap);
+  materials.plate=new THREE.MeshStandardMaterial({map:plateMap,transparent:true,depthWrite:false,roughness:.65,metalness:.25});
+  const plate=add(base,new THREE.PlaneGeometry(1.68,.21),materials.plate,[-1.75,-2.021,2.48]);plate.rotation.x=-Math.PI/2;
+  const cuts=new THREE.InstancedMesh(new THREE.BoxGeometry(.008,.004,.065),materials.edge,19);geometries.add(cuts.geometry);
+  for(let i=0;i<19;i++){dummy.position.set(1.13+i*.067,-2.025,2.49);dummy.updateMatrix();cuts.setMatrixAt(i,dummy.matrix);}
+  cuts.instanceMatrix.needsUpdate=true;base.add(cuts);
+  // Batch the fixed set by finish. Keep turned steel in object space so its
+  // radial machining still follows each fastener's own centre.
+  root.updateMatrixWorld(true);
+  const batches=new Map();
+  root.traverse(object=>{
+    if(!object.isMesh||object.isInstancedMesh||object.material===materials.steel||object.material.transparent)return;
+    const key=object.material.uuid+String(object.castShadow);
+    if(!batches.has(key))batches.set(key,[]);batches.get(key).push(object);
+  });
+  for(const objects of batches.values()){
+    if(objects.length<2)continue;
+    const pieces=objects.map(object=>{
+      const geometry=object.geometry.index?object.geometry.toNonIndexed():object.geometry.clone();
+      return geometry.applyMatrix4(object.matrixWorld);
+    });
+    const geometry=new THREE.BufferGeometry();
+    for(const name of ['position','normal','uv']){
+      const count=pieces.reduce((total,piece)=>total+piece.getAttribute(name).array.length,0),array=new Float32Array(count);
+      let offset=0;for(const piece of pieces){const source=piece.getAttribute(name).array;array.set(source,offset);offset+=source.length;}
+      geometry.setAttribute(name,new THREE.BufferAttribute(array,name==='uv'?2:3));
+    }
+    add(root,geometry,objects[0].material,[0,0,0],objects[0].castShadow);
+    objects.forEach(object=>object.removeFromParent());pieces.forEach(piece=>piece.dispose());
+  }
+  return {root,dispose(){geometries.forEach(g=>g.dispose());textures.forEach(t=>t.dispose());Object.values(materials).forEach(m=>m.dispose());root.traverse(o=>{if(o.isInstancedMesh)o.dispose();});}};
+}
+
 function studioEnvironment(renderer) {
   const studio = new THREE.Scene();
   studio.background = new THREE.Color(.006, .009, .014);
@@ -189,14 +290,14 @@ function makeModel() {
   const grain=surfaceTexture();textures.add(grain);
   const materials={
     body:machinedMaterial({color:0x666965,metalness:1,roughness:.31,anisotropy:.35,envMapIntensity:1.0},grain,{strength:.65}),
-    face:machinedMaterial({color:0xb2b8b6,metalness:1,roughness:.27,anisotropy:.48,envMapIntensity:1.05},grain,{style:1,strength:.95}),
+    face:machinedMaterial({color:0x909ba1,metalness:1,roughness:.29,anisotropy:.48,envMapIntensity:1.05},grain,{style:1,strength:.8}),
     edge:machinedMaterial({color:0xc5cbd0,metalness:1,roughness:.16,envMapIntensity:1.15},grain,{strength:.35}),
     bore:machinedMaterial({color:0x242b2d,metalness:1,roughness:.37,anisotropy:.18},grain,{strength:.55}),
     nickel:machinedMaterial({color:0x999187,metalness:1,roughness:.29,anisotropy:.38},grain,{style:2,strength:.72}),
     ceramic:new THREE.MeshPhysicalMaterial({color:0x080c10,metalness:.25,roughness:.27,clearcoat:.24,clearcoatRoughness:.18}),
     rubber:new THREE.MeshStandardMaterial({color:0x080b0e,roughness:.76,metalness:0}),
     copper:machinedMaterial({color:0x786249,metalness:1,roughness:.3},grain,{strength:.55}),
-    glass:new THREE.MeshPhysicalMaterial({color:0x102329,metalness:0,roughness:.09,envMapIntensity:.24,clearcoat:1,clearcoatRoughness:.06,transmission:.38,thickness:.18,ior:1.52}),
+    glass:new THREE.MeshPhysicalMaterial({color:0x14272a,metalness:0,roughness:.07,envMapIntensity:.32,clearcoat:1,clearcoatRoughness:.05,transmission:.38,thickness:.18,ior:1.52,iridescence:.12,iridescenceIOR:1.3,iridescenceThicknessRange:[180,260]}),
     emitter:new THREE.MeshStandardMaterial({color:0xe9f6ff,emissive:0xc3eaff,emissiveIntensity:5.0,roughness:.32,metalness:0}),
     seam:new THREE.MeshStandardMaterial({color:0xcfecf5,emissive:0x80c6df,emissiveIntensity:1.9,roughness:.36,metalness:0}),
     status:new THREE.MeshStandardMaterial({color:0xbee9ff,emissive:0x73c9ed,emissiveIntensity:2.6,roughness:.25}),
@@ -272,7 +373,8 @@ function makeModel() {
   // legible as manufactured parts. Finishes follow those parts' functions.
   const chassis=new THREE.Group();root.add(chassis);chassis.position.y=-1.08;
   const caseProfile=[[1.18,-.30],[2.20,-.30],[2.31,-.26],[2.38,-.18],[2.38,.16],[2.32,.22],[2.16,.22],[2.12,.10],[1.47,.10],[1.41,.24],[1.18,.24],[1.18,-.30]];
-  mesh(chassis,new THREE.LatheGeometry(caseProfile.map(p=>new THREE.Vector2(...p)),160),materials.body);
+  mesh(chassis,new THREE.LatheGeometry(caseProfile.map(p=>new THREE.Vector2(...p)),160),materials.bore);
+  ring(chassis,.38,1.25,.10,-.315,materials.bore);
   ring(chassis,2.30,2.415,.045,-.20,materials.edge);
   ring(chassis,2.33,2.415,.045,.155,materials.edge);
   ring(chassis,2.33,2.386,.025,-.07,materials.rubber);
@@ -294,6 +396,10 @@ function makeModel() {
     const pivot=new THREE.Group();cover.add(pivot);pivot.rotation.y=i/4*TAU;
     const panel=new THREE.Group();pivot.add(panel);
     mesh(panel,quarter,[materials.face,materials.edge]);
+    // Inset black lands separate broad satin faces from the polished bevels.
+    mesh(panel,arcGeometry(2.19,2.28,.15,Math.PI/2-.15,.007,.002),materials.bore,0,.078);
+    mesh(panel,arcGeometry(1.545,1.564,.17,Math.PI/2-.17,.009,.002),materials.edge,0,.079);
+    mesh(panel,arcGeometry(2.288,2.305,.15,Math.PI/2-.15,.008,.002),materials.edge,0,.079);
     mesh(panel,arcGeometry(2.24,2.34,.075,Math.PI/2-.075,.035,.008),materials.bore,0,-.094);
     mesh(panel,arcGeometry(1.52,1.61,.055,Math.PI/2-.055,.025,.005),materials.bore,0,-.078);
     // An inset bridge and transverse ribs sit below the machined opening.
@@ -409,7 +515,7 @@ function makeModel() {
     const target=view==='exploded'?1:view==='assembled'?0:cycleProgress(time);
     travel=snap?{position:target,velocity:0}:advanceTravel(travel,target,delta);
     const pose=mechanicalPose(travel.position);
-    root.rotation.set(.08+pointer.y*.035,-.38+pointer.x*.075,-.31);
+    root.rotation.set(.08+pointer.y*.022,-.38+pointer.x*.045,-.16);
     cover.position.y=-.62+pose.cover*.17+pose.lift*1.03;
     cartridge.position.y=-.63+pose.carrier*.47;
     optic.position.y=-.31+pose.lift*.19+pose.optic*1.10;
@@ -516,14 +622,14 @@ function createFinish(renderer) {
         vec3 position=viewPosition(vUv);
         float occlusion=contactShade(position);
         color*=occlusion;
-        float blur=min(abs(depth-uFocus)*.12,1.0)*uQuality;
+        float blur=min(max(depth-uFocus-1.8,0.0)*.48+abs(min(depth-uFocus,0.0))*.12,3.0)*uQuality;
         if(blur>.18){
           vec3 b=vec3(0.0);
           for(int i=0;i<6;i++){
             float a=float(i)*1.047198;
             b+=texture2D(tColor,vUv+vec2(cos(a),sin(a))*uPixel*blur).rgb;
           }
-          color=mix(color,b/6.0*occlusion,.25);
+          color=mix(color,b/6.0*occlusion,.55);
         }
         // Clear studio air: light is visible on surfaces. Keep just a narrow
         // optical fringe at very bright edges, without an added light cone.
@@ -572,7 +678,7 @@ export async function createMechanismScene(element, {still=false} = {}) {
   const canvas = document.createElement("canvas");
   canvas.className = "mechanism-canvas";
   canvas.setAttribute("aria-hidden", "true");
-  let renderer, model, environment, resizeObserver, finish;
+  let renderer, model, studio, environment, resizeObserver, finish;
   let frame=0, running=false, failed=false, destroyed=false, ready=false, elapsed=still ? 10 : 4.8, last=0, lastPaint=0, frames=0;
   let view="auto", width=1, height=1, narrow=false, displayedState;
   const pointer = {x:0,y:0}, targetPointer = {x:0,y:0};
@@ -581,8 +687,6 @@ export async function createMechanismScene(element, {still=false} = {}) {
   scene.background=new THREE.Color(0x090c10);
   scene.fog=new THREE.FogExp2(0x090c10,.024);
   const camera = new THREE.PerspectiveCamera(36,1,.1,80);
-  const shadowGeometry = new THREE.PlaneGeometry(200,200);
-  const shadowMaterial = new THREE.MeshStandardMaterial({color:0x030506,metalness:.08,roughness:.88,envMapIntensity:.08});
   function removeListeners() {
     element.removeEventListener("pointermove", movePointer);
     element.removeEventListener("pointerleave", leavePointer);
@@ -596,9 +700,9 @@ export async function createMechanismScene(element, {still=false} = {}) {
     cancelAnimationFrame(frame);
     removeListeners();
     model?.dispose();
+    studio?.dispose();
     environment?.dispose();
     finish?.dispose();
-    shadowGeometry.dispose(); shadowMaterial.dispose();
     renderer?.dispose();
     canvas.remove();
   }
@@ -622,8 +726,8 @@ export async function createMechanismScene(element, {still=false} = {}) {
     pointer.y=THREE.MathUtils.damp(pointer.y,targetPointer.y,3,delta);
     const expansion=model.update(elapsed,delta,view,pointer,snap);
     if(hero && !narrow){
-      camera.position.set(3.3+Math.sin(elapsed*.055)*.06+pointer.x*.12,4.6+expansion*.30,8.4+expansion*.62);
-      camera.lookAt(1.45,-.10+expansion*.27,0);
+      camera.position.set(3.9+Math.sin(elapsed*.055)*.04+pointer.x*.12,4.5+expansion*.22,10.6+expansion*.32);
+      camera.lookAt(1.55,-.28+expansion*.15,0);
     }
     renderer.info.reset();
     finish.render(scene,camera,elapsed,model.focusPoint());
@@ -696,7 +800,7 @@ export async function createMechanismScene(element, {still=false} = {}) {
     if(!areaLightsReady){RectAreaLightUniformsLib.init();areaLightsReady=true;}
     scene.add(new THREE.HemisphereLight(0xb7c9db,0x030609,.12));
     // Broad softboxes give the machined faces a continuous reflected highlight.
-    const softbox=new THREE.RectAreaLight(0xf3f0e9,12,5,6);
+    const softbox=new THREE.RectAreaLight(0xf3f0e9,10,5,6);
     softbox.position.set(-3,6,4);softbox.lookAt(0,0,0);scene.add(softbox);
     const strip=new THREE.RectAreaLight(0xc4d6e1,19,.7,5);
     strip.position.set(4,2,-3);strip.lookAt(0,0,0);scene.add(strip);
@@ -710,8 +814,7 @@ export async function createMechanismScene(element, {still=false} = {}) {
     key.shadow.normalBias=.012;key.shadow.bias=-.00010;key.shadow.radius=3;
     scene.add(key);
     model=makeModel(); scene.add(model.root);
-    const shadow=new THREE.Mesh(shadowGeometry,shadowMaterial);
-    shadow.rotation.x=-Math.PI/2; shadow.position.y=-2.25; shadow.receiveShadow=true; scene.add(shadow);
+    studio=makeStudio();scene.add(studio.root);
     finish=createFinish(renderer);
     element.append(canvas);
     resize();
