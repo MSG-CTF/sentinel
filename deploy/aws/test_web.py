@@ -61,12 +61,22 @@ class WebProxyIntegrationTests(unittest.TestCase):
             # Run the exact deployment preflight, including its restricted capabilities.
             host.prepare_web(root, config)
             asset_body = '/*' + 'public shader fixture ' * 300 + '*/'
+            graphics = {
+                '/vendor/three/three.module.js': 'text/javascript',
+                '/sentinel-scene.js': 'application/javascript',
+                '/login.css': 'text/css',
+                '/assets/studio-small-09.hdr': 'image/vnd.radiance',
+            }
+            graphic_rules = ''.join(
+                f' @graphic{index} path {path}\n'
+                f' header @graphic{index} Cache-Control "public, max-age=0, must-revalidate"\n'
+                f' header @graphic{index} Content-Type "{mime}"\n'
+                f' respond @graphic{index} ' + json.dumps(asset_body) + ' 200\n'
+                for index, (path, mime) in enumerate(graphics.items()))
             proxy_config = production.replace("https://sla.example.com", "http://:8088") + (
-                '\nhttp://127.0.0.1:8080 {\n'
-                ' @graphic path /vendor/three/three.module.js\n'
-                ' header @graphic Cache-Control "public, max-age=0, must-revalidate"\n'
-                ' header @graphic Content-Type "text/javascript"\n'
-                ' respond @graphic ' + json.dumps(asset_body) + ' 200\n'
+                '\nhttp://127.0.0.1:8080 {\n' + graphic_rules +
+                ' header /login.js Content-Type "text/javascript"\n'
+                ' respond /login.js ' + json.dumps(asset_body) + ' 401\n'
                 ' respond "upstream:{http.request.header.Authorization}|'
                 '{http.request.header.Proxy-Authorization}" 200\n}\n')
             (root / "Caddyfile").write_text(proxy_config, encoding="utf-8")
@@ -112,15 +122,19 @@ class WebProxyIntegrationTests(unittest.TestCase):
                     self.assertEqual(body, b"upstream:|")
                     self.assertEqual(headers.get("cache-control"), "no-store")
                     self.assertNotIn("server", headers)
-                status, headers, body = request('/vendor/three/three.module.js', extra_headers={'Accept-Encoding': 'gzip'})
-                self.assertEqual(status, 200)
-                self.assertEqual(headers.get('cache-control'), 'public, max-age=0, must-revalidate')
-                self.assertEqual(headers.get('content-encoding'), 'gzip')
-                self.assertEqual(gzip.decompress(body), asset_body.encode())
-                self.assertLess(len(body), len(asset_body))
-                self.assertIn('Accept-Encoding', headers.get('vary', ''))
-                for path in ('/api/status', '/auth/csrf', '/assets/unlisted.hdr'):
+                for path, mime in graphics.items():
+                    with self.subTest(compressed_asset=path):
+                        status, headers, body = request(path, extra_headers={'Accept-Encoding': 'gzip'})
+                        self.assertEqual(status, 200)
+                        self.assertEqual(headers.get('content-type'), mime)
+                        self.assertEqual(headers.get('cache-control'), 'public, max-age=0, must-revalidate')
+                        self.assertEqual(headers.get('content-encoding'), 'gzip')
+                        self.assertEqual(gzip.decompress(body), asset_body.encode())
+                        self.assertLess(len(body), len(asset_body))
+                        self.assertIn('Accept-Encoding', headers.get('vary', ''))
+                for path in ('/api/status', '/auth/csrf', '/assets/unlisted.hdr', '/login.js'):
                     status, headers, body = request(path, extra_headers={'Accept-Encoding': 'gzip'})
+                    self.assertEqual(status, 401 if path == '/login.js' else 200)
                     self.assertEqual(headers.get('cache-control'), 'no-store')
                     self.assertNotIn('content-encoding', headers)
                 self.assertEqual(request("/internal/readiness")[0], 404)

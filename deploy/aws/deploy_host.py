@@ -75,7 +75,10 @@ https://%s {
     encode @graphics zstd gzip {
         match {
             status 200
-            header Content-Type text/javascript* application/javascript* text/css* image/vnd.radiance*
+            header Content-Type text/javascript*
+            header Content-Type application/javascript*
+            header Content-Type text/css*
+            header Content-Type image/vnd.radiance*
         }
     }
     route {
