@@ -423,6 +423,10 @@ max_connections = 0
 mode = console
 level = warn
 """ % (config["domain"], config["domain"]), encoding="utf-8")
+    # SSM deliberately uses umask 077. Grant only the Grafana process access
+    # to its newly created config instead of depending on the runner's umask.
+    os.chmod(root / "grafana.ini", 0o400)
+    os.chown(root / "grafana.ini", 472, 472)
     provider = root / "grafana" / "provisioning" / "dashboards" / "sentinel.yml"
     provider.write_text(provider.read_text().replace("/var/lib/grafana/dashboards", "/etc/sentinel-dashboards"), encoding="utf-8")
     for service, uid in (("prometheus", 65534), ("grafana", 472)):

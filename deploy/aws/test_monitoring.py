@@ -40,6 +40,8 @@ class MonitoringRollbackTests(unittest.TestCase):
 @unittest.skipUnless(os.environ.get('SENTINEL_DOCKER_TESTS')=='1','Set SENTINEL_DOCKER_TESTS=1 for Grafana integration')
 class MonitoringIntegrationTests(unittest.TestCase):
     def test_pinned_images_scrape_private_metrics_and_serve_provisioned_dashboard(self):
+        previous_mask = os.umask(0o077)
+        self.addCleanup(os.umask, previous_mask)
         token='fixture-only-'+'m'*30
         class Metrics(http.server.BaseHTTPRequestHandler):
             def do_GET(self):
