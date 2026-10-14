@@ -8,8 +8,10 @@ Geometry and composition: MSG CTF Sentinel project
 Current assembly: pocketed titanium bridges with inset black lands, recessed
 socket hardware, bearing races, nickel gear hubs and a coated optical cartridge
 Setting: layered machined deck, ball seat, graphite panels and recessed diffuser
-Core: frosted white aperture, cyan light-guide segments, radial ribs and recessed
-cartridge windows, visible through a thin transparent optical coating
+Core: six guided copper coil cartridges with ceramic bobbins, cooling fins and
+connector pins; pocketed support bridges, control packages and copper contacts;
+independent coated lid, telescopic posts and six pivoting emitter shutters
+Illumination: frosted white aperture, cyan perimeter guides and recessed windows
 Lighting: settled ignition cue with a cold-white strip, broad neutral key and
 restrained champagne bounce; clear studio air, dark satin floor and narrow local
 bloom without a synthetic light cone or broad halo

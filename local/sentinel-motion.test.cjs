@@ -93,3 +93,70 @@ test('pause and long browser stalls cannot create invalid travel', async () => {
     assert.ok(next.position>=0 && next.position<=1 && Number.isFinite(next.velocity));
   }
 });
+
+test('each bridge releases its latch before lifting, in a visible stagger', async () => {
+  const {bridgePose}=await scene;
+  for(let step=0;step<=1000;step++){
+    const bridges=bridgePose(step/1000);
+    bridges.forEach((bridge,i)=>{
+      if(bridge.lift>0)assert.equal(bridge.unlock,1,`bridge ${i} lifts while locked`);
+      if(i>0)assert.ok(bridge.lift<=bridges[i-1].lift,`bridge ${i} moves out of order`);
+    });
+  }
+  const midway=bridgePose(.42);
+  assert.ok(midway[0].lift-midway[3].lift>.5,'all bridges appear to move as a single rigid part');
+});
+
+test('the optical lid stays clear until all six cartridges have reseated', async () => {
+  const {interiorPose}=await scene;
+  for(let step=1000;step>=0;step--){
+    const pose=interiorPose(step/1000);
+    if(pose.hood>0)assert.equal(pose.latch,1,'lid moves through a locked catch');
+    if(pose.cells.some(cell=>cell.slide>0||cell.lift>0))assert.equal(pose.hood,1,'lid crosses a raised cartridge');
+  }
+});
+
+test('six cartridges unseat along rails then lift in order instead of moving as a disk', async () => {
+  const {interiorPose}=await scene;
+  for(let step=0;step<=1000;step++){
+    const {cells}=interiorPose(step/1000);
+    cells.forEach((cell,i)=>{
+      if(cell.lift>0)assert.ok(cell.slide>.7,`cartridge ${i} rises before its rail clears`);
+      if(i>0){assert.ok(cell.slide<=cells[i-1].slide);assert.ok(cell.lift<=cells[i-1].lift);}
+    });
+  }
+  const moving=interiorPose(.80).cells;
+  assert.ok(moving[0].lift>.9);
+  assert.equal(moving[5].lift,0);
+});
+
+test('internal and bridge paths remain bounded and seat exactly when reversed', async () => {
+  const {interiorPose,bridgePose}=await scene;
+  const values=p=>{
+    const {cells,...rest}=interiorPose(p);
+    return [...Object.values(rest),...cells.flatMap(Object.values),...bridgePose(p).flatMap(Object.values)];
+  };
+  assert.ok(values(-1).every(value=>value===0));
+  assert.ok(values(2).every(value=>value===1));
+  let previous=values(1);
+  for(let step=999;step>=0;step--){
+    const next=values(step/1000);
+    next.forEach((value,i)=>assert.ok(value>=0&&value<=previous[i]));previous=next;
+  }
+  assert.ok(previous.every(value=>value===0));
+});
+
+test('new articulated parts have smooth starts and stops at every cam boundary', async () => {
+  const {interiorPose,bridgePose}=await scene,h=1e-6;
+  const values=p=>{const {cells,...rest}=interiorPose(p);return [...Object.values(rest),...cells.flatMap(Object.values),...bridgePose(p).flatMap(Object.values)];};
+  const boundaries=[.34,.44,.45,.63,.73,.91,.81,1];
+  for(let i=0;i<6;i++)boundaries.push(.64+i*.026,.735+i*.026,.70+i*.026,.82+i*.026);
+  for(let i=0;i<4;i++)boundaries.push(i*.047,.13+i*.047,.15+i*.047,.55+i*.047);
+  for(const p of boundaries){
+    const before=values(p-h),at=values(p),after=values(p+h);
+    after.forEach((value,i)=>{
+      const velocityBefore=(at[i]-before[i])/h,velocityAfter=(value-at[i])/h;
+      assert.ok(Math.abs(velocityAfter-velocityBefore)<.006,`${p}/${i} velocity discontinuity`);
+    });
+  }
+});

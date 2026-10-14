@@ -31,6 +31,21 @@ export function mechanicalPose(progress) {
   };
 }
 
+// Every internal stage follows the same reversible cam coordinate. The cover
+// clears first, six guided modules follow in order, then the shutter opens.
+export function interiorPose(progress) {
+  const p=clamp(progress,0,1),travel=(start,end)=>ease((p-start)/(end-start));
+  return {latch:travel(.34,.44),hood:travel(.45,.63),emitter:travel(.73,.91),shutter:travel(.81,1),
+    cells:Array.from({length:6},(_,i)=>({slide:travel(.64+i*.026,.735+i*.026),lift:travel(.70+i*.026,.82+i*.026)}))};
+}
+
+export function bridgePose(progress) {
+  const p=clamp(progress,0,1);
+  return Array.from({length:4},(_,i)=>({
+    unlock:ease((p-i*.047)/.13),lift:ease((p-.15-i*.047)/.40)
+  }));
+}
+
 // Exact critically damped step, including velocity. Unlike resetting an ease
 // on every click, changing direction mid-travel does not introduce a jerk.
 export function advanceTravel(state, target, delta) {
@@ -332,6 +347,27 @@ function makeModel(grain) {
       const a=i/count*TAU+offset;return {position:[Math.cos(a)*radius,y,Math.sin(a)*radius],rotation:[0,-a,0]};
     }));
   }
+  function repeatAssembly(template,count,parent){
+    // Batch each finish once, then instance the complete cartridge. Tiny screws
+    // and coil windings do not each become a draw call for every moving module.
+    template.updateMatrixWorld(true);
+    const finishes=new Map(),batches=[];
+    template.traverse(object=>{if(!object.isMesh)return;if(!finishes.has(object.material))finishes.set(object.material,[]);finishes.get(object.material).push(object);});
+    for(const [material,objects] of finishes){
+      const pieces=objects.map(object=>(object.geometry.index?object.geometry.toNonIndexed():object.geometry.clone()).applyMatrix4(object.matrixWorld));
+      const geometry=new THREE.BufferGeometry();
+      for(const name of ['position','normal','uv']){
+        const array=new Float32Array(pieces.reduce((sum,piece)=>sum+piece.getAttribute(name).array.length,0));
+        let offset=0;for(const piece of pieces){const source=piece.getAttribute(name).array;array.set(source,offset);offset+=source.length;}
+        geometry.setAttribute(name,new THREE.BufferAttribute(array,name==='uv'?2:3));
+      }
+      pieces.forEach(piece=>piece.dispose());
+      const batch=instance(parent,geometry,material,Array.from({length:count},()=>({position:[0,0,0]})));
+      if(material===materials.lightGuide)batch.castShadow=batch.receiveShadow=false;
+      batches.push(batch);
+    }
+    return batches;
+  }
   function extrude(shape,depth,bevel=.025,segments=40){
     const geometry=new THREE.ExtrudeGeometry(shape,{depth,bevelEnabled:true,bevelThickness:bevel,bevelSize:bevel,bevelSegments:4,curveSegments:segments,steps:1});
     geometry.rotateX(Math.PI/2);geometry.translate(0,depth/2,0);return geometry;
@@ -404,13 +440,15 @@ function makeModel(grain) {
     const panel=new THREE.Group();pivot.add(panel);
     mesh(panel,quarter,[materials.face,materials.edge]);
     // Inset black lands separate broad satin faces from the polished bevels.
-    mesh(panel,arcGeometry(2.19,2.28,.15,Math.PI/2-.15,.007,.002),materials.bore,0,.078);
-    mesh(panel,arcGeometry(1.545,1.564,.17,Math.PI/2-.17,.009,.002),materials.edge,0,.079);
-    mesh(panel,arcGeometry(2.288,2.305,.15,Math.PI/2-.15,.008,.002),materials.edge,0,.079);
-    mesh(panel,arcGeometry(2.24,2.34,.075,Math.PI/2-.075,.035,.008),materials.bore,0,-.094);
-    mesh(panel,arcGeometry(1.52,1.61,.055,Math.PI/2-.055,.025,.005),materials.bore,0,-.078);
+    const trim=new THREE.Group();
+    mesh(trim,arcGeometry(2.19,2.28,.15,Math.PI/2-.15,.007,.002),materials.bore,0,.078);
+    mesh(trim,arcGeometry(1.545,1.564,.17,Math.PI/2-.17,.009,.002),materials.edge,0,.079);
+    mesh(trim,arcGeometry(2.288,2.305,.15,Math.PI/2-.15,.008,.002),materials.edge,0,.079);
+    mesh(trim,arcGeometry(2.24,2.34,.075,Math.PI/2-.075,.035,.008),materials.bore,0,-.094);
+    mesh(trim,arcGeometry(1.52,1.61,.055,Math.PI/2-.055,.025,.005),materials.bore,0,-.078);
     // An inset bridge and transverse ribs sit below the machined opening.
-    mesh(panel,arcGeometry(1.87,2.00,.38,1.18,.028,.006),materials.nickel,0,-.13);
+    mesh(trim,arcGeometry(1.87,2.00,.38,1.18,.028,.006),materials.nickel,0,-.13);
+    repeatAssembly(trim,1,panel);
     const ribs=[];
     for(let n=0;n<9;n++){
       const a=.40+n*.095;ribs.push({position:[Math.cos(a)*1.94,-.097,Math.sin(a)*1.94],rotation:[0,-a,0]});
@@ -455,13 +493,14 @@ function makeModel(grain) {
 
   const optic=new THREE.Group();root.add(optic);
   ring(optic,.89,1.12,.29,-.035,materials.bore);
-  ring(optic,.91,1.13,.055,.15,materials.face);
-  ring(optic,.93,.968,.029,.180,materials.edge);
-  torus(optic,.895,.007,.183,materials.emitter);
+  const hood=new THREE.Group();optic.add(hood);
+  ring(hood,.91,1.13,.055,.15,materials.face);
+  ring(hood,.93,.968,.029,.180,materials.edge);
+  torus(hood,.895,.007,.183,materials.emitter);
   for(const y of [-.16,-.12,-.08])ring(optic,1.08,1.145,.012,y,materials.edge);
   radial(optic,new THREE.BoxGeometry(.025,.11,.024),materials.body,72,1.115,-.018);
-  ring(optic,.968,1.03,.005,.182,materials.bore);
-  radial(optic,new THREE.BoxGeometry(.025,.006,.008),materials.face,60,1.068,.184);
+  ring(hood,.968,1.03,.005,.182,materials.bore);
+  radial(hood,new THREE.BoxGeometry(.025,.006,.008),materials.face,60,1.068,.184);
   const engraving=document.createElement('canvas');engraving.width=engraving.height=1024;
   const etch=engraving.getContext('2d');etch.translate(512,512);etch.fillStyle='#1c282d';
   etch.font='500 22px monospace';etch.textAlign='center';etch.textBaseline='middle';
@@ -470,7 +509,7 @@ function makeModel(grain) {
   }
   const etching=new THREE.CanvasTexture(engraving);etching.colorSpace=THREE.SRGBColorSpace;etching.anisotropy=8;textures.add(etching);
   materials.etching=new THREE.MeshStandardMaterial({map:etching,transparent:true,depthWrite:false,roughness:.65,metalness:.2});
-  const scale=mesh(optic,new THREE.PlaneGeometry(2.28,2.28),materials.etching,0,.186,0,false);scale.rotation.x=-Math.PI/2;
+  const scale=mesh(hood,new THREE.PlaneGeometry(2.28,2.28),materials.etching,0,.186,0,false);scale.rotation.x=-Math.PI/2;
   // A frosted aperture sits in a machined optical well. A radial emission map
   // rolls off inside the physical surface rather than drawing a screen halo.
   const phosphor=document.createElement('canvas');phosphor.width=phosphor.height=256;
@@ -481,18 +520,88 @@ function makeModel(grain) {
   materials.aperture=new THREE.MeshStandardMaterial({color:0xb3d8dc,roughness:.48,metalness:0,emissive:0xffffff,emissiveMap:phosphorMap,emissiveIntensity:3});
   materials.lightWell=new THREE.MeshStandardMaterial({color:0x091418,roughness:.42,metalness:.3,emissive:0x176879,emissiveMap:phosphorMap,emissiveIntensity:.65});
   mesh(optic,new THREE.CylinderGeometry(.89,.89,.026,96),materials.lightWell,0,-.12,0,false);
-  ring(optic,.29,.34,.035,-.065,materials.edge);
-  ring(optic,.35,.81,.023,-.089,materials.bore);
-  const aperture=mesh(optic,new THREE.CylinderGeometry(.278,.278,.020,64),materials.aperture,0,-.066,0,false);aperture.receiveShadow=false;
-  torus(optic,.348,.010,-.06,materials.lightGuide);
-  const lightSegments=radial(optic,arcGeometry(.665,.713,.045,TAU/12-.045,.012,.002),materials.lightGuide,12,0,-.059);
+  ring(optic,.29,.35,.028,-.09,materials.bore);
+  ring(optic,.79,.85,.018,-.077,materials.nickel);
+  const lightSegments=radial(optic,arcGeometry(.81,.835,.045,TAU/12-.045,.010,.002),materials.lightGuide,12,0,-.063);
   lightSegments.castShadow=lightSegments.receiveShadow=false;
-  radial(optic,new THREE.BoxGeometry(.205,.011,.012),materials.nickel,36,.50,-.067);
-  torus(optic,.738,.006,-.059,materials.edge);
-  radial(optic,new THREE.CylinderGeometry(.016,.016,.008,6),materials.edge,6,.79,-.071);
-  const glass=mesh(optic,new THREE.SphereGeometry(2.42,96,36,0,TAU,0,.384),materials.glass,0,-2.228);
+  const glass=mesh(hood,new THREE.SphereGeometry(2.42,96,36,0,TAU,0,.384),materials.glass,0,-2.228);
   glass.castShadow=false;glass.receiveShadow=false;
-  radial(optic,new THREE.CylinderGeometry(.018,.018,.009,6),materials.bore,6,1.091,.19);
+  radial(hood,new THREE.CylinderGeometry(.018,.018,.009,6),materials.bore,6,1.091,.19);
+
+  const hoodLocks=[];
+  const bank=new THREE.Group();
+  mesh(bank,milledSlab(.235,.205,.026,.019,.003),materials.nickel);
+  mesh(bank,new THREE.BoxGeometry(.174,.024,.14),materials.ceramic,0,.021);
+  const bobbin=mesh(bank,new THREE.CylinderGeometry(.043,.043,.14,20),materials.ceramic,0,.046);bobbin.rotation.z=Math.PI/2;
+  for(let i=0;i<10;i++){
+    const winding=mesh(bank,new THREE.TorusGeometry(.047,.0055,6,24),materials.copper,-.064+i*.014,.046);winding.rotation.y=Math.PI/2;
+  }
+  for(const sign of [-1,1]){
+    const cap=mesh(bank,new THREE.CylinderGeometry(.052,.052,.012,20),materials.bore,sign*.081,.046);cap.rotation.z=Math.PI/2;
+    mesh(bank,new THREE.BoxGeometry(.19,.012,.016),materials.edge,0,.033,sign*.085);
+    for(const x of [-.095,.095])mesh(bank,new THREE.CylinderGeometry(.011,.011,.013,6),materials.edge,x,.026,sign*.078);
+  }
+  for(let i=0;i<6;i++)mesh(bank,new THREE.BoxGeometry(.009,.052,.033),materials.body,-.075+i*.03,.025,-.083);
+  mesh(bank,new THREE.BoxGeometry(.055,.036,.027),materials.bore,.061,.059,.071);
+  mesh(bank,new THREE.BoxGeometry(.038,.006,.008),materials.lightGuide,.061,.080,.074,false);
+  for(let i=0;i<3;i++)mesh(bank,new THREE.BoxGeometry(.006,.012,.019),materials.nickel,.044+i*.014,.041,.087);
+  const banks=repeatAssembly(bank,6,optic);
+  const guideTemplate=new THREE.Group();
+  for(const sign of [-1,1]){
+    mesh(guideTemplate,new THREE.BoxGeometry(.36,.018,.025),materials.bore,.55,-.087,sign*.073);
+    mesh(guideTemplate,new THREE.BoxGeometry(.30,.008,.007),materials.edge,.55,-.073,sign*.073);
+  }
+  mesh(guideTemplate,new THREE.BoxGeometry(.105,.010,.025),materials.copper,.33,-.08);
+  // Pocketed interstitial bridges carry control packages and copper contacts.
+  // These sit between the guided cartridges, below their moving envelope.
+  const support=new THREE.Group();support.rotation.y=-Math.PI/6;guideTemplate.add(support);
+  const bridge=arcPath(new THREE.Shape(),.37,.79,-.19,.19);
+  bridge.holes.push(arcPath(new THREE.Path(),.47,.69,.105,-.105,true));
+  mesh(support,extrude(bridge,.024,.003,16),materials.nickel,0,-.063);
+  mesh(support,milledSlab(.13,.12,.028,.008,.002),materials.ceramic,.745,-.031);
+  for(const sign of [-1,1]){
+    for(let i=0;i<5;i++)mesh(support,new THREE.BoxGeometry(.011,.008,.039),materials.copper,.696+i*.024,-.033,sign*.067);
+    mesh(support,new THREE.BoxGeometry(.31,.009,.008),materials.copper,.57,-.045,sign*.105);
+    mesh(support,new THREE.CylinderGeometry(.015,.015,.014,6),materials.edge,.414,-.041,sign*.051);
+  }
+  const staticGuides=repeatAssembly(guideTemplate,6,optic),guideDummy=new THREE.Object3D();
+  for(let i=0;i<6;i++){
+    guideDummy.rotation.y=-i/6*TAU;guideDummy.updateMatrix();
+    staticGuides.forEach(batch=>batch.setMatrixAt(i,guideDummy.matrix));
+  }
+  staticGuides.forEach(batch=>{batch.instanceMatrix.needsUpdate=true;batch.computeBoundingSphere();});
+  const rodPositions=Array.from({length:12},()=>({position:[0,0,0]}));
+  const internalRods=instance(optic,new THREE.CylinderGeometry(.008,.008,1,12),materials.edge,rodPositions);
+  const internalCollars=instance(optic,new THREE.CylinderGeometry(.016,.016,.025,12),materials.bore,rodPositions);
+  const hoodRodPositions=Array.from({length:3},(_,i)=>{const a=i/3*TAU+.3;return {position:[Math.cos(a)*1.045,0,Math.sin(a)*1.045]};});
+  const hoodRods=instance(optic,new THREE.CylinderGeometry(.013,.013,1,16),materials.edge,hoodRodPositions);
+  instance(optic,new THREE.CylinderGeometry(.037,.037,.11,20),materials.bore,hoodRodPositions.map(t=>({position:[t.position[0],.017,t.position[2]]})));
+  instance(hood,new THREE.CylinderGeometry(.029,.029,.10,20),materials.bore,hoodRodPositions.map(t=>({position:[t.position[0],.098,t.position[2]]})));
+  radial(optic,new THREE.BoxGeometry(.25,.014,.038),materials.bore,3,1.06,.102,.3);
+  for(let i=0;i<3;i++){
+    const a=i/3*TAU+.3;
+    const latch=new THREE.Group();latch.position.set(Math.cos(a)*.985,.122,Math.sin(a)*.985);latch.rotation.y=-a;optic.add(latch);
+    mesh(latch,new THREE.BoxGeometry(.075,.025,.056),materials.body,.016,0);
+    mesh(latch,new THREE.CylinderGeometry(.016,.016,.035,6),materials.edge,-.019,.009);
+    hoodLocks.push(latch);
+  }
+  const tower=new THREE.Group();optic.add(tower);
+  ring(tower,.13,.265,.038,0,materials.bore);
+  ring(tower,.173,.208,.030,.032,materials.edge);
+  const aperture=mesh(tower,new THREE.CylinderGeometry(.166,.166,.042,48),materials.aperture,0,.042,0,false);aperture.receiveShadow=false;
+  ring(tower,.153,.178,.018,.070,materials.face);
+  torus(tower,.18,.004,.053,materials.lightGuide);
+  radial(tower,new THREE.BoxGeometry(.055,.055,.024),materials.nickel,6,.238,.025);
+  const petals=[],petalGeometry=keep(arcGeometry(.075,.27,-Math.PI/6+.04,Math.PI/6-.04,.007,.001));petalGeometry.translate(-.29,0,0);
+  for(let i=0;i<6;i++){
+    const pivot=new THREE.Group();pivot.rotation.y=-i/6*TAU;tower.add(pivot);
+    const hinge=new THREE.Group();hinge.position.set(.29,.081+i*.003,0);pivot.add(hinge);
+    mesh(hinge,petalGeometry,materials.bore);
+    petals.push(hinge);
+  }
+  radial(tower,new THREE.CylinderGeometry(.012,.012,.042,16),materials.edge,6,.29,.081);
+  const towerPosts=radial(optic,new THREE.CylinderGeometry(.010,.010,1,12),materials.edge,3,.22,0);
+  const cellDummy=new THREE.Object3D();
 
   const iris=new THREE.Group();cartridge.add(iris);iris.position.y=.24;
   const blades=[],bladeGeometry=keep(arcGeometry(.38,1.08,-.31,.33,.012,.004));
@@ -538,24 +647,53 @@ function makeModel(grain) {
 
   let travel={position:0,velocity:0};
   function update(time,delta,view,pointer,snap=false,power=1){
-    const target=view==='exploded'?1:view==='assembled'?0:cycleProgress(time);
+    const target=view==='exploded'||view==='detail'?1:view==='assembled'?0:cycleProgress(time);
     travel=snap?{position:target,velocity:0}:advanceTravel(travel,target,delta);
     const pose=mechanicalPose(travel.position);
+    const inside=interiorPose(travel.position);
+    const bridges=bridgePose(travel.position);
     root.rotation.set(.08+pointer.y*.022,-.38+pointer.x*.045,-.16);
-    cover.position.y=-.62+pose.cover*.17+pose.lift*1.03;
+    cover.position.y=-.62;
     cartridge.position.y=-.63+pose.carrier*.47;
     optic.position.y=-.31+pose.lift*.19+pose.optic*1.10;
-    covers.forEach(({latch})=>{
-      latch.position.y=-.19+pose.unlock*.10;
+    hood.position.y=inside.hood*.45;
+    hoodRodPositions.forEach(({position},i)=>{const bottom=.023,top=.14+hood.position.y;cellDummy.position.set(position[0],(bottom+top)/2,position[2]);cellDummy.rotation.set(0,0,0);cellDummy.scale.set(1,top-bottom,1);cellDummy.updateMatrix();hoodRods.setMatrixAt(i,cellDummy.matrix);});
+    hoodRods.instanceMatrix.needsUpdate=true;hoodRods.computeBoundingSphere();
+    hoodLocks.forEach(lock=>{lock.children[0].position.x=.016+inside.latch*.18;});
+    inside.cells.forEach((cell,i)=>{
+      const a=i/6*TAU,r=.49+cell.slide*.16;
+      cellDummy.position.set(Math.cos(a)*r,-.045+cell.lift*.23,Math.sin(a)*r);cellDummy.rotation.set(0,-a,0);cellDummy.scale.set(1,1,1);cellDummy.updateMatrix();
+      banks.forEach(batch=>batch.setMatrixAt(i,cellDummy.matrix));
+      for(let side=0;side<2;side++){
+        const z=(side?1:-1)*.073,top=-.057+cell.lift*.23,bottom=-.081;
+        cellDummy.position.set(Math.cos(a)*r-Math.sin(a)*z,(top+bottom)/2,Math.sin(a)*r+Math.cos(a)*z);
+        cellDummy.scale.set(1,top-bottom,1);cellDummy.updateMatrix();internalRods.setMatrixAt(i*2+side,cellDummy.matrix);
+        cellDummy.position.y=-.061;cellDummy.scale.set(1,1,1);cellDummy.updateMatrix();internalCollars.setMatrixAt(i*2+side,cellDummy.matrix);
+      }
+    });
+    banks.forEach(batch=>{batch.instanceMatrix.needsUpdate=true;batch.computeBoundingSphere();});
+    for(const batch of [internalRods,internalCollars]){batch.instanceMatrix.needsUpdate=true;batch.computeBoundingSphere();}
+    tower.position.y=-.055+inside.emitter*.20;
+    // Thin overlapping shutters swivel on vertical pivots, exposing the source
+    // without forming an opaque cone or crossing the coil cartridges.
+    petals.forEach(petal=>{petal.rotation.y=inside.shutter*1.62;});
+    for(let i=0;i<3;i++){
+      const a=i/3*TAU,bottom=-.096,top=tower.position.y;
+      cellDummy.position.set(Math.cos(a)*.22,(bottom+top)/2,Math.sin(a)*.22);cellDummy.rotation.set(0,0,0);cellDummy.scale.set(1,top-bottom,1);cellDummy.updateMatrix();towerPosts.setMatrixAt(i,cellDummy.matrix);
+    }
+    towerPosts.instanceMatrix.needsUpdate=true;towerPosts.computeBoundingSphere();
+    covers.forEach(({panel,latch},i)=>{
+      panel.position.y=bridges[i].lift*1.20;
+      latch.position.y=-.19+bridges[i].unlock*.10;
     });
     blades.forEach((blade,i)=>{blade.position.x=pose.iris*.09;blade.rotation.y=-pose.iris*.16;blade.position.y=i*.002;});
-    guidePosts.forEach(({rod,sleeve,collar})=>{
-      const bottom=-.96,top=cover.position.y-.18,length=top-bottom;
+    guidePosts.forEach(({rod,sleeve,collar},i)=>{
+      const bottom=-.96,top=cover.position.y+covers[(4-i)%4].panel.position.y-.18,length=top-bottom;
       rod.position.y=(bottom+top)/2;rod.scale.y=Math.max(.08,length);
       sleeve.position.y=bottom+.055;collar.position.y=bottom+.13;
     });
-    rotor.rotation.y=time*.035;
-    gears.forEach((gear,i)=>{gear.rotation.y=time*(i%2?.042:-.042);});
+    rotor.rotation.y=pose.carrier*.18;
+    gears.forEach((gear,i)=>{gear.rotation.y=(i%2?1:-1)*(bridges[i].lift*.8+pose.carrier*.2);});
     // Illumination rises slowly as the optical cartridge clears the housing.
     // No flashing, scanning HUD or independent decorative rings.
     const breath=1+Math.sin(time*TAU/12)*.035;
@@ -709,6 +847,7 @@ export async function createMechanismScene(element, {still=false,environmentData
   let frame=0, running=false, failed=false, destroyed=false, ready=false, elapsed=still ? 10 : hero ? 0 : 4.8, last=0, lastPaint=0, frames=0;
   let ignition=still||!hero?4:0;
   let view="auto", width=1, height=1, narrow=false, displayedState;
+  let framing={position:0,velocity:0};
   const pointer = {x:0,y:0}, targetPointer = {x:0,y:0};
   const scene = new THREE.Scene();
   scene.background=new THREE.Color(0x090c10);
@@ -764,10 +903,17 @@ export async function createMechanismScene(element, {still=false,environmentData
     scene.environmentIntensity=.52*(.12+.88*cue.key);
     studio.setIllumination(cue.rim);
     const expansion=model.update(elapsed,delta,view,pointer,snap,cue.optic);
+    const targetFrame=view==='detail'?1:0;
+    framing=snap?{position:targetFrame,velocity:0}:advanceTravel(framing,targetFrame,delta);
+    const close=framing.position;
     if(hero && !narrow){
       const dolly=.94+.06*cue.travel;
-      camera.position.set(3.9+Math.sin(elapsed*.055)*.04+pointer.x*.12,(4.5+expansion*.22)*dolly,(10.6+expansion*.32)*dolly);
-      camera.lookAt(1.55,-.28+expansion*.15,0);
+      camera.position.set(3.9-close*1.45+Math.sin(elapsed*.055)*.04+pointer.x*.12,(4.5+expansion*.22+close*1.10)*dolly,(10.6+expansion*.32-close*4.8)*dolly);
+      camera.lookAt(1.55-close*.52,-.28+expansion*.15+close*.98,0);
+    }else{
+      const base=hero?Math.max(12.6,10.2/camera.aspect):Math.max(12.9,11.4/camera.aspect),distance=base*(1-close*.31);
+      camera.position.set(distance*(hero?.29:.34),distance*(hero?.48:.46),distance*(hero?.82:.81));
+      camera.lookAt(hero?-.20:0,(hero?.17:-.12)+close*.65,0);
     }
     renderer.info.reset();
     finish.render(scene,camera,elapsed,model.focusPoint());
@@ -779,6 +925,7 @@ export async function createMechanismScene(element, {still=false,environmentData
       canvas.dataset.drawCalls=String(renderer.info.render.calls);
       canvas.dataset.triangles=String(renderer.info.render.triangles);
       canvas.dataset.ignition=ignition<3.8?'lighting':'complete';
+      canvas.dataset.view=view;
     }
   }
   function tick(now) {
@@ -888,7 +1035,8 @@ export async function createMechanismScene(element, {still=false,environmentData
       model.setState(state);
       if (!running) draw();
     },setView:mode=>{
-      view=["auto","exploded","assembled"].includes(mode) ? mode : "auto";
+      view=["auto","exploded","assembled","detail"].includes(mode) ? mode : "auto";
+      element.dataset.view=view;
       if(view!=="auto")ignition=4;
       if (!running) draw(0,true);
     },dispose};
