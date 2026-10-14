@@ -28,6 +28,7 @@ WEB_IMAGE = "caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c
 GRAFANA_IMAGE = "grafana/grafana:13.2.4@sha256:dbbc38ea21103cefb50396340cd88afec779c7e070b0a7bf5a75b4ce46651d3f"
 PROMETHEUS_IMAGE = "prom/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e"
 MONITORS = ("msg-sentinel-prometheus", "msg-sentinel-grafana")
+MONITORING_DIAGNOSTICS = {}
 
 
 class DeploymentError(RuntimeError):
@@ -465,17 +466,36 @@ def start_monitoring(name, release):
 def monitoring_ready(username, timeout=90):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
+        collected = provisioned = False
+        for name in MONITORS:
+            info = container(name)
+            state = info.get("State", {}) if info else {}
+            MONITORING_DIAGNOSTICS[name] = {key: state.get(key) for key in ("Running", "OOMKilled", "ExitCode")}
         try:
             with urllib.request.urlopen("http://127.0.0.1:9090/api/v1/query?query=up%7Bjob%3D%22sentinel%22%7D", timeout=3) as response:
                 result = json.load(response)["data"]["result"]
+            collected = bool(result and result[0]["value"][1] == "1")
+            MONITORING_DIAGNOSTICS["scrape_up"] = collected
+            if not collected:
+                with urllib.request.urlopen("http://127.0.0.1:9090/api/v1/targets", timeout=3) as response:
+                    targets = json.load(response)["data"]["activeTargets"]
+                # Only classify the failure; do not log URLs or response bodies.
+                error = targets[0].get("lastError", "") if targets else ""
+                MONITORING_DIAGNOSTICS["scrape_failure"] = next((code for code in ("401", "403", "404", "500", "connection refused", "parsing", "Content-Type") if code in error), "no sample")
+        except (OSError, ValueError, KeyError, urllib.error.URLError) as error:
+            MONITORING_DIAGNOSTICS["prometheus_error"] = type(error).__name__
+        try:
             request = urllib.request.Request("http://127.0.0.1:3000/grafana/api/dashboards/uid/sentinel-django-health",
                                              headers={"X-Sentinel-User": username})
             with urllib.request.urlopen(request, timeout=3) as response:
                 dashboard = json.load(response)["dashboard"]
-            if result and result[0]["value"][1] == "1" and dashboard["uid"] == "sentinel-django-health":
-                return True
-        except (OSError, ValueError, KeyError, urllib.error.URLError):
-            pass
+            provisioned = dashboard["uid"] == "sentinel-django-health"
+            MONITORING_DIAGNOSTICS["dashboard_provisioned"] = provisioned
+        except (OSError, ValueError, KeyError, urllib.error.URLError) as error:
+            MONITORING_DIAGNOSTICS["grafana_error"] = type(error).__name__
+            if isinstance(error, urllib.error.HTTPError): MONITORING_DIAGNOSTICS["grafana_http_status"] = error.code
+        if collected and provisioned:
+            return True
         time.sleep(2)
     return False
 
@@ -593,5 +613,11 @@ if __name__ == "__main__":
         deploy(args.directory.resolve())
     except Exception as error:
         # Include only our controlled diagnostics, not values from configuration.
+        causes = []
+        cause = error
+        while cause is not None and len(causes) < 5:
+            if isinstance(cause, DeploymentError): causes.append(str(cause))
+            cause = cause.__cause__
+        print("SENTINEL_DIAGNOSTIC " + json.dumps({"causes": causes, "monitoring": MONITORING_DIAGNOSTICS}))
         print(str(error) if isinstance(error, DeploymentError) else "Deployment failed: " + type(error).__name__)
         raise SystemExit(1)

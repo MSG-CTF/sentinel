@@ -238,6 +238,9 @@ def deploy(directory):
                                          + manifest["revision"] + "\n")
                     return
                 if state["Status"] not in {"Pending", "InProgress", "Delayed"}:
+                    for line in state.get("StandardOutputContent", "").splitlines():
+                        if line.startswith("SENTINEL_DIAGNOSTIC "):
+                            print(line[:3000])
                     raise RuntimeError("SSM deployment ended with status " + state["Status"]
                                        + "; inspect the command in the AWS console")
             time.sleep(5)
