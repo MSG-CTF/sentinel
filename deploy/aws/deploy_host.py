@@ -68,8 +68,15 @@ https://%s {
     header {
         -Server
         Strict-Transport-Security "max-age=31536000"
-        Cache-Control "no-store"
+        ?Cache-Control "no-store"
         X-Robots-Tag "noindex, nofollow"
+    }
+    @graphics path /login.css /login.js /mechanism.css /sentinel-core.js /sentinel-scene.js /vendor/three/three.module.js /vendor/three/three.core.js /vendor/three/HDRLoader.js /vendor/three/RectAreaLightUniformsLib.js /vendor/three/RectAreaLightTexturesLib.js /assets/studio-small-09.hdr
+    encode @graphics zstd gzip {
+        match {
+            status 200
+            header Content-Type text/javascript* application/javascript* text/css* image/vnd.radiance*
+        }
     }
     route {
         @internal path /internal /internal/*

@@ -38,8 +38,14 @@ public sealed class AdminAccessTests
                 { BaseAddress = new Uri("https://localhost"), AllowAutoRedirect = false });
             Assert.Equal(HttpStatusCode.Found, (await client.GetAsync("/")).StatusCode);
             foreach (var path in new[] { "/api/status", "/api/history", "/metrics", "/healthz", "/asset-access.json", "/dashboard.js" })
-                Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync(path)).StatusCode);
-            Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/login")).StatusCode);
+            {
+                var protectedResponse = await client.GetAsync(path);
+                Assert.Equal(HttpStatusCode.Unauthorized, protectedResponse.StatusCode);
+                Assert.True(protectedResponse.Headers.CacheControl?.NoStore);
+            }
+            var loginPage = await client.GetAsync("/login");
+            Assert.Equal(HttpStatusCode.OK, loginPage.StatusCode);
+            Assert.True(loginPage.Headers.CacheControl?.NoStore);
             Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/sentinel-core.js")).StatusCode);
             Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/mechanism.css")).StatusCode);
             foreach (var path in new[] { "/sentinel-scene.js", "/vendor/three/three.module.js", "/vendor/three/three.core.js", "/vendor/three/HDRLoader.js", "/vendor/three/RectAreaLightUniformsLib.js", "/vendor/three/RectAreaLightTexturesLib.js" })
@@ -47,15 +53,27 @@ public sealed class AdminAccessTests
                 var script = await client.GetAsync(path);
                 Assert.Equal(HttpStatusCode.OK, script.StatusCode);
                 Assert.Contains("javascript", script.Content.Headers.ContentType?.MediaType ?? "");
+                Assert.True(script.Headers.CacheControl?.Public);
+                Assert.True(script.Headers.CacheControl?.MustRevalidate);
+                Assert.Equal(TimeSpan.Zero, script.Headers.CacheControl?.MaxAge);
+                Assert.NotNull(script.Headers.ETag);
+                using var conditional = new HttpRequestMessage(HttpMethod.Get, path);
+                conditional.Headers.IfNoneMatch.Add(script.Headers.ETag!);
+                var reused = await client.SendAsync(conditional);
+                Assert.Equal(HttpStatusCode.NotModified, reused.StatusCode);
+                Assert.Empty(await reused.Content.ReadAsByteArrayAsync());
+                Assert.True(reused.Headers.CacheControl?.MustRevalidate);
             }
             Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/vendor/unlisted.js")).StatusCode);
             var environment = await client.GetAsync("/assets/studio-small-09.hdr");
             Assert.Equal(HttpStatusCode.OK, environment.StatusCode);
             Assert.Equal("image/vnd.radiance", environment.Content.Headers.ContentType?.MediaType);
+            Assert.True(environment.Headers.CacheControl?.Public);
             Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/assets/unlisted.hdr")).StatusCode);
             var visual = await client.GetAsync("/assets/sentinel-optic-poster.jpg");
             Assert.Equal(HttpStatusCode.OK, visual.StatusCode);
             Assert.Equal("image/jpeg", visual.Content.Headers.ContentType?.MediaType);
+            Assert.True(visual.Headers.CacheControl?.Public);
             Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/internal/readiness")).StatusCode);
             var credentials = new { username = "admin", password = Password };
             Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync("/auth/login", credentials)).StatusCode);
@@ -68,8 +86,12 @@ public sealed class AdminAccessTests
             Assert.Contains("secure", cookie.ToLowerInvariant());
             Assert.Contains("httponly", cookie.ToLowerInvariant());
             Assert.Contains("samesite=strict", cookie.ToLowerInvariant());
-            Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/status")).StatusCode);
-            Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/")).StatusCode);
+            var authenticatedStatus = await client.GetAsync("/api/status");
+            Assert.Equal(HttpStatusCode.OK, authenticatedStatus.StatusCode);
+            Assert.True(authenticatedStatus.Headers.CacheControl?.NoStore);
+            var dashboard = await client.GetAsync("/");
+            Assert.Equal(HttpStatusCode.OK, dashboard.StatusCode);
+            Assert.True(dashboard.Headers.CacheControl?.NoStore);
             // Anonymous CSRF tokens cannot be reused after the identity changes.
             Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsync("/auth/logout", null)).StatusCode);
             csrf = await client.GetFromJsonAsync<JsonElement>("/auth/csrf");

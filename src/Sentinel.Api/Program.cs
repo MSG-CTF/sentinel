@@ -44,7 +44,19 @@ app.UseAdminAccess(adminAccess);
 app.UseDefaultFiles();
 var staticTypes = new FileExtensionContentTypeProvider();
 staticTypes.Mappings[".hdr"] = "image/vnd.radiance";
-app.UseStaticFiles(new StaticFileOptions { ContentTypeProvider = staticTypes });
+app.UseStaticFiles(new StaticFileOptions
+{
+    ContentTypeProvider = staticTypes,
+    OnPrepareResponse = context =>
+    {
+        // Public artwork/code can reuse validated bytes. Revalidate on every
+        // visit because these paths are not content-hashed; HTML and private
+        // responses retain no-store, including authentication failures.
+        if (AdminAccessRegistration.IsPublicStaticAsset(context.Context.Request.Path)
+            && context.Context.Response.StatusCode is 200 or 304)
+            context.Context.Response.Headers.CacheControl = "public, max-age=0, must-revalidate";
+    },
+});
 app.MapAdminAccess();
 app.MapGet("/internal/readiness", (HttpContext context, PlatformMonitor monitor, RecoveryCoordinator recovery) =>
 {

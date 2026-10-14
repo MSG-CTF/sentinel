@@ -7,6 +7,23 @@
 .mechanism[data-renderer=webgl] .mechanism-canvas{opacity:1}
 .mechanism[data-renderer=webgl] .mechanism-assembly{opacity:0}
 .mechanism[data-renderer=fallback] .mechanism-assembly{opacity:1}
+.mechanism[data-boot=loading] .mechanism-image,.mechanism[data-boot=ready] .mechanism-image{filter:brightness(.22) saturate(.45)}
+.mechanism-startup{position:absolute;z-index:2;left:50%;top:48%;width:160px;transform:translate(-50%,-50%);pointer-events:none;transition:opacity .55s,transform .8s;opacity:1;color:#a9b8be}
+.startup-instrument{position:relative;width:136px;height:136px;margin:0 auto 19px}
+.startup-instrument svg{width:100%;height:100%;fill:none;stroke-width:.75;stroke-linecap:round}
+.startup-index{stroke:#5c6d76;opacity:.8}.startup-bridges{stroke:#d0c0a6;stroke-width:1.2}
+.startup-bridges path{stroke-dasharray:1;stroke-dashoffset:1;animation:startup-trace 3.6s ease-in-out infinite}
+.startup-bridges path:nth-child(2){animation-delay:.18s}.startup-bridges path:nth-child(3){animation-delay:.36s}.startup-bridges path:nth-child(4){animation-delay:.54s}
+.startup-lens{stroke:#bbdce5;stroke-dasharray:.18 .07;transform-origin:100px 100px;animation:startup-calibrate 7s cubic-bezier(.22,.61,.36,1) infinite}
+.startup-aperture{stroke:#687d85;opacity:.55}.startup-instrument>span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:300 22px var(--font,system-ui);letter-spacing:-.07em;color:#e4e9e7}.startup-instrument small{font:8px var(--mono,monospace);color:#b9aa92;margin:8px 0 0 5px;letter-spacing:0}
+.startup-copy{display:flex;justify-content:space-between;gap:12px;font:7px var(--mono,monospace);letter-spacing:.06em;white-space:nowrap}.startup-copy>[data-startup-label]{font:8px var(--font,system-ui);color:#8fa2ac;letter-spacing:0}
+.startup-stages{display:flex;gap:5px;margin-top:11px}.startup-stages i{height:1px;flex:1;background:#45545c66;transition:background .4s,box-shadow .4s}
+.mechanism[data-load-stage=modules] .startup-stages i:first-child,.mechanism[data-load-stage=geometry] .startup-stages i:nth-child(-n+2),.mechanism[data-load-stage=environment] .startup-stages i:nth-child(-n+3),.mechanism[data-load-stage=compile] .startup-stages i{background:#b6cdd5;box-shadow:0 0 3px #b6cdd526}
+.mechanism[data-boot=ready] .mechanism-startup,.mechanism[data-boot=fallback] .mechanism-startup{opacity:0;transform:translate(-50%,-54%);visibility:hidden;transition:opacity .55s,transform .8s,visibility 0s .8s}
+.mechanism[data-boot=ready] .startup-bridges path,.mechanism[data-boot=fallback] .startup-bridges path,.mechanism[data-boot=ready] .startup-lens,.mechanism[data-boot=fallback] .startup-lens{animation:none}
+.motion-paused .startup-bridges path,.motion-paused .startup-lens{animation:none;stroke-dashoffset:0}
+@keyframes startup-trace{0%{stroke-dashoffset:1;opacity:.25}38%,66%{stroke-dashoffset:0;opacity:.9}100%{stroke-dashoffset:-1;opacity:.25}}
+@keyframes startup-calibrate{0%,15%{transform:rotate(-30deg)}55%,75%{transform:rotate(30deg)}100%{transform:rotate(-30deg)}}
 .scene-controls{display:flex;align-items:center;justify-content:center;gap:4px;width:fit-content;padding:4px;border:1px solid #48556070;border-radius:6px;background:linear-gradient(#1d262fcc,#0e161dcc);box-shadow:inset 0 1px #ffffff07,0 4px 15px #0003}
 .scene-controls[hidden]{display:none}
 .scene-controls [data-core-view]{border:0;border-radius:3px;padding:6px 12px;background:none;color:#7c909f;font:10px var(--font);line-height:1.4;transition:background .2s,color .2s}
@@ -15,4 +32,4 @@
 .scene-controls .motion-toggle{margin-left:7px;padding-left:12px;border-left:1px solid #41535f66}
 .core-panel-heading .scene-controls{pointer-events:auto;padding:2px;gap:2px}
 .core-panel-heading .scene-controls [data-core-view]{font-size:8px;padding:4px 7px}
-@media(prefers-reduced-motion:reduce){.mechanism-assembly,.mechanism-canvas,.scene-controls button{transition:none!important}}
+@media(prefers-reduced-motion:reduce){.mechanism-assembly,.mechanism-canvas,.mechanism-startup,.scene-controls button{transition:none!important}.startup-bridges path,.startup-lens{animation:none!important;stroke-dashoffset:0}}

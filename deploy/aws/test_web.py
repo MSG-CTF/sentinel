@@ -1,6 +1,7 @@
 """Authentication regressions, including the real pinned proxy in Docker."""
 
 import base64
+import gzip
 import http.client
 import json
 import os
@@ -59,8 +60,14 @@ class WebProxyIntegrationTests(unittest.TestCase):
             root = Path(temp)
             # Run the exact deployment preflight, including its restricted capabilities.
             host.prepare_web(root, config)
+            asset_body = '/*' + 'public shader fixture ' * 300 + '*/'
             proxy_config = production.replace("https://sla.example.com", "http://:8088") + (
-                '\nhttp://127.0.0.1:8080 {\n respond "upstream:{http.request.header.Authorization}|'
+                '\nhttp://127.0.0.1:8080 {\n'
+                ' @graphic path /vendor/three/three.module.js\n'
+                ' header @graphic Cache-Control "public, max-age=0, must-revalidate"\n'
+                ' header @graphic Content-Type "text/javascript"\n'
+                ' respond @graphic ' + json.dumps(asset_body) + ' 200\n'
+                ' respond "upstream:{http.request.header.Authorization}|'
                 '{http.request.header.Proxy-Authorization}" 200\n}\n')
             (root / "Caddyfile").write_text(proxy_config, encoding="utf-8")
             try:
@@ -77,8 +84,8 @@ class WebProxyIntegrationTests(unittest.TestCase):
                     self.fail(logs.stdout + logs.stderr)
                 port = int(info["NetworkSettings"]["Ports"]["8088/tcp"][0]["HostPort"])
 
-                def request(path, user=None, pwd=None):
-                    headers = {}
+                def request(path, user=None, pwd=None, extra_headers=None):
+                    headers = dict(extra_headers or {})
                     if user is not None:
                         headers["Authorization"] = "Basic " + base64.b64encode((user + ":" + pwd).encode()).decode()
                         headers["Proxy-Authorization"] = "must-not-reach-upstream"
@@ -105,6 +112,17 @@ class WebProxyIntegrationTests(unittest.TestCase):
                     self.assertEqual(body, b"upstream:|")
                     self.assertEqual(headers.get("cache-control"), "no-store")
                     self.assertNotIn("server", headers)
+                status, headers, body = request('/vendor/three/three.module.js', extra_headers={'Accept-Encoding': 'gzip'})
+                self.assertEqual(status, 200)
+                self.assertEqual(headers.get('cache-control'), 'public, max-age=0, must-revalidate')
+                self.assertEqual(headers.get('content-encoding'), 'gzip')
+                self.assertEqual(gzip.decompress(body), asset_body.encode())
+                self.assertLess(len(body), len(asset_body))
+                self.assertIn('Accept-Encoding', headers.get('vary', ''))
+                for path in ('/api/status', '/auth/csrf', '/assets/unlisted.hdr'):
+                    status, headers, body = request(path, extra_headers={'Accept-Encoding': 'gzip'})
+                    self.assertEqual(headers.get('cache-control'), 'no-store')
+                    self.assertNotIn('content-encoding', headers)
                 self.assertEqual(request("/internal/readiness")[0], 404)
                 self.assertEqual(request("/internal/recovery")[0], 404)
                 self.assertEqual(request("/internal")[0], 404)

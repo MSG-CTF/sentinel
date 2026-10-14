@@ -5,11 +5,17 @@ import { RectAreaLightUniformsLib } from "./vendor/three/RectAreaLightUniformsLi
 // A procedural product model, not asset telemetry. Dimensions are scene units.
 const TAU = Math.PI * 2;
 const clamp = THREE.MathUtils.clamp;
-const ease = value => { const x = clamp(value, 0, 1); return x * x * x * (x * (x * 6 - 15) + 10); };
+const ease = value => { const x = clamp(value, 0, 1); return clamp(x * x * x * (x * (x * 6 - 15) + 10), 0, 1); };
 
 export function cycleProgress(time) {
   const t = ((time % 26) + 26) % 26;
   return t < 2 ? 0 : t < 9 ? (t - 2) / 7 : t < 13 ? 1 : t < 22 ? 1 - (t - 13) / 9 : 0;
+}
+
+// A short, single light cue after the first GPU frame. It does not delay
+// authentication or pretend that the decorative core is server telemetry.
+export function ignitionPose(time) {
+  return {rim:ease((time-.10)/1.05),optic:ease((time-.70)/1.25),key:ease((time-.55)/1.85),travel:ease(time/3.8)};
 }
 
 // One reversible cam path: a cover clears its seat before the carriage rises.
@@ -151,9 +157,8 @@ function milledSlab(width, depth, height, radius, bevel=.02) {
 
 // A physical set gives the instrument a scale, contact shadow and a place to
 // sit. No background image or screen-space light streaks are composited here.
-function makeStudio() {
+function makeStudio(grain) {
   const root=new THREE.Group(),geometries=new Set(),textures=new Set();
-  const grain=surfaceTexture();textures.add(grain);
   const materials={
     floor:new THREE.MeshStandardMaterial({color:0x171c20,metalness:.18,roughness:.62,envMapIntensity:.18}),
     wall:new THREE.MeshStandardMaterial({color:0x192126,metalness:.34,roughness:.57,envMapIntensity:.24}),
@@ -236,7 +241,7 @@ function makeStudio() {
     add(root,geometry,objects[0].material,[0,0,0],objects[0].castShadow);
     objects.forEach(object=>object.removeFromParent());pieces.forEach(piece=>piece.dispose());
   }
-  return {root,dispose(){geometries.forEach(g=>g.dispose());textures.forEach(t=>t.dispose());Object.values(materials).forEach(m=>m.dispose());root.traverse(o=>{if(o.isInstancedMesh)o.dispose();});}};
+  return {root,setIllumination(power){materials.light.emissiveIntensity=.12+power*.83;wallWash.intensity=.3+power*2.3;},dispose(){geometries.forEach(g=>g.dispose());textures.forEach(t=>t.dispose());Object.values(materials).forEach(m=>m.dispose());root.traverse(o=>{if(o.isInstancedMesh)o.dispose();});}};
 }
 
 function studioEnvironment(renderer) {
@@ -263,12 +268,12 @@ function studioEnvironment(renderer) {
   return target;
 }
 
-async function photographicEnvironment(renderer,element) {
+async function photographicEnvironment(renderer,element,source) {
   let texture,generator;
   try {
-    const response=await fetch("/assets/studio-small-09.hdr",{signal:AbortSignal.timeout(6000)});
-    if(!response.ok)throw new Error("Environment unavailable");
-    const data=new HDRLoader().parse(await response.arrayBuffer());
+    const buffer=source?await source:await fetch("/assets/studio-small-09.hdr",{signal:AbortSignal.timeout(6000)}).then(response=>response.ok?response.arrayBuffer():null);
+    if(!buffer)throw new Error("Environment unavailable");
+    const data=new HDRLoader().parse(buffer);
     texture=new THREE.DataTexture(data.data,data.width,data.height,THREE.RGBAFormat,data.type);
     texture.colorSpace=data.colorSpace;texture.flipY=data.flipY;
     texture.minFilter=texture.magFilter=THREE.LinearFilter;
@@ -285,9 +290,8 @@ async function photographicEnvironment(renderer,element) {
   }
 }
 
-function makeModel() {
+function makeModel(grain) {
   const root=new THREE.Group(), resources=new Set(), textures=new Set();
-  const grain=surfaceTexture();textures.add(grain);
   const materials={
     body:machinedMaterial({color:0x666965,metalness:1,roughness:.31,anisotropy:.35,envMapIntensity:1.0},grain,{strength:.65}),
     face:machinedMaterial({color:0x909ba1,metalness:1,roughness:.29,anisotropy:.48,envMapIntensity:1.05},grain,{style:1,strength:.8}),
@@ -299,7 +303,7 @@ function makeModel() {
     copper:machinedMaterial({color:0x786249,metalness:1,roughness:.3},grain,{strength:.55}),
     glass:new THREE.MeshPhysicalMaterial({color:0x14272a,metalness:0,roughness:.07,envMapIntensity:.32,clearcoat:1,clearcoatRoughness:.05,transmission:.38,thickness:.18,ior:1.52,iridescence:.12,iridescenceIOR:1.3,iridescenceThicknessRange:[180,260]}),
     emitter:new THREE.MeshStandardMaterial({color:0xe9f6ff,emissive:0xc3eaff,emissiveIntensity:5.0,roughness:.32,metalness:0}),
-    seam:new THREE.MeshStandardMaterial({color:0xcfecf5,emissive:0x80c6df,emissiveIntensity:1.9,roughness:.36,metalness:0}),
+    seam:new THREE.MeshStandardMaterial({color:0xeee6d5,emissive:0xd8c398,emissiveIntensity:.9,roughness:.36,metalness:0}),
     status:new THREE.MeshStandardMaterial({color:0xbee9ff,emissive:0x73c9ed,emissiveIntensity:2.6,roughness:.25}),
   };
   const keep=g=>{resources.add(g);return g;};
@@ -511,7 +515,7 @@ function makeModel() {
 
   let travel={position:0,velocity:0};
   let lowPower=false;
-  function update(time,delta,view,pointer,snap=false){
+  function update(time,delta,view,pointer,snap=false,power=1){
     const target=view==='exploded'?1:view==='assembled'?0:cycleProgress(time);
     travel=snap?{position:target,velocity:0}:advanceTravel(travel,target,delta);
     const pose=mechanicalPose(travel.position);
@@ -532,9 +536,9 @@ function makeModel() {
     gears.forEach((gear,i)=>{gear.rotation.y=time*(i%2?.042:-.042);});
     // Illumination rises slowly as the optical cartridge clears the housing.
     // No flashing, scanning HUD or independent decorative rings.
-    materials.emitter.emissiveIntensity=2.6+pose.optic*.8;
-    materials.seam.emissiveIntensity=.9+pose.carrier*.4;
-    diffuserLight.intensity=.6+pose.optic*.5;
+    materials.emitter.emissiveIntensity=(2.6+pose.optic*.8)*power;
+    materials.seam.emissiveIntensity=(.65+pose.carrier*.3)*power;
+    diffuserLight.intensity=(.6+pose.optic*.5)*power;
     return pose.presentation;
   }
   function setState(state){
@@ -674,15 +678,16 @@ function createFinish(renderer) {
 let areaLightsReady=false;
 
 
-export async function createMechanismScene(element, {still=false} = {}) {
+export async function createMechanismScene(element, {still=false,environmentData,onProgress=()=>{},signal} = {}) {
   const canvas = document.createElement("canvas");
   canvas.className = "mechanism-canvas";
   canvas.setAttribute("aria-hidden", "true");
-  let renderer, model, studio, environment, resizeObserver, finish;
-  let frame=0, running=false, failed=false, destroyed=false, ready=false, elapsed=still ? 10 : 4.8, last=0, lastPaint=0, frames=0;
+  let renderer, model, studio, grain, environment, resizeObserver, finish, lighting;
+  const hero=element.dataset.sentinelCore==="access";
+  let frame=0, running=false, failed=false, destroyed=false, ready=false, elapsed=still ? 10 : hero ? 0 : 4.8, last=0, lastPaint=0, frames=0;
+  let ignition=still||!hero?4:0;
   let view="auto", width=1, height=1, narrow=false, displayedState;
   const pointer = {x:0,y:0}, targetPointer = {x:0,y:0};
-  const hero=element.dataset.sentinelCore==="access";
   const scene = new THREE.Scene();
   scene.background=new THREE.Color(0x090c10);
   scene.fog=new THREE.FogExp2(0x090c10,.024);
@@ -701,6 +706,7 @@ export async function createMechanismScene(element, {still=false} = {}) {
     removeListeners();
     model?.dispose();
     studio?.dispose();
+    grain?.dispose();
     environment?.dispose();
     finish?.dispose();
     renderer?.dispose();
@@ -709,6 +715,8 @@ export async function createMechanismScene(element, {still=false} = {}) {
   function useFallback() {
     failed=true;
     element.dataset.renderer="fallback";
+    element.dataset.boot="fallback";
+    onProgress('fallback');
     document.querySelectorAll(`[data-core-controls="${element.dataset.sentinelCore}"]`).forEach(controls => controls.hidden=true);
     dispose();
   }
@@ -724,9 +732,19 @@ export async function createMechanismScene(element, {still=false} = {}) {
     if (destroyed || failed || !ready) return;
     pointer.x=THREE.MathUtils.damp(pointer.x,targetPointer.x,3,delta);
     pointer.y=THREE.MathUtils.damp(pointer.y,targetPointer.y,3,delta);
-    const expansion=model.update(elapsed,delta,view,pointer,snap);
+    const cue=ignitionPose(ignition);
+    lighting.softbox.intensity=8.5*(.12+.88*cue.key);
+    lighting.strip.intensity=16*(.08+.92*cue.rim);
+    lighting.bounce.intensity=6.5*(.1+.9*cue.key);
+    lighting.key.intensity=1.35*(.15+.85*cue.key);
+    lighting.strip.position.set(-2+cue.travel*6,4-cue.travel*2,-1-cue.travel*2);
+    lighting.strip.lookAt(0,0,0);
+    scene.environmentIntensity=.52*(.12+.88*cue.key);
+    studio.setIllumination(cue.rim);
+    const expansion=model.update(elapsed,delta,view,pointer,snap,cue.optic);
     if(hero && !narrow){
-      camera.position.set(3.9+Math.sin(elapsed*.055)*.04+pointer.x*.12,4.5+expansion*.22,10.6+expansion*.32);
+      const dolly=.94+.06*cue.travel;
+      camera.position.set(3.9+Math.sin(elapsed*.055)*.04+pointer.x*.12,(4.5+expansion*.22)*dolly,(10.6+expansion*.32)*dolly);
       camera.lookAt(1.55,-.28+expansion*.15,0);
     }
     renderer.info.reset();
@@ -738,6 +756,7 @@ export async function createMechanismScene(element, {still=false} = {}) {
       canvas.dataset.frames=String(frames);
       canvas.dataset.drawCalls=String(renderer.info.render.calls);
       canvas.dataset.triangles=String(renderer.info.render.triangles);
+      canvas.dataset.ignition=ignition<3.8?'lighting':'complete';
     }
   }
   function tick(now) {
@@ -748,10 +767,15 @@ export async function createMechanismScene(element, {still=false} = {}) {
     const delta=Math.min((now-last)/1000,.08);
     last=lastPaint=now;
     elapsed+=delta;
+    ignition=Math.min(4,ignition+delta);
     draw(delta);
   }
   function setRunning(value) {
-    if (destroyed || failed || running===value) return;
+    if (destroyed || failed) return;
+    // Reduced motion, a saved pause or a pause during loading gets a complete
+    // static composition rather than a dim, half-started light cue.
+    if(!value && ignition<4){ignition=4;draw();}
+    if(running===value)return;
     running=value;
     canvas.dataset.motion=running ? "running" : "paused";
     cancelAnimationFrame(frame);
@@ -784,6 +808,7 @@ export async function createMechanismScene(element, {still=false} = {}) {
     draw();
   }
   try {
+    signal?.throwIfAborted();
     renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true,powerPreference:"high-performance"});
     renderer.debug.onShaderError=()=>{failed=true;};
     renderer.setClearColor(0x000000,0);
@@ -793,18 +818,14 @@ export async function createMechanismScene(element, {still=false} = {}) {
     renderer.info.autoReset=false;
     renderer.shadowMap.enabled=true;
     renderer.shadowMap.type=THREE.PCFShadowMap;
-    environment=await photographicEnvironment(renderer,element);
-    scene.environment=environment.texture;
-    scene.environmentIntensity=.52;
-    scene.environmentRotation.set(0,1.35,0);
     if(!areaLightsReady){RectAreaLightUniformsLib.init();areaLightsReady=true;}
     scene.add(new THREE.HemisphereLight(0xb7c9db,0x030609,.12));
     // Broad softboxes give the machined faces a continuous reflected highlight.
-    const softbox=new THREE.RectAreaLight(0xf3f0e9,10,5,6);
+    const softbox=new THREE.RectAreaLight(0xf5f1e8,8.5,5,6);
     softbox.position.set(-3,6,4);softbox.lookAt(0,0,0);scene.add(softbox);
-    const strip=new THREE.RectAreaLight(0xc4d6e1,19,.7,5);
+    const strip=new THREE.RectAreaLight(0xc9e1ec,16,.7,5);
     strip.position.set(4,2,-3);strip.lookAt(0,0,0);scene.add(strip);
-    const bounce=new THREE.RectAreaLight(0xffddba,5,3,1);
+    const bounce=new THREE.RectAreaLight(0xf6d6a3,6.5,3,1);
     bounce.position.set(-4,0,-2);bounce.lookAt(0,-.3,0);scene.add(bounce);
     // Rectangular lights do not cast shadows, so one neutral key supplies depth.
     const key=new THREE.DirectionalLight(0xf4f0e9,1.4);
@@ -813,13 +834,24 @@ export async function createMechanismScene(element, {still=false} = {}) {
     Object.assign(key.shadow.camera,{left:-4.5,right:4.5,top:4.5,bottom:-4.5,near:1,far:24});
     key.shadow.normalBias=.012;key.shadow.bias=-.00010;key.shadow.radius=3;
     scene.add(key);
-    model=makeModel(); scene.add(model.root);
-    studio=makeStudio();scene.add(studio.root);
+    lighting={softbox,strip,bounce,key};
+    onProgress('geometry');
+    await new Promise(resolve=>setTimeout(resolve,0));signal?.throwIfAborted();
+    grain=surfaceTexture();
+    model=makeModel(grain); scene.add(model.root);
+    await new Promise(resolve=>setTimeout(resolve,0));signal?.throwIfAborted();
+    studio=makeStudio(grain);scene.add(studio.root);
+    onProgress('environment');
+    environment=await photographicEnvironment(renderer,element,environmentData);signal?.throwIfAborted();
+    scene.environment=environment.texture;
+    scene.environmentIntensity=.52;
+    scene.environmentRotation.set(0,1.35,0);
     finish=createFinish(renderer);
     element.append(canvas);
     resize();
     model.update(elapsed,0,view,pointer,true);
-    await renderer.compileAsync(scene,camera);
+    onProgress('compile');
+    await renderer.compileAsync(scene,camera);signal?.throwIfAborted();
     ready=true;
     draw();
     if(failed)throw new Error('Mechanical scene shader unavailable');
@@ -836,6 +868,7 @@ export async function createMechanismScene(element, {still=false} = {}) {
       if (!running) draw();
     },setView:mode=>{
       view=["auto","exploded","assembled"].includes(mode) ? mode : "auto";
+      if(view!=="auto")ignition=4;
       if (!running) draw(0,true);
     },dispose};
   } catch(error) {

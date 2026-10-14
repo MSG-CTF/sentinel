@@ -18,6 +18,12 @@ Use the self-hosted CC0 photographic HDR environment and large rectangular softb
 Engineering constraints
 Self-host pinned Three.js and its HDR/LTC helpers with source and license notices. Preserve CSP and the exact public-file allowlist. Authentication and monitoring must work without WebGL. The fallback poster is captured from the actual current geometry, not the earlier concept artwork. Suspend animation when hidden or offscreen and honor reduced motion. Cap pixel density and frame rate, reduce mobile samples and omit glass transmission there. Dispose scene resources and all postprocessing render targets on navigation. Never present the decorative animation as infrastructure telemetry.
 
+Startup and light cue
+Keep the login form usable from the first paint. While modules, geometry, lighting and GPU programs prepare, show a small engraved outline over the darkened matching poster with four actual preparation stages. Do not display a fabricated percentage or add a minimum wait. Fetch the HDR alongside the module graph, share the machining texture between the instrument and set, and yield between geometry construction steps. After the first GPU frame, a single rim light travels across the shoulders, the cold-white aperture wakes, and a broad neutral key with a quiet champagne bounce reveals the metal. A small camera move settles over 3.8 seconds and hands over to the mechanical cycle. Avoid a broad glow or flashing effect. Reduced motion and a saved pause show the fully lit static composition. Graphics failure restores the full poster and leaves authentication available.
+
+Transfer budget
+Compress the exact public JavaScript, CSS and HDR paths at the existing proxy. Allow public visual files to reuse bytes only after ETag revalidation, because their paths are not content-hashed. Keep HTML, authentication, telemetry, private resources and failures under no-store. Verify both rules through the real proxy and measure public asset bytes after deployment; do not equate wire-byte reduction with guaranteed GPU startup speed.
+
 Acceptance
 Inspect assembled and exploded states at 1280x720, 390x844 and a tablet breakpoint. Verify changing frames, pause/resume, page transitions, no horizontal overflow, fallback loading and real server telemetry. Ship through the existing PR and automated deployment with actual screenshots and test evidence.
 

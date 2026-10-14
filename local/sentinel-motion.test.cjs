@@ -5,6 +5,20 @@ const path = require('node:path');
 
 const scene = import(pathToFileURL(path.resolve(__dirname, '../src/Sentinel.Api/wwwroot/sentinel-scene.js')));
 
+test('ignition reveals the rim before the optic and settles without a repeated flash', async () => {
+  const {ignitionPose}=await scene;
+  assert.ok(Object.values(ignitionPose(0)).every(value=>value===0));
+  assert.ok(ignitionPose(.6).rim>0);
+  assert.equal(ignitionPose(.6).optic,0);
+  assert.ok(ignitionPose(1.8).optic>ignitionPose(1.8).key);
+  assert.ok(Object.values(ignitionPose(4)).every(value=>value===1));
+  assert.deepEqual(ignitionPose(4),ignitionPose(60));
+  for(let i=1;i<=400;i++){
+    const previous=ignitionPose((i-1)/100),next=ignitionPose(i/100);
+    for(const key of Object.keys(next))assert.ok(next[key]>=previous[key]&&next[key]<=1);
+  }
+});
+
 test('mechanical travel seats every layer and reaches the complete open pose', async () => {
   const {mechanicalPose} = await scene;
   assert.ok(Object.values(mechanicalPose(0)).every(value => value === 0));

@@ -8,7 +8,8 @@ Geometry and composition: MSG CTF Sentinel project
 Current assembly: pocketed titanium bridges with inset black lands, recessed
 socket hardware, bearing races, nickel gear hubs and a coated optical cartridge
 Setting: layered machined deck, ball seat, graphite panels and recessed diffuser
-Lighting: clear studio air, dark satin floor, surface reflections and restrained
-local bloom without a synthetic light cone or broad halo
+Lighting: settled ignition cue with a cold-white strip, broad neutral key and
+restrained champagne bounce; clear studio air, dark satin floor and narrow local
+bloom without a synthetic light cone or broad halo
 Studio lighting environment: studio-small-09.hdr, see studio-small-09-LICENSE.txt
 Renderer: self-hosted Three.js 0.186.1, see vendor/three/NOTICE.txt and LICENSE
