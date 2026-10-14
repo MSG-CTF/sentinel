@@ -310,6 +310,7 @@ function makeModel(grain) {
   const materials={
     body:machinedMaterial({color:0x666965,metalness:1,roughness:.31,anisotropy:.35,envMapIntensity:1.0},grain,{strength:.65}),
     face:machinedMaterial({color:0x909ba1,metalness:1,roughness:.29,anisotropy:.48,envMapIntensity:1.05},grain,{style:1,strength:.8}),
+    deck:machinedMaterial({color:0x46515f,metalness:1,roughness:.30,anisotropy:.48,envMapIntensity:1.05},grain,{style:1,strength:.75}),
     edge:machinedMaterial({color:0xc5cbd0,metalness:1,roughness:.16,envMapIntensity:1.15},grain,{strength:.35}),
     bore:machinedMaterial({color:0x242b2d,metalness:1,roughness:.37,anisotropy:.18},grain,{strength:.55}),
     nickel:machinedMaterial({color:0x999187,metalness:1,roughness:.29,anisotropy:.38},grain,{style:2,strength:.72}),
@@ -321,6 +322,8 @@ function makeModel(grain) {
     glass:new THREE.MeshPhysicalMaterial({color:0x789ba5,metalness:0,roughness:.065,envMapIntensity:.55,clearcoat:1,clearcoatRoughness:.06,transparent:true,opacity:.15,depthWrite:false,iridescence:.10,iridescenceIOR:1.3,iridescenceThicknessRange:[180,260]}),
     emitter:new THREE.MeshStandardMaterial({color:0xe9f6ff,emissive:0xc3eaff,emissiveIntensity:5.0,roughness:.32,metalness:0}),
     lightGuide:new THREE.MeshStandardMaterial({color:0x254e59,emissive:0x199dbf,emissiveIntensity:1.6,roughness:.33,metalness:.08}),
+    energy:new THREE.MeshStandardMaterial({color:0x8bdeff,emissive:0x44caff,emissiveIntensity:3.4,roughness:.3,metalness:.05}),
+    energyWell:new THREE.MeshStandardMaterial({color:0x020c1e,emissive:0x006cb5,emissiveIntensity:.24,roughness:.29,metalness:.28}),
     seam:new THREE.MeshStandardMaterial({color:0xeee6d5,emissive:0xd8c398,emissiveIntensity:.9,roughness:.36,metalness:0}),
     status:new THREE.MeshStandardMaterial({color:0xbee9ff,emissive:0x73c9ed,emissiveIntensity:2.6,roughness:.25}),
   };
@@ -363,7 +366,7 @@ function makeModel(grain) {
       }
       pieces.forEach(piece=>piece.dispose());
       const batch=instance(parent,geometry,material,Array.from({length:count},()=>({position:[0,0,0]})));
-      if(material===materials.lightGuide)batch.castShadow=batch.receiveShadow=false;
+      if([materials.lightGuide,materials.energy,materials.energyWell].includes(material))batch.castShadow=batch.receiveShadow=false;
       batches.push(batch);
     }
     return batches;
@@ -421,7 +424,35 @@ function makeModel(grain) {
   ring(chassis,2.30,2.415,.045,-.20,materials.edge);
   ring(chassis,2.33,2.415,.045,.155,materials.edge);
   ring(chassis,2.33,2.386,.025,-.07,materials.rubber);
-  ring(chassis,1.45,2.17,.035,.125,materials.nickel);
+  // The lower deck is a load-bearing split plate with deep service channels.
+  // Blue emitters sit below the machined lip and louvers, not on a flat decal.
+  const deckShape=arcPath(new THREE.Shape(),1.46,2.17,.035,Math.PI/2-.035);
+  deckShape.holes.push(arcPath(new THREE.Path(),1.62,2.035,1.24,.61,true));
+  radial(chassis,extrude(deckShape,.052,.008),[materials.deck,materials.edge],4,0,.145);
+  const deckDetails=new THREE.Group();
+  mesh(deckDetails,arcGeometry(1.635,2.022,.63,1.22,.010,.002),materials.energyWell,0,.111,0,false);
+  for(const [inner,outer] of [[1.654,1.666],[1.986,1.998]])mesh(deckDetails,arcGeometry(inner,outer,.641,1.209,.008,.001),materials.energy,0,.123,0,false);
+  for(let i=0;i<7;i++){
+    const a=.657+i*.086;
+    const rib=mesh(deckDetails,new THREE.BoxGeometry(.35,.041,.020),materials.bore,Math.cos(a)*1.832,.147,Math.sin(a)*1.832);rib.rotation.y=-a;
+  }
+  // An angled service cassette and fasteners break up the broad annular deck.
+  const cassette=new THREE.Group();cassette.position.set(Math.cos(1.385)*1.93,.212,Math.sin(1.385)*1.93);cassette.rotation.y=-1.385;deckDetails.add(cassette);
+  mesh(cassette,milledSlab(.40,.19,.078,.022,.006),materials.bore);
+  mesh(cassette,milledSlab(.29,.14,.022,.014,.003),materials.deck,0,.05);
+  for(const x of [-.163,.163])mesh(cassette,new THREE.CylinderGeometry(.022,.022,.014,6),materials.edge,x,.047);
+  for(let i=0;i<4;i++)mesh(cassette,new THREE.BoxGeometry(.038,.008,.024),materials.energy,-.09+i*.06,.066,0,false);
+  // Paired radial bus channels terminate at the central bearing shoulder.
+  for(const a of [.074,Math.PI/2-.074]){
+    const channel=new THREE.Group();channel.rotation.y=-a;deckDetails.add(channel);
+    mesh(channel,new THREE.BoxGeometry(.53,.010,.047),materials.bore,1.79,.181);
+    mesh(channel,new THREE.BoxGeometry(.48,.006,.010),materials.energy,1.79,.189,0,false);
+  }
+  const deckBatches=repeatAssembly(deckDetails,4,chassis),deckDummy=new THREE.Object3D();
+  for(let i=0;i<4;i++){
+    deckDummy.rotation.y=-i/4*TAU;deckDummy.updateMatrix();deckBatches.forEach(batch=>batch.setMatrixAt(i,deckDummy.matrix));
+  }
+  deckBatches.forEach(batch=>{batch.instanceMatrix.needsUpdate=true;batch.computeBoundingSphere();});
   ring(chassis,1.18,1.44,.39,.04,materials.bore);
   ring(chassis,1.12,1.23,.055,.27,materials.edge);
   const coolingFins=[],caseBolts=[];
@@ -430,6 +461,8 @@ function makeModel(grain) {
     coolingFins.push({position:[Math.cos(a)*2.38,-.015,Math.sin(a)*2.38],rotation:[0,-a,0]});
   }
   instance(chassis,new THREE.BoxGeometry(.019,.24,.017),materials.bore,coolingFins);
+  const caseLightSlots=radial(chassis,new THREE.BoxGeometry(.012,.082,.044),materials.energy,24,2.389,-.012,Math.PI/24);
+  caseLightSlots.castShadow=caseLightSlots.receiveShadow=false;
   for(let i=0;i<12;i++){const a=i/12*TAU;caseBolts.push({position:[Math.cos(a)*2.255,.24,Math.sin(a)*2.255]});}
   fasteners(chassis,caseBolts);
 
@@ -438,16 +471,22 @@ function makeModel(grain) {
   for(let i=0;i<4;i++){
     const pivot=new THREE.Group();cover.add(pivot);pivot.rotation.y=i/4*TAU;
     const panel=new THREE.Group();pivot.add(panel);
-    mesh(panel,quarter,[materials.face,materials.edge]);
+    mesh(panel,quarter,[materials.deck,materials.edge]);
     // Inset black lands separate broad satin faces from the polished bevels.
     const trim=new THREE.Group();
     mesh(trim,arcGeometry(2.19,2.28,.15,Math.PI/2-.15,.007,.002),materials.bore,0,.078);
-    mesh(trim,arcGeometry(1.545,1.564,.17,Math.PI/2-.17,.009,.002),materials.edge,0,.079);
+    mesh(trim,arcGeometry(1.548,1.560,.17,Math.PI/2-.17,.008,.001),materials.energy,0,.079,0,false);
     mesh(trim,arcGeometry(2.288,2.305,.15,Math.PI/2-.15,.008,.002),materials.edge,0,.079);
     mesh(trim,arcGeometry(2.24,2.34,.075,Math.PI/2-.075,.035,.008),materials.bore,0,-.094);
+    // A captive edge conduit gives the broad bridge a blue-lit thickness;
+    // the steel shoulder shields it from becoming a floating luminous ring.
+    mesh(trim,arcGeometry(2.341,2.354,.17,Math.PI/2-.17,.015,.002),materials.energy,0,-.096,0,false);
     mesh(trim,arcGeometry(1.52,1.61,.055,Math.PI/2-.055,.025,.005),materials.bore,0,-.078);
     // An inset bridge and transverse ribs sit below the machined opening.
     mesh(trim,arcGeometry(1.87,2.00,.38,1.18,.028,.006),materials.nickel,0,-.13);
+    mesh(trim,arcGeometry(1.746,2.114,.345,1.225,.012,.002),materials.energyWell,0,-.15,0,false);
+    mesh(trim,arcGeometry(1.750,1.764,.355,1.215,.008,.001),materials.energy,0,-.123,0,false);
+    mesh(trim,arcGeometry(2.097,2.110,.355,1.215,.008,.001),materials.energy,0,-.123,0,false);
     repeatAssembly(trim,1,panel);
     const ribs=[];
     for(let n=0;n<9;n++){
@@ -466,6 +505,7 @@ function makeModel(grain) {
   for(let i=0;i<4;i++){
     const a=i/4*TAU+.34,g=new THREE.Group();g.position.set(Math.cos(a)*1.78,.23,Math.sin(a)*1.78);chassis.add(g);
     mesh(g,teethGeometry(.20,.365,28,.035),i%2?materials.nickel:materials.body);
+    mesh(g,new THREE.CylinderGeometry(.105,.105,.07,24),materials.bore,0,-.045);
     ring(g,.064,.115,.046,.025,materials.edge);
     radial(g,new THREE.BoxGeometry(.22,.028,.038),materials.nickel,5,.17,.007);
     mesh(g,new THREE.CylinderGeometry(.036,.036,.07,24),materials.bore,0,.035);
@@ -633,7 +673,7 @@ function makeModel(grain) {
   ring(rotor,.86,.92,.034,.018,materials.copper);
   // A low-power diffuser faces the carriage below the optic. Point sources
   // almost touching the polished rim produced sharp, moving white hotspots.
-  const diffuserLight=new THREE.RectAreaLight(0x8dd5e2,1.8,1.25,1.25);
+  const diffuserLight=new THREE.RectAreaLight(0x169be8,1.6,2.2,2.2);
   diffuserLight.position.y=-.185;diffuserLight.rotation.x=-Math.PI/2;optic.add(diffuserLight);
 
   // An actual decal on one panel, rather than surrounding HUD decoration.
@@ -700,9 +740,11 @@ function makeModel(grain) {
     materials.emitter.emissiveIntensity=(2.1+pose.optic*.6)*power;
     materials.aperture.emissiveIntensity=(2.8+pose.optic*.9)*power*breath;
     materials.lightGuide.emissiveIntensity=(1.15+pose.optic*.75)*power*breath;
+    materials.energy.emissiveIntensity=(2.8+pose.lift*.7)*power*breath;
+    materials.energyWell.emissiveIntensity=(.16+pose.lift*.10)*power;
     materials.lightWell.emissiveIntensity=(.42+pose.optic*.22)*power;
     materials.seam.emissiveIntensity=(.65+pose.carrier*.3)*power;
-    diffuserLight.intensity=(.8+pose.optic*1.0)*power*breath;
+    diffuserLight.intensity=(.7+pose.optic*.9)*power*breath;
     return pose.presentation;
   }
   function setState(state){
@@ -753,15 +795,15 @@ function createFinish(renderer) {
       c+=(texture2D(tColor,vUv+uStep*3.230769).rgb+texture2D(tColor,vUv-uStep*3.230769).rgb)*.070270;
       gl_FragColor=vec4(c,1.0);}`});
   const uniforms={tColor:{value:target.texture},tDepth:{value:target.depthTexture},tBloom:{value:bloomA.texture},
-    uPixel:{value:new THREE.Vector2(1,1)},uProjectionInverse:{value:new THREE.Matrix4()},
-    uFocus:{value:10},uNear:{value:.1},uFar:{value:80},uQuality:{value:1},uTime:{value:0}};
+    uPixel:{value:new THREE.Vector2(1,1)},uProjectionInverse:{value:new THREE.Matrix4()},uViewInverse:{value:new THREE.Matrix4()},
+    uFocus:{value:10},uNear:{value:.1},uFar:{value:80},uQuality:{value:1},uTime:{value:0},uMistPower:{value:1}};
   const material=new THREE.ShaderMaterial({uniforms,depthTest:false,depthWrite:false,vertexShader,
     fragmentShader:`
       varying vec2 vUv;
       uniform sampler2D tColor,tDepth,tBloom;
       uniform vec2 uPixel;
-      uniform mat4 uProjectionInverse;
-      uniform float uFocus,uNear,uFar,uQuality,uTime;
+      uniform mat4 uProjectionInverse,uViewInverse;
+      uniform float uFocus,uNear,uFar,uQuality,uTime,uMistPower;
       float noise(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
       vec3 viewPosition(vec2 uv){
         vec4 p=uProjectionInverse*vec4(uv*2.0-1.0,texture2D(tDepth,uv).x*2.0-1.0,1.0);
@@ -779,6 +821,53 @@ function createFinish(renderer) {
         }
         return clamp(1.0-shade*(uQuality<.5?.23:.115),.62,1.0);
       }
+      float vaporNoise(vec2 p){
+        vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);
+        vec4 h=fract(sin(vec4(dot(i,vec2(127.1,311.7)),dot(i+vec2(1,0),vec2(127.1,311.7)),
+          dot(i+vec2(0,1),vec2(127.1,311.7)),dot(i+vec2(1),vec2(127.1,311.7))))*43758.5453);
+        return mix(mix(h.x,h.y,f.x),mix(h.z,h.w,f.x),f.y);
+      }
+      // Integrate only the shallow volume around the mounting deck. The opaque
+      // depth buffer clips the ray, keeping vapor behind the housing and feet.
+      // This shares the existing finish pass; there are no smoke cards or assets.
+      vec4 coolantVapor(vec3 endView){
+        vec3 origin=uViewInverse[3].xyz;
+        vec3 endWorld=(uViewInverse*vec4(endView,1.0)).xyz;
+        vec3 ray=normalize(endWorld-origin);
+        vec3 inv=1.0/(max(abs(ray),vec3(.00001))*sign(ray+vec3(.000001)));
+        vec3 a=(vec3(-4.8,-2.475,-4.1)-origin)*inv;
+        vec3 b=(vec3(4.8,-1.45,4.1)-origin)*inv;
+        vec3 lo=min(a,b),hi=max(a,b);
+        float entry=max(max(lo.x,lo.y),max(lo.z,0.0));
+        float exit=min(min(hi.x,hi.y),min(hi.z,length(endWorld-origin)));
+        if(exit<=entry||uMistPower<.001)return vec4(0.0);
+        float steps=uQuality<.5?6.0:12.0,stepLength=(exit-entry)/steps;
+        float cursor=entry+stepLength*(.25+.5*noise(vUv/uPixel));
+        vec3 scatter=vec3(0.0);float transmittance=1.0;
+        for(int i=0;i<12;i++){
+          if(float(i)>=steps)break;
+          vec3 p=origin+ray*cursor;
+          vec2 deck=mat2(.9872,.1593,-.1593,.9872)*p.xz;
+          float edge=max(abs(deck.x)/3.25,abs(deck.y)/2.825);
+          float ground=-2.46+.45*(1.0-smoothstep(.96,1.16,edge));
+          float height=p.y-ground;
+          vec2 flow=p.xz*1.3+vec2(-uTime*.050,uTime*.026);
+          float eddy=vaporNoise(flow*.72+vec2(p.y*1.4,-p.y));
+          float body=vaporNoise(flow+vec2(eddy*1.3,p.y*2.0));
+          float detail=vaporNoise(flow*2.7+vec2(uTime*.025,eddy));
+          float billow=smoothstep(.28,.72,body*.72+detail*.28);
+          float density=billow*exp(-max(height,0.0)*6.0);
+          density*=smoothstep(-.07,.025,height)*(1.0-smoothstep(.35,.85,height));
+          density*=1.0-smoothstep(1.0,1.54,edge);
+          float opacity=1.0-exp(-density*stepLength*.85*uMistPower);
+          float blue=exp(-length(p.xz)*.32)*(.55+.45*eddy);
+          vec3 tint=mix(vec3(.22,.27,.31),vec3(.075,.28,.43),blue);
+          scatter+=transmittance*opacity*tint;
+          transmittance*=1.0-opacity;
+          cursor+=stepLength;
+        }
+        return vec4(scatter,1.0-transmittance);
+      }
       void main(){
         vec3 color=texture2D(tColor,vUv).rgb;
         float z=texture2D(tDepth,vUv).x;
@@ -795,8 +884,10 @@ function createFinish(renderer) {
           }
           color=mix(color,b/6.0*occlusion,.55);
         }
-        // Clear studio air: light is visible on surfaces. Keep just a narrow
-        // optical fringe at very bright edges, without an added light cone.
+        vec4 vapor=coolantVapor(position);
+        color=color*(1.0-vapor.a)+vapor.rgb;
+        // Keep a narrow optical fringe at the emitters. The low vapor volume
+        // above is independent of bloom and never washes over the whole scene.
         color+=texture2D(tBloom,vUv).rgb*.12;
         vec2 p=vUv-.5;
         color*=1.0-.24*dot(p,p);
@@ -818,12 +909,14 @@ function createFinish(renderer) {
       bright.uniforms.uSourcePixel.value.set(1/width,1/height);
       bw=Math.max(1,Math.round(width/2));bh=Math.max(1,Math.round(height/2));bloomA.setSize(bw,bh);bloomB.setSize(bw,bh);
     },
-    render(source,sourceCamera,time,focus){
+    render(source,sourceCamera,time,focus,mistPower=1){
       renderer.setRenderTarget(target);renderer.render(source,sourceCamera);
       uniforms.uProjectionInverse.value.copy(sourceCamera.projectionMatrixInverse);
+      uniforms.uViewInverse.value.copy(sourceCamera.matrixWorld);
       focusInView.copy(focus).applyMatrix4(sourceCamera.matrixWorldInverse);
       uniforms.uFocus.value=-focusInView.z;
       uniforms.uTime.value=time;
+      uniforms.uMistPower.value=mistPower;
       pass(bloomA,bright);
       // Bilinear Gaussian offsets assume adjacent texels; widening the step
       // skips texels and turns a small highlight into a visible grid of dots.
@@ -916,7 +1009,7 @@ export async function createMechanismScene(element, {still=false,environmentData
       camera.lookAt(hero?-.20:0,(hero?.17:-.12)+close*.65,0);
     }
     renderer.info.reset();
-    finish.render(scene,camera,elapsed,model.focusPoint());
+    finish.render(scene,camera,elapsed,model.focusPoint(),cue.key);
     if(failed){useFallback();return;}
     frames++;
     // DOM diagnostics allow smoke tests to verify that the GPU surface advances.
