@@ -168,7 +168,7 @@ function render(snapshot, events, offline) {
   byId("incident-count").title = "장애 또는 위험 수치에 도달한 자산 수";
   byId("profile").textContent = snapshot.profile === "local" ? "LOCAL" : snapshot.profile === "local-recovery" ? "LOCAL AUTO" : snapshot.profile === "deployed" ? "DEPLOYED" : (snapshot.profile || "미확인");
   renderRecovery();
-  byId("last-update").textContent = disconnected ? "Sentinel 연결 끊김" : `최근 점검 ${time(snapshot.updated_at)}`;
+  byId("last-update").textContent = disconnected ? "최신 수집 미확인" : `최근 점검 ${time(snapshot.updated_at)}`;
   byId("policy").textContent = `HTTP ${Number(snapshot.poll_interval_seconds) || 15}초 · 화면 5초`;
   byId("measurement-note").textContent = `직접 ${assets.filter(asset=>asset.evidence_type === "DIRECT_PROBE" && !["UNCONFIGURED", "PENDING"].includes(asset.status)).length} · 간접 ${assets.filter(asset=>asset.evidence_type === "HEALTHZ_COMPONENT").length}`;
   byId("status-caption").textContent = disconnected ? "수집 연결을 확인해 주세요" : `위험 수치 · 자산 상태 · 수집 근거를 한곳에서`;
@@ -189,7 +189,7 @@ function render(snapshot, events, offline) {
   byId("empty-filter").hidden = visibleAssets > 0;
   byId("issues-only").textContent = issuesOnly ? "전체 보기" : "문제만 보기";
   byId("issues-only").setAttribute("aria-pressed", String(issuesOnly));
-  showWarning(disconnected ? "Sentinel 연결 실패 · 최신 상태 확인 불가" : snapshot.event_storage_healthy === false ? "변경 기록 저장 실패 · 상태 점검은 계속 동작 중" : "");
+  showWarning(disconnected ? "최신 수집 확인 불가 · 연결 또는 점검 갱신 확인 필요" : snapshot.event_storage_healthy === false ? "변경 기록 저장 실패 · 상태 점검은 계속 동작 중" : "");
   renderContracts(); renderEvents();
   if (byId("inspector").open) renderInspector();
 }

@@ -58,7 +58,7 @@
     byId("core-condition").textContent = offline ? "연결 끊김 · 최신 상태 미확인" : !counts.total ? "등록된 자산 없음" : risks.CRITICAL ? `위험 ${risks.CRITICAL}개 · 즉시 확인` : risks.WARNING ? `주의 ${risks.WARNING}개 · 수치 상승` : counts.unknown ? `${counts.unknown}개 자산 상태 확인 필요` : counts.pending ? `${counts.pending}개 자산 연결 대기` : "연결된 자산 정상";
     byId("operations-core").closest(".core-panel").dataset.state = state;
     SentinelCore.setState(byId("operations-core"), state);
-    byId("session-label").textContent = offline ? "CONNECTION LOST" : "OBSERVATION ACTIVE";
+    byId("session-label").textContent = offline ? "DATA UNAVAILABLE" : "OBSERVATION ACTIVE";
     byId("session-label").classList.toggle("offline", offline);
     byId("environment-label").textContent = snapshot.profile === "aws" ? "AWS · SEOUL" : "LOCAL ENVIRONMENT";
     const bot = assets.find(target => target.asset_id === "discord-bot");

@@ -93,9 +93,9 @@
     svg.append(group); paths.set(link.id,{group,stroke,hit,link});
   }
   function applyScale(next) {
-    scale = Math.min(1.5,Math.max(.35,next)); canvas.style.transform = `scale(${scale})`; size.style.width = `${width*scale}px`; size.style.height = `${height*scale}px`;
+    scale = Math.min(1.5,Math.max(.25,next)); canvas.style.transform = `scale(${scale})`; size.style.width = `${width*scale}px`; size.style.height = `${height*scale}px`;
     document.getElementById("map-fit").textContent = `${Math.round(scale*100)}%`;
-    document.getElementById("map-minus").disabled = scale <= .35; document.getElementById("map-plus").disabled = scale >= 1.5;
+    document.getElementById("map-minus").disabled = scale <= .25; document.getElementById("map-plus").disabled = scale >= 1.5;
   }
   function fit(resetPosition = true) {
     if (!viewport.clientWidth) return;

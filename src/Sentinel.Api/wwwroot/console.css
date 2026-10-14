@@ -4,6 +4,7 @@
 .sr-only{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .summary-item.warning{margin:0}
 #architecture-view .deployment-node strong{line-height:1.25}
+@media(min-width:901px){#design-map .map-viewport{height:calc(100dvh - 485px);min-height:220px}}
 @media(max-width:650px){.console-instrument{order:2}.asset-console{order:1}}
 #connection-warning{background:#202a33;border-color:#91a8bb;color:#c6d4df;font-size:12px;padding:10px 14px;margin:0 0 12px}
 body{background:radial-gradient(ellipse at 15% 0%,#24303c55,transparent 60%),var(--console-bg);color:var(--console-text);font-size:14px}
