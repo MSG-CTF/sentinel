@@ -26,7 +26,8 @@ EC2, EBS, 퍼블릭 IPv4, S3 사용량은 무료 혜택과 크레딧 범위에 �
 - Grafana는 읽기 권한으로 연결되며 대시보드 변경은 저장소의 monitoring 구성을 배포한다
 
 현재 AWS 프로필은 observe_only 모드다
-원격 자동 복구와 인스턴스 목록 조회는 별도 인증·계약 검증을 마친 뒤 연결해야 한다
+원격 자동 복구는 비활성 상태로 유지한다
+인스턴스 목록 조회는 HTTPS 주소와 인증·전체 목록 계약을 검증한 뒤 별도로 활성화할 수 있다
 화면 응답, API 상태, 데이터베이스 상태는 각 점검이 확인한 범위까지만 표시한다
 
 ## 최초 생성
@@ -60,6 +61,7 @@ aws-production 환경의 Secrets:
 | AWS_DEPLOY_DOCUMENT | 스택 출력 AwsDeployDocument |
 | SENTINEL_PROFILE_JSON | URL·IP·점검 종류를 포함한 AWS 프로필 JSON |
 | SENTINEL_PROBE_SECRETS_JSON | 사용 중인 auth_token_env와 Bearer 토큰의 JSON 객체 |
+| SCHEDULER_API_TOKEN | 전체 인스턴스 조회용 Bearer 토큰 · 기본 토큰 이름으로 감시를 활성화했을 때만 컨테이너에 주입 |
 | SENTINEL_ASSET_INVENTORY_JSON | 서버 IP와 미연결 자산을 포함한 운영 자산 목록 |
 | SENTINEL_WEB_CONFIG_JSON | domain, username, password_hash를 담은 JSON 객체 |
 | SENTINEL_ADMIN_PASSWORD | 외부 로그인 검증용 관리자 비밀번호 |
@@ -73,8 +75,45 @@ aws-production 환경의 Secrets:
 해당 관리자 Secrets는 현재 배포 컨테이너에 주입하지 않는다
 인증이 필요한 점검을 활성화하려면 HTTPS 주소와 감시 전용 토큰을 함께 등록한다
 프로필은 platform_monitor.profile=aws, event_file=data/events.jsonl,
-platform_recovery.enabled=false, instance_monitor.enabled=false를 사용한다
+platform_recovery.enabled=false를 사용한다
+스케줄러 연결을 검증하기 전에는 instance_monitor.enabled=false를 유지한다
 공개 예시에는 실제 서버 IP와 인증값을 넣지 않는다
+
+### 전체 인스턴스 감시 연결
+
+스케줄러에서 인증한 GET /api/instances?limit=200이 HTTP 200과 data.items·data.next_cursor를 반환하는지 먼저 확인한다
+공개 HTTP 주소에는 토큰을 전송하지 않으며 인증서 검증을 생략하거나 리다이렉트로 인증 요청을 전달하지 않는다
+운영 설정은 HTTPS의 정확한 /api/instances 경로만 받으며 /recent는 허용하지 않는다
+인증된 모든 페이지를 읽을 수 있을 때 SENTINEL_PROFILE_JSON의 instance_monitor를 다음처럼 설정한다
+
+```json
+{
+  "enabled": true,
+  "scheduler_url": "https://scheduler.example.com/api/instances",
+  "scheduler_token_env": "SCHEDULER_API_TOKEN",
+  "poll_interval_seconds": 30,
+  "timeout_seconds": 4,
+  "runtime_targets": [],
+  "functional_checks": []
+}
+```
+
+기본 토큰은 별도 SCHEDULER_API_TOKEN Secret에 먼저 보관할 수 있다
+감시가 꺼져 있으면 이 Secret을 컨테이너의 probe.env에 넣지 않는다
+기존 SENTINEL_PROBE_SECRETS_JSON에 같은 이름이 있으면 값이 일치해야 하며, 두 값이 다르면 배포를 중단한다
+사용자 지정 토큰 이름과 Runtime 토큰은 SENTINEL_PROBE_SECRETS_JSON에 넣으며 활성 설정과 정확히 일치해야 한다
+Runtime을 연결할 때는 target_id, HTTPS base_url, auth_token_env를 등록한다
+base_url은 경로·쿼리 없는 관리 API origin이며 같은 target_id를 중복 등록할 수 없다
+Runtime이 미등록이어도 전체 목록은 조회하지만 각 문제의 실행 상태와 기능 정상 여부는 미검증으로 표시한다
+운영에는 로컬 functional_checks를 넣지 않으며 자동 복구도 활성화하지 않는다
+
+페이지당 최대 200개를 읽고 next_cursor가 null일 때만 complete_inventory=true로 게시한다
+목록 갱신 간격은 30초, 페이지 요청 제한은 4초, 전체 목록 수집 제한은 60초가 기본이다
+Runtime 조회가 있으면 해당 점검 시간도 더해지며 실제 완료 간격은 수집 시간의 영향을 받는다
+중간 페이지 오류나 중복 ID가 있으면 일부 결과를 전체 목록으로 표시하지 않는다
+배포 후에는 스케줄러 전체 조회 → SLA /api/instances → 스케줄러 전체 재조회로 ID 집합과 상태별 건수를 대조한다
+두 스케줄러 조회 사이에 생성·삭제가 있으면 안정된 시점에 다시 비교한다
+실제 데이터가 0개이거나 한 페이지만 있으면 운영 다중 페이지 검증을 완료했다고 기록하지 않는다
 
 관리자 비밀번호는 무작위 24~72자 ASCII 문자열로 생성한다
 password_hash는 pbkdf2-sha256$600000$<16바이트 salt의 Base64>$<32바이트 해시의 Base64> 형식이며 비밀번호 원문을 넣지 않는다

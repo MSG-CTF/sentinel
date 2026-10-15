@@ -5,6 +5,7 @@ import base64
 import hashlib
 import http.client
 import http.cookies
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -25,20 +26,109 @@ def run(args, *, optional=False):
     return result
 
 
+def token_name(value):
+    denied = {"PATH", "HOME", "PYTHONPATH", "PYTHONHOME", "ENV", "BASH_ENV", "NODE_OPTIONS",
+              "SENTINEL_PROFILE_FILE", "SENTINEL_AUTH_FILE", "SENTINEL_CANDIDATE",
+              "SENTINEL_OPERATIONS_JSON", "SENTINEL_SSH_DISCORD_B64", "SENTINEL_DISCORD_WEBHOOK_URL"}
+    if (not isinstance(value, str) or not re.fullmatch(r"[A-Z][A-Z0-9_]{0,63}", value)
+            or "__" in value or value in denied or value.startswith(("AWS_", "DOTNET_", "ASPNETCORE_", "LD_"))):
+        raise ValueError("Invalid probe credential name")
+    return value
+
+
+def remote_endpoint(value, *, https=False):
+    # urlsplit strips some control characters; reject them before parsing.
+    if not isinstance(value, str) or not value or any(c.isspace() or ord(c) < 32 or ord(c) == 127 for c in value):
+        raise ValueError("Invalid remote endpoint")
+    try:
+        url = urlsplit(value)
+        host = (url.hostname or "").rstrip(".").lower()
+        if (url.scheme not in ({"https"} if https else {"http", "https"}) or not host
+                or url.username is not None or url.password is not None or "?" in value or "#" in value
+                or (url.port is not None and not 1 <= url.port <= 65535)
+                or host in {"localhost", "host.docker.internal"} or host.endswith(".localhost")):
+            raise ValueError("Invalid remote endpoint")
+        try:
+            address = ipaddress.ip_address(host)
+        except ValueError:
+            if (all(re.fullmatch(r"(?:[0-9]+|0x[0-9a-f]+)", label) for label in host.split("."))
+                    or len(host) > 253 or not all(re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label)
+                                         for label in host.split("."))):
+                raise ValueError("Invalid remote endpoint")
+        else:
+            address = getattr(address, "ipv4_mapped", None) or address
+            if address.is_loopback or address.is_unspecified or address.is_link_local:
+                raise ValueError("Remote endpoint must not address the local host")
+    except (ValueError, TypeError):
+        raise ValueError("Remote endpoint must use a valid host, port and permitted transport without credentials") from None
+    return url
+
+
+def instance_credentials(config):
+    """Production inventory is read-only and uses explicit TLS control planes."""
+    fields = {"enabled", "scheduler_url", "scheduler_token_env", "poll_interval_seconds", "timeout_seconds",
+              "runtime_targets", "functional_checks"}
+    if not isinstance(config, dict) or set(config) - fields or type(config.get("enabled")) is not bool:
+        raise ValueError("Invalid instance monitor configuration")
+    if not config["enabled"]:
+        return set()
+    for field, default, low, high in (("poll_interval_seconds", 30, 5, 300), ("timeout_seconds", 4, 1, 10)):
+        value = config.get(field, default)
+        if type(value) is not int or not low <= value <= high:
+            raise ValueError("Invalid instance monitor polling or timeout")
+    if remote_endpoint(config.get("scheduler_url"), https=True).path != "/api/instances":
+        raise ValueError("Production inventory requires the full scheduler list endpoint")
+    names = {token_name(config.get("scheduler_token_env", "SCHEDULER_API_TOKEN"))}
+    runtimes = config.get("runtime_targets", [])
+    if not isinstance(runtimes, list) or len(runtimes) > 16:
+        raise ValueError("Invalid runtime inventory targets")
+    seen = set()
+    for target in runtimes:
+        if (not isinstance(target, dict) or set(target) != {"target_id", "base_url", "auth_token_env"}
+                or not isinstance(target.get("target_id"), str)
+                or not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}", target["target_id"])
+                or target["target_id"] in seen):
+            raise ValueError("Invalid or duplicate runtime inventory target")
+        seen.add(target["target_id"])
+        if remote_endpoint(target["base_url"], https=True).path not in {"", "/"}:
+            raise ValueError("Runtime inventory requires a control-plane origin")
+        names.add(token_name(target["auth_token_env"]))
+    if config.get("functional_checks", []) != []:
+        raise ValueError("Local functional fixtures are not enabled in production")
+    return names
+
+
+def probe_credentials(profile, environment):
+    if not isinstance(profile, dict) or not isinstance(profile.get("instance_monitor"), dict):
+        raise ValueError("Invalid instance monitor configuration")
+    credentials = json.loads(environment.get("SENTINEL_PROBE_SECRETS_JSON") or "{}")
+    if not isinstance(credentials, dict):
+        raise ValueError("Probe credentials must contain a JSON object")
+    inventory = profile.get("instance_monitor", {})
+    # A staged scheduler secret must not enter a disabled inventory container.
+    if (inventory.get("enabled") is True
+            and inventory.get("scheduler_token_env", "SCHEDULER_API_TOKEN") == "SCHEDULER_API_TOKEN"):
+        dedicated = environment.get("SCHEDULER_API_TOKEN")
+        if dedicated:
+            if "SCHEDULER_API_TOKEN" in credentials and credentials["SCHEDULER_API_TOKEN"] != dedicated:
+                raise ValueError("Conflicting scheduler credentials")
+            credentials["SCHEDULER_API_TOKEN"] = dedicated
+    return credentials
+
+
 def validate_configuration(profile, credentials):
     if not isinstance(profile, dict) or not isinstance(credentials, dict):
         raise ValueError("Configuration must contain JSON objects")
     monitor = profile.get("platform_monitor", {})
-    if monitor.get("profile") != "aws" or monitor.get("event_file") != "data/events.jsonl":
+    if (not isinstance(monitor, dict) or monitor.get("profile") != "aws"
+            or monitor.get("event_file") != "data/events.jsonl"):
         raise ValueError("AWS profile identity or event file is invalid")
     if profile.get("platform_recovery", {}).get("enabled") is not False:
         raise ValueError("Production recovery adapter has not been enabled for deployment")
-    if profile.get("instance_monitor", {}).get("enabled") is not False:
-        raise ValueError("Remote instance inventory contract must be verified before enabling")
+    names = instance_credentials(profile.get("instance_monitor"))
     targets = monitor.get("targets")
     if not isinstance(targets, list) or not 1 <= len(targets) <= 32:
         raise ValueError("Invalid target collection")
-    names = set()
     for target in targets:
         if not isinstance(target, dict):
             raise ValueError("Invalid target definition")
@@ -46,28 +136,21 @@ def validate_configuration(profile, credentials):
             if target.get("kind") == "service_heartbeat":
                 if target.get("url") or not target.get("auth_token_env"):
                     raise ValueError("Heartbeat requires a dedicated token and no probe URL")
-                if not isinstance(credentials.get(target["auth_token_env"]), str) or len(credentials[target["auth_token_env"]]) < 32:
+                name = token_name(target["auth_token_env"])
+                if not isinstance(credentials.get(name), str) or len(credentials[name]) < 32:
                     raise ValueError("Heartbeat credential must contain at least 32 characters")
-                names.add(target["auth_token_env"])
-                continue
-            url = urlsplit(target.get("url", ""))
-            if (url.scheme not in {"http", "https"} or not url.hostname
-                    or url.username or url.password or url.query or url.fragment
-                    or url.hostname in {"localhost", "127.0.0.1", "host.docker.internal", "::1"}):
-                raise ValueError("Enabled target needs a remote endpoint without embedded credentials")
-            name = target.get("auth_token_env")
-            if name:
-                if url.scheme != "https":
-                    raise ValueError("Authenticated remote probes require HTTPS")
                 names.add(name)
+                continue
+            name = target.get("auth_token_env")
+            remote_endpoint(target.get("url"), https=bool(name))
+            if name:
+                names.add(token_name(name))
     if set(credentials) != names:
         raise ValueError("Probe credentials must match the enabled profile's token names")
-    denied = {"PATH", "HOME", "PYTHONPATH", "PYTHONHOME", "ENV", "BASH_ENV", "NODE_OPTIONS"}
     for name, value in credentials.items():
-        if (not re.fullmatch(r"[A-Z][A-Z0-9_]{0,63}", name) or name in denied
-                or name.startswith(("AWS_", "DOTNET_", "ASPNETCORE_", "LD_"))
-                or not isinstance(value, str) or not value or len(value) > 8192
-                or any(c in value for c in "\r\n\0")):
+        token_name(name)
+        if (not isinstance(value, str) or not value.strip() or len(value) > 8192
+                or any(ord(c) <= 32 or ord(c) >= 127 for c in value)):
             raise ValueError("Invalid probe credential entry")
     return "".join(name + "=" + value + "\n" for name, value in sorted(credentials.items()))
 
@@ -86,7 +169,7 @@ def build_manifest(directory, revision, run_id, attempt):
 
 def package(directory, destination):
     profile = json.loads(os.environ["SENTINEL_PROFILE_JSON"])
-    credentials = json.loads(os.environ.get("SENTINEL_PROBE_SECRETS_JSON") or "{}")
+    credentials = probe_credentials(profile, os.environ)
     env_file = validate_configuration(profile, credentials)
     env_file += operations_environment(profile, os.environ)
     web_config = validate_web_config(json.loads(os.environ["SENTINEL_WEB_CONFIG_JSON"]))
@@ -104,7 +187,10 @@ def package(directory, destination):
             for name in ("image.tar.gz", "deploy_host.py"):
                 archive.add(directory / name, arcname=name, recursive=False)
             for name in ("profile.json", "probe.env", "release.json"):
-                archive.add(root / name, arcname=name, recursive=False)
+                entry = archive.gettarinfo(root / name, arcname=name)
+                entry.mode = 0o600
+                with (root / name).open("rb") as stream:
+                    archive.addfile(entry, stream)
     os.chmod(destination, 0o600)
 
 
@@ -304,8 +390,8 @@ if __name__ == "__main__":
             build_manifest(args.directory, os.environ["GITHUB_SHA"],
                            os.environ["GITHUB_RUN_ID"], os.environ["GITHUB_RUN_ATTEMPT"])
         elif args.action == "validate":
-            validate_configuration(json.loads(os.environ["SENTINEL_PROFILE_JSON"]),
-                                   json.loads(os.environ.get("SENTINEL_PROBE_SECRETS_JSON") or "{}"))
+            profile = json.loads(os.environ["SENTINEL_PROFILE_JSON"])
+            validate_configuration(profile, probe_credentials(profile, os.environ))
             print("Deployment configuration is valid")
         elif args.action == "verify-web":
             verify_web()

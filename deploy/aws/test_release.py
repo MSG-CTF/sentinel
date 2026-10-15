@@ -45,12 +45,11 @@ class ConfigurationTests(unittest.TestCase):
     def test_observe_only_without_tokens(self):
         self.assertEqual(release.validate_configuration(profile(), {}), "")
 
-    def test_recovery_and_inventory_require_separate_rollout(self):
-        for key in ("platform_recovery", "instance_monitor"):
-            with self.subTest(key=key), self.assertRaises(ValueError):
-                config = profile()
-                config[key]["enabled"] = True
-                release.validate_configuration(config, {})
+    def test_production_recovery_stays_disabled(self):
+        config = profile()
+        config["platform_recovery"]["enabled"] = True
+        with self.assertRaises(ValueError):
+            release.validate_configuration(config, {})
 
     def test_disallows_credentials_in_url_and_local_targets(self):
         for url in ("http://localhost/", "http://127.0.0.1/", "https://user:pass@example.com/",
@@ -97,6 +96,7 @@ class ConfigurationTests(unittest.TestCase):
             config["platform_monitor"]["targets"][0]["auth_token_env"] = "PROBE_TOKEN"
             with patch.dict(os.environ, {"SENTINEL_PROFILE_JSON": json.dumps(config),
                                          "SENTINEL_PROBE_SECRETS_JSON": '{"PROBE_TOKEN":"test-only-secret"}',
+                                         "SCHEDULER_API_TOKEN": "unused-staged-secret",
                                          "SENTINEL_WEB_CONFIG_JSON": json.dumps({
                                              "domain": "sla.example.com", "username": "admin",
                                              "password_hash": 'pbkdf2-sha256$600000$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='})}):
