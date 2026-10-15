@@ -484,7 +484,7 @@ def application_check(lab, service):
     if service.startswith("backend-"):
         url, token = "http://" + service + ":8080/healthz", None
     elif service == "scheduler":
-        url, token = "http://scheduler:8080/api/instances/recent", credentials["SCHEDULER_API_TOKEN"]
+        url, token = "http://scheduler:8080/api/instances", credentials["SCHEDULER_API_TOKEN"]
     else:
         url, token = "http://broker:8000/v1/inventory/resource-targets", credentials["INVENTORY_API_TOKEN"]
     # The request runs inside the isolated network, with no host port or proxy.
@@ -503,7 +503,10 @@ with client.open(urllib.request.Request(request['url'],headers=headers),timeout=
         if service.startswith("backend-"):
             return response if response == {"status": "ok", "database": "ok", "cache": "ok"} else None
         if service == "scheduler":
-            return response if response.get("code") == "SUCCESS" and isinstance(response.get("data"), list) else None
+            data = response.get("data")
+            valid = response.get("code") == "SUCCESS" and isinstance(data, dict) \
+                and isinstance(data.get("items"), list) and "next_cursor" in data
+            return response if valid else None
         return response if isinstance(response.get("items"), list) and isinstance(response.get("total"), int) else None
     response = wait_for(query)
     result = {"service": service, "passed": True, "scope": "healthz_database_cache" if service.startswith("backend-") else "authenticated_inventory_query"}
@@ -512,7 +515,7 @@ with client.open(urllib.request.Request(request['url'],headers=headers),timeout=
         script = "import django,json; django.setup(); from django.contrib.auth import get_user_model; from django.db.migrations.recorder import MigrationRecorder; print(json.dumps({'users':get_user_model().objects.count(),'migrations':MigrationRecorder.Migration.objects.count()}))"
         result["model_rows"] = json.loads(run(["exec", record["Id"], "python", "-c", script]))
     else:
-        result["returned_items"] = len(response["data"] if service == "scheduler" else response["items"])
+        result["returned_items"] = len(response["data"]["items"] if service == "scheduler" else response["items"])
     return result
 
 

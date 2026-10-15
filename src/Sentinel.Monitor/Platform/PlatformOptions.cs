@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
+using Sentinel.Monitor.Instances;
 
 namespace Sentinel.Monitor.Platform;
 
@@ -76,6 +77,7 @@ public sealed class PlatformTarget
             && string.IsNullOrWhiteSpace(ExpectedFields.GetValueOrDefault("operation_id")))
             return false;
         if (!Enabled && string.IsNullOrEmpty(Url)) return true;
+        if (Kind == "scheduler_inventory") return SchedulerInventoryClient.TryEndpoint(Url, out _);
         return Uri.TryCreate(Url, UriKind.Absolute, out var uri)
             && uri.Scheme is "http" or "https" && !string.IsNullOrEmpty(uri.Host)
             && string.IsNullOrEmpty(uri.UserInfo) && string.IsNullOrEmpty(uri.Query)

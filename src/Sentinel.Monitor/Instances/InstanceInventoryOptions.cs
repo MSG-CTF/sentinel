@@ -8,7 +8,7 @@ public sealed class InstanceInventoryOptions
     public const string SectionName = "instance_monitor";
     public bool Enabled { get; set; }
     [ConfigurationKeyName("scheduler_url")]
-    public string SchedulerUrl { get; set; } = "http://scheduler:8080/api/instances/recent";
+    public string SchedulerUrl { get; set; } = "http://scheduler:8080/api/instances";
     [ConfigurationKeyName("scheduler_token_env")]
     public string SchedulerTokenEnv { get; set; } = "SCHEDULER_API_TOKEN";
     [ConfigurationKeyName("poll_interval_seconds")]
@@ -22,7 +22,7 @@ public sealed class InstanceInventoryOptions
 
     public bool IsValid() => !Enabled ||
         (PollIntervalSeconds is >= 5 and <= 300 && TimeoutSeconds is >= 1 and <= 10
-         && ValidUrl(SchedulerUrl) && ValidTokenName(SchedulerTokenEnv)
+         && SchedulerInventoryClient.TryEndpoint(SchedulerUrl, out _) && ValidTokenName(SchedulerTokenEnv)
          && RuntimeTargets.Count <= 16 && RuntimeTargets.All(t => t.IsValid())
          && RuntimeTargets.Select(t => t.TargetId).Distinct().Count() == RuntimeTargets.Count
          && FunctionalChecks.Count <= 20 && FunctionalChecks.All(c => c.IsValid())

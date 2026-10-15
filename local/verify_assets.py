@@ -79,15 +79,16 @@ def main(faults=False):
     public = json.dumps(initial) + get(BASE + "/asset-access.json")[2].decode() + get(BASE + "/api/recovery")[2].decode()
     check("public_status_contains_no_service_credentials", all(value not in public for value in credentials.values()))
     recovery_before = json.loads(get(BASE + "/api/recovery")[2])["requests"]
-    scheduler = "http://127.0.0.1:58182/api/instances/recent"
+    scheduler = "http://127.0.0.1:58182/api/instances"
     broker = "http://127.0.0.1:58183/v1/inventory/resource-targets"
     for name, url in [("scheduler",scheduler),("broker",broker)]:
         check(name + "_requires_authentication", get(url)[0] == 401)
     scheduler_result = get(scheduler, credentials["SCHEDULER_API_TOKEN"])
     broker_result = get(broker, credentials["INVENTORY_API_TOKEN"])
     recent = json.loads(scheduler_result[2])
-    check("scheduler_queries_real_recent_inventory", scheduler_result[0] == 200 and recent["code"] == "SUCCESS"
-          and isinstance(recent["data"], list) and len(recent["data"]) <= 20)
+    check("scheduler_queries_real_first_page", scheduler_result[0] == 200 and recent["code"] == "SUCCESS"
+          and isinstance(recent["data"]["items"], list) and len(recent["data"]["items"]) <= 50
+          and "next_cursor" in recent["data"])
     inventory = json.loads(broker_result[2])
     capacity_path = LOCAL / ".execution/functional/capacity.json"
     capacity = json.loads(capacity_path.read_text(encoding="utf-8")) if capacity_path.exists() else None
@@ -144,9 +145,10 @@ def main(faults=False):
           and {item["asset_id"] for item in final["recovery"]["assets"]} == expected_bindings)
     result = {"passed":True,"checked_at":datetime.now(timezone.utc).isoformat(),"checks":CHECKS,"faults":faults_seen,
         "direct_probes":len(connected),"healthy_assets_including_backend_dependencies":len(connected)+4,"unconfigured_roles":len(missing),
-        "recovery_bindings":len(expected_bindings),"scheduler_recent_count":len(recent["data"]),
+        "recovery_bindings":len(expected_bindings),"scheduler_page_count":len(recent["data"]["items"]),
         "broker_catalog_scope":"explicit_local_fixture_not_cloud" if expected_targets else "empty_inventory",
-        "source_versions":{"scheduler":"5c695142","broker":"99ff5b88","frontend":"c0a85359"}}
+        "scheduler_contract":"GET /api/instances data.items and data.next_cursor",
+        "source_versions":{"broker":"99ff5b88","frontend":"c0a85359"}}
     path = LOCAL / "artifacts" / ("assets-verification-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + ".json")
     path.write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
     print(json.dumps({"passed":True,"checks":len(CHECKS),"report":str(path)},ensure_ascii=False))

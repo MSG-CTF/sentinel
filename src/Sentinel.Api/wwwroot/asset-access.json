@@ -23,7 +23,7 @@
     {
       "asset_id": "scheduler",
       "transport": "로컬 Docker 내부망 HTTP GET",
-      "scope": "인증된 최근 목록과 DB 조회 · 최근 20건 이내이며 전체 실행 대상 목록은 아님",
+      "scope": "인증된 전체 목록 조회 · 마지막 페이지까지 확인하며 실행 상태는 별도 점검",
       "recovery_enabled": true
     },
     {

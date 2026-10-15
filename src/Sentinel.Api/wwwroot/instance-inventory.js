@@ -38,11 +38,12 @@ const SentinelInstances = globalThis.SentinelInstances = (() => {
       && (check.status !== "CHECKER_ERROR" || row.status === "UNVERIFIED");
   }
   function valid(value) {
-    if (!value || value.complete_inventory !== false || value.coverage !== "recent_20"
-      || !["DISABLED","PENDING","PARTIAL","UNAVAILABLE","STALE"].includes(value.status)
-      || !Array.isArray(value.instances) || value.instances.length > 20) return false;
+    if (!value || typeof value.complete_inventory !== "boolean" || value.coverage !== "all_pages"
+      || !["DISABLED","PENDING","COMPLETE","UNAVAILABLE","STALE"].includes(value.status)
+      || !Array.isArray(value.instances)) return false;
+    if (value.complete_inventory !== (value.status === "COMPLETE")) return false;
     if (["DISABLED","PENDING","UNAVAILABLE"].includes(value.status) && value.instances.length) return false;
-    if (["PARTIAL","STALE"].includes(value.status) && !time(value.checked_at)) return false;
+    if (["COMPLETE","STALE"].includes(value.status) && !time(value.checked_at)) return false;
     return new Set(value.instances.map(row => row?.instance_id)).size === value.instances.length && value.instances.every(row =>
       row && uuid.test(row.instance_id) && schedulerStates.has(row.scheduler_status) && Object.hasOwn(states,row.status)
       && row.track === "UNMAPPED" && validCheck(row) && typeof row.ttl_expired === "boolean"
@@ -52,12 +53,12 @@ const SentinelInstances = globalThis.SentinelInstances = (() => {
   }
   function present(value) {
     if (!valid(value)) return {state:"조회 실패", caption:"인스턴스 상태를 가져오지 못함 · 정상 여부 미확인", rows:[]};
-    const labels = {DISABLED:"연결 전",PENDING:"조회 대기",PARTIAL:`최근 ${value.instances.length}개 조회`,UNAVAILABLE:"조회 실패",STALE:"갱신 지연"};
+    const labels = {DISABLED:"연결 전",PENDING:"조회 대기",COMPLETE:`전체 ${value.instances.length}개 조회`,UNAVAILABLE:"조회 실패",STALE:"갱신 지연"};
     const captions = {DISABLED:"이 프로필에는 인스턴스 감시가 연결되지 않음", PENDING:"첫 상태 조회를 기다리는 중",
       UNAVAILABLE:"목록 조회 실패 · 정상 여부 미확인", STALE:"목록 갱신 지연 · 이전 결과로 표시",
-      PARTIAL:value.instances.length ? (value.instances.some(row => row.functional_check)
-        ? "최근 목록의 실행 상태 · 등록된 로컬 시험 서비스만 기능 점검" : "최근 목록의 실행 상태 · 문제 기능 점검 미확인")
-        : "최근 목록에 항목 없음 · 전체 인스턴스가 없다는 뜻은 아님"};
+      COMPLETE:value.instances.length ? (value.instances.some(row => row.functional_check)
+        ? "전체 목록의 실행 상태 · 등록된 로컬 시험 서비스만 기능 점검" : "전체 목록의 실행 상태 · 문제 기능 점검 미확인")
+        : "전체 목록 조회 완료 · 등록된 인스턴스 없음"};
     return {state:labels[value.status],caption:captions[value.status],rows:value.instances.map(row => ({
       id:row.instance_id, status:row.status, title:`${states[row.status]} · ${reasons[row.reason_code] || "상태 확인 필요"}`,
       detail:`Scheduler ${row.scheduler_status} · ${row.ttl_expired ? "사용 기한 초과" : "기한 " + new Date(row.expires_at).toLocaleString("ko-KR", {timeZone:"Asia/Seoul",hour12:false})}`,

@@ -73,7 +73,7 @@
   const gates = [
     {name:"Worker 단일 실행", owner:"스케줄러 · DevSecOps", note:"팀·행 잠금과 프로세스 leader lock은 다름 · Active/Standby 승격 계약과 fencing 미검증"},
     {name:"백업 · 복원 · rollback", owner:"DevSecOps · 백엔드", note:"기존 저장소 6개 복원·원래 볼륨 복귀와 별도로 Runtime Store 격리 복원·작업 6건 재조회 확인 · 운영 전환·VM HA는 미검증"},
-    {name:"문제 inventory · readiness", owner:"Runtime · 스케줄러 · SLA", note:"Scheduler recent 최근 20건과 명시한 로컬 계산 시험의 기능 점검 연결 · 전체 문제 목록·트랙 매핑·대회 문제 healthcheck는 연결 대기"},
+    {name:"문제 inventory · readiness", owner:"Runtime · 스케줄러 · SLA", note:"Scheduler 전체 목록과 등록된 실행 환경의 상태 조회 · 트랙 매핑·대회 문제 기능 점검은 연결 대기"},
     {name:"운영 복구 연결", owner:"SLA · 각 수신팀", note:"기본 앱 7개와 선택한 로컬 Runtime의 정지 컨테이너 기동 · 운영 호스트 접속·자격 증명·수신 API·상태 보존 계약은 연결 대기"}
   ];
   const catalog = {schema_version:1, verified_at:"2026-10-13T14:34:00+09:00", scope:"10월 13일 KoTH·CI·Registry 소스와 로컬 8개 앱 복구·Runtime Store 격리 복원 재검토 · 실행 소스와 최신 검토 소스는 각각의 SHA로 표시", sources, nodes, links, findings, gates};
