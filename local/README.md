@@ -463,16 +463,21 @@ DB와 Runtime을 각각 재기동한 뒤에도 테이블·시퀀스·작업 응�
 도구 출처는 [k3d v5.9.0 릴리스](https://github.com/k3d-io/k3d/releases/tag/v5.9.0), [K3s 공식 컨테이너](https://github.com/k3s-io/k3s/pkgs/container/k3s), [Go 공식 다운로드](https://go.dev/dl/)다
 k3d 바이너리와 Go 압축 파일은 공식 checksum으로 검증하며 K3s와 도구 이미지는 digest로 고정한다
 
-## 최근 인스턴스 감시
+## 전체 인스턴스 감시
 
 등록된 실행 실습 환경에서 Start-Monitor를 실행하면 instance_monitor를 활성화한다
-Scheduler의 인증된 최근 목록에서 최대 20개를 읽고, 명시적으로 등록한 runtime_target_id의 Runtime에 인스턴스 상태를 조회한다
+Scheduler의 GET /api/instances에서 200개씩 읽고 next_cursor가 null일 때까지 다음 페이지를 조회한다
+상태·생성 시각으로 걸러내지 않아 오래된 CLEANUP_PENDING과 종료된 인스턴스도 확인한다
+명시적으로 등록한 runtime_target_id의 Runtime에 인스턴스 상태를 조회한다
 기본 간격은 30초, 요청 제한 시간은 4초, 동시 Runtime 조회는 최대 4개다
-목록과 Runtime 응답 크기는 각각 256 KiB로 제한한다
+목록은 페이지당 2 MiB, 전체 목록 조회는 60초로 제한하며 Runtime 응답은 256 KiB로 제한한다
+한도 초과·중간 실패·중복 ID·커서 반복은 UNAVAILABLE로 표시하고 일부 행을 전체 조회 결과로 내보내지 않는다
+기존 배포 설정의 /api/instances/recent 주소는 /api/instances로 바꿔 요청하며 최근 목록으로 되돌아가지 않는다
 
 GET /api/instances와 자산 상태 화면의 문제 인스턴스 항목에서 결과를 볼 수 있다
-응답은 snake_case이며 전체 목록 확인 여부는 항상 false다
-최근 목록이 비어 있어도 전체 인스턴스가 없거나 모두 정상이라고 판정하지 않는다
+응답은 snake_case이며 전체 페이지 조회가 끝나야 status=COMPLETE, coverage=all_pages, complete_inventory=true가 된다
+마지막 페이지까지 비어 있으면 등록된 인스턴스 없음으로 표시한다
+조회 도중 새로 생성된 인스턴스나 상태 변경은 다음 주기에 반영될 수 있으며 모든 페이지가 한 시점의 DB 스냅샷은 아니다
 Runtime의 READY는 컨테이너·endpoint·노드 준비 상태이며 별도 기능 점검이 등록되지 않으면 문제 기능은 UNVERIFIED로 유지한다
 명시적으로 등록한 로컬 시험 서비스만 기능을 점검하며 트랙은 UNMAPPED로 유지한다
 
@@ -482,7 +487,7 @@ expires_at·idle_expires_at·hard_expires_at 중 가장 빠른 시각을 사용 
 기한 초과나 종료 상태에서 준비된 실행 자원이 남아 있으면 관리자 확인 대상으로 표시한다
 Sentinel 감시기는 인스턴스 삭제·reset·복구 요청을 보내지 않는다
 
-최초 조회 검증 시점의 로컬 Scheduler 최근 목록은 0건이었다
+2026-10-13 최초 조회 검증 시점의 로컬 Scheduler 최근 목록은 0건이었다
 기존 Nginx 연결 시험 인스턴스는 Scheduler가 생성한 인스턴스가 아니므로 목록에 추가하거나 DB에 삽입하지 않는다
 별도 검증 호스트에서 시험용 Scheduler 응답을 실제 Runtime에 연결해 조회·불일치·기한·종료 상태 처리를 확인한다
 이 검증을 실제 Scheduler 생성부터 문제 기능 복구까지의 통합 성공으로 계산하지 않는다
@@ -494,8 +499,19 @@ Sentinel 감시기는 인스턴스 삭제·reset·복구 요청을 보내지 않
 
 Python 검증은 기존 실습 환경과 local/.tooling/dotnet SDK, Debug 빌드 결과가 있어야 실행된다
 시험용 조회 서버와 별도 Sentinel 프로세스는 loopback에만 열며 종료 시 정리한다
-브라우저 검증의 시험 행은 해당 브라우저에서만 주입하며 마지막에는 실제 최근 목록 화면으로 복귀한다
-전체 인스턴스 목록, 트랙 매핑, 문제 기능 결과와 인증된 전용 복구 수신 계약은 다음 연동에 필요하다
+브라우저 검증의 시험 행은 해당 브라우저에서만 주입하며 마지막에는 실제 전체 목록 화면으로 복귀한다
+트랙 매핑, 문제 기능 결과와 인증된 전용 복구 수신 계약은 다음 연동에 필요하다
+
+전체 목록은 별도 PostgreSQL과 실제 Scheduler·Sentinel HTTP 서버로 재현할 수 있다
+Scheduler에서 bootJar, Sentinel에서 dotnet build -c Release를 먼저 실행한다
+
+    python local/verify_scheduler_pagination.py --scheduler-jar /path/to/scheduler.jar --output /tmp/sentinel-pagination
+
+Java 24와 .NET 8 경로는 --java·--dotnet으로 지정하고 WSL Docker는 --wsl-distro Ubuntu-24.04를 추가한다
+시험 DB에 437개를 넣어 모든 ID·순서를 대조하고 200·200·37개 페이지와 오래된 정리 대기 행을 확인한다
+중간 페이지 401·503·커서 반복, 이후 재조회, 삽입·삭제 후 다음 주기 반영도 확인한다
+시험 프로세스와 DB는 종료 시 제거하며 결과·로그는 output 경로에 남긴다
+Runtime은 연결하지 않으므로 이 시험은 문제 생성이나 실행 상태 확인을 증명하지 않는다
 
 ## 로컬 기능 점검과 실제 생성 경로
 

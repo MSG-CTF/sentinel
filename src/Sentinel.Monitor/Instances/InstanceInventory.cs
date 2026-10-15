@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using Sentinel.Monitor.Platform;
+using static Sentinel.Monitor.Instances.SchedulerInventoryClient;
 
 namespace Sentinel.Monitor.Instances;
 
@@ -20,19 +21,19 @@ public sealed class InstanceInventory(HttpClient http, IOptions<InstanceInventor
     private readonly InstanceInventoryOptions _options = options.Value;
     private readonly TimeProvider _clock = timeProvider ?? TimeProvider.System;
     private readonly SemaphoreSlim _refresh = new(1, 1);
-    private InstanceInventorySnapshot _snapshot = new("PENDING", "NOT_CHECKED_YET", "recent_20", false, null, []);
-    private static readonly HashSet<string> States = ["REQUESTED", "SCHEDULING", "PROVISIONING", "RUNNING",
-        "RESTARTING", "RESETTING", "STOPPING", "STOPPED", "FAILED", "EXPIRED", "CLEANUP_PENDING", "CLEANED"];
+    private InstanceInventorySnapshot _snapshot = new("PENDING", "NOT_CHECKED_YET", "all_pages", false, null, []);
     private static readonly HashSet<string> TerminalStates = ["STOPPED", "FAILED", "EXPIRED", "CLEANED"];
 
     public InstanceInventorySnapshot Snapshot()
     {
-        if (!_options.Enabled) return new("DISABLED", "INSTANCE_MONITOR_DISABLED", "recent_20", false, null, []);
+        if (!_options.Enabled) return new("DISABLED", "INSTANCE_MONITOR_DISABLED", "all_pages", false, null, []);
         var snapshot = Volatile.Read(ref _snapshot);
-        // Polling may visit 20 rows in five batches; include the bounded batch duration
-        var staleAfter = 2 * _options.PollIntervalSeconds + (6 + (_options.FunctionalChecks.Count > 0 ? 5 : 0)) * _options.TimeoutSeconds;
+        // Account for the full list and four concurrent runtime checks, including functional probes
+        var batches = (snapshot.Instances.Count + 3) / 4;
+        var staleAfter = 2L * _options.PollIntervalSeconds + ScanTimeoutSeconds
+            + ((long)batches + _options.FunctionalChecks.Count) * _options.TimeoutSeconds;
         if (snapshot.CheckedAt is { } at && (_clock.GetUtcNow() - at).TotalSeconds > staleAfter)
-            return snapshot with { Status = "STALE", ReasonCode = "INVENTORY_REFRESH_STALE",
+            return snapshot with { Status = "STALE", ReasonCode = "INVENTORY_REFRESH_STALE", CompleteInventory = false,
                 Instances = snapshot.Instances.Select(row => Stale(row, "INVENTORY_REFRESH_STALE")).ToArray() };
         return snapshot with { Instances = snapshot.Instances.Select(row =>
             row.RuntimeObservedAt is { } observed && Math.Abs((_clock.GetUtcNow() - observed).TotalSeconds) > 60
@@ -54,36 +55,22 @@ public sealed class InstanceInventory(HttpClient http, IOptions<InstanceInventor
         try
         {
             if (!_options.IsValid()) { Publish("UNAVAILABLE", "INVALID_CONFIGURATION", []); return; }
-            var payload = await GetJson(_options.SchedulerUrl, _options.SchedulerTokenEnv, cancellationToken);
-            using var document = payload.Document;
-            if (document is null) { Publish("UNAVAILABLE", payload.Reason, []); return; }
-            var root = document.RootElement;
-            if (root.ValueKind != JsonValueKind.Object || Text(root, "code") != "SUCCESS"
-                || !root.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array
-                || data.GetArrayLength() > 20)
-            { Publish("UNAVAILABLE", "INVALID_SCHEDULER_INVENTORY", []); return; }
-            var rows = new List<SchedulerRow>();
-            var ids = new HashSet<Guid>();
-            foreach (var item in data.EnumerateArray())
-            {
-                if (!TryRow(item, out var row) || !ids.Add(row!.InstanceId))
-                { Publish("UNAVAILABLE", "INVALID_SCHEDULER_INVENTORY", []); return; }
-                rows.Add(row);
-            }
-            using var concurrency = new SemaphoreSlim(4);
-            var observations = await Task.WhenAll(rows.Select(async row =>
-            {
-                await concurrency.WaitAsync(cancellationToken);
-                try { return await Observe(row, cancellationToken); }
-                finally { concurrency.Release(); }
-            }));
-            Publish("PARTIAL", rows.Count == 0 ? "RECENT_WINDOW_EMPTY" : "RECENT_WINDOW_ONLY", observations);
+            var result = await SchedulerInventoryClient.ReadAsync(http, _options.SchedulerUrl,
+                _options.SchedulerTokenEnv, _options.TimeoutSeconds, cancellationToken);
+            if (!result.Success) { Publish("UNAVAILABLE", result.Reason, []); return; }
+            var rows = result.Rows;
+            var observations = new InstanceObservation[rows.Count];
+            await Parallel.ForEachAsync(Enumerable.Range(0, rows.Count),
+                new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = cancellationToken },
+                async (index, token) => observations[index] = await Observe(rows[index], token));
+            Publish("COMPLETE", rows.Count == 0 ? "INVENTORY_EMPTY" : "ALL_PAGES_READ", observations);
+
         }
         finally { _refresh.Release(); }
     }
 
     private void Publish(string status, string reason, IReadOnlyList<InstanceObservation> rows) =>
-        Volatile.Write(ref _snapshot, new(status, reason, "recent_20", false, _clock.GetUtcNow(), rows));
+        Volatile.Write(ref _snapshot, new(status, reason, "all_pages", status == "COMPLETE", _clock.GetUtcNow(), rows));
 
     private async Task<InstanceObservation> Observe(SchedulerRow row, CancellationToken token)
     {
@@ -175,34 +162,6 @@ public sealed class InstanceInventory(HttpClient http, IOptions<InstanceInventor
         catch (JsonException) { return (null, "INVALID_JSON"); }
     }
 
-    private sealed record SchedulerRow(Guid InstanceId, string Status, string? RuntimeType, string? TargetId,
-        string? WorkloadId, DateTimeOffset ExpiresAt, Guid? ChallengeId);
-    private static bool TryRow(JsonElement row, out SchedulerRow? parsed)
-    {
-        parsed = null;
-        if (row.ValueKind != JsonValueKind.Object || !Guid.TryParse(Text(row, "instance_id"), out var id)
-            || id == Guid.Empty || !States.Contains(Text(row, "status") ?? "")
-            || Timestamp(row, "expires_at") is not { } expiry || Timestamp(row, "hard_expires_at") is not { } hard)
-            return false;
-        foreach (var field in new[] { "runtime_type", "runtime_target_id", "runtime_workload_id" })
-            if (row.TryGetProperty(field, out var value) && value.ValueKind is not (JsonValueKind.Null or JsonValueKind.String)) return false;
-        var type = Text(row, "runtime_type");
-        if (type is not (null or "KUBERNETES" or "VM")) return false;
-        var idle = Timestamp(row, "idle_expires_at");
-        if (row.TryGetProperty("idle_expires_at", out var idleValue)
-            && idleValue.ValueKind != JsonValueKind.Null && idle is null) return false;
-        expiry = expiry < hard ? expiry : hard;
-        if (idle is { } idleAt && idleAt < expiry) expiry = idleAt;
-        Guid? challengeId = null;
-        if (row.TryGetProperty("challenge_id", out var challenge) && challenge.ValueKind != JsonValueKind.Null)
-        {
-            if (challenge.ValueKind != JsonValueKind.String || !Guid.TryParse(challenge.GetString(), out var parsedChallenge)
-                || parsedChallenge == Guid.Empty) return false;
-            challengeId = parsedChallenge;
-        }
-        parsed = new(id, Text(row, "status")!, type, Text(row, "runtime_target_id"), Text(row, "runtime_workload_id"), expiry, challengeId);
-        return true;
-    }
     private static string? Text(JsonElement root, string field) => root.TryGetProperty(field, out var value)
         && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
     private static DateTimeOffset? Timestamp(JsonElement root, string field) => root.TryGetProperty(field, out var value)

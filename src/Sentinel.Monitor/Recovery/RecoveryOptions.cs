@@ -74,7 +74,7 @@ public static class RecoveryBindings
     public static readonly IReadOnlyList<RecoveryBinding> All = [
         new("internal-backend", "INTERNAL", "backend-internal", "backend_healthz", "http://backend-internal:8080/healthz", "BACKEND_READY", [], []),
         new("external-backend", "EXTERNAL", "backend-external", "backend_healthz", "http://backend-external:8080/healthz", "BACKEND_READY", [], []),
-        new("scheduler", "CONTROL", "scheduler", "scheduler_inventory", "http://scheduler:8080/api/instances/recent", "SCHEDULER_QUERY_READY", [], ["scheduler-db"]),
+        new("scheduler", "CONTROL", "scheduler", "scheduler_inventory", "http://scheduler:8080/api/instances", "SCHEDULER_QUERY_READY", [], ["scheduler-db"]),
         new("broker", "CONTROL", "broker", "broker_inventory", "http://broker:8000/v1/inventory/resource-targets", "BROKER_QUERY_READY", [], ["broker-db"]),
         new("internal-frontend", "INTERNAL", "frontend-internal", "http", "http://frontend-internal:8080/", "HTTP_REACHABLE", ["internal-backend"], ["internal-backend"]),
         new("external-frontend", "EXTERNAL", "frontend-external", "http", "http://frontend-external:8080/", "HTTP_REACHABLE", ["external-backend"], ["external-backend"]),

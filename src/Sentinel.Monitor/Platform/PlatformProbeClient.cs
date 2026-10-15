@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using Sentinel.Monitor.Instances;
 
 namespace Sentinel.Monitor.Platform;
 
@@ -17,6 +18,35 @@ public sealed class PlatformProbeClient(HttpClient httpClient, HeartbeatStore? h
             return Result(target, "UNVERIFIED", "INVALID_CONFIGURATION", null, null, null);
         if (target.Kind == "service_heartbeat")
             return heartbeatStore?.Read(target) ?? Result(target, "UNCONFIGURED", "HEARTBEAT_PENDING", null, null, null);
+
+        if (target.Kind == "scheduler_inventory")
+        {
+            var started = Stopwatch.StartNew();
+            var inventory = await SchedulerInventoryClient.ReadAsync(httpClient, target.Url!, target.AuthTokenEnv!, timeoutSeconds, cancellationToken);
+            var status = "HEALTHY";
+            var reason = "SCHEDULER_QUERY_READY";
+            if (!inventory.Success)
+            {
+                (status, reason) = inventory.Reason switch
+                {
+                    "AUTH_TOKEN_NOT_CONFIGURED" => ("UNCONFIGURED", "AUTH_TOKEN_NOT_CONFIGURED"),
+                    "UPSTREAM_TIMEOUT" => ("DOWN", "TIMEOUT"),
+                    "EXPECTED_JSON" => ("UNVERIFIED", "EXPECTED_JSON_RECEIVED_OTHER"),
+                    "INVALID_SCHEDULER_INVENTORY" => ("UNVERIFIED", "INVALID_INVENTORY_CONTRACT"),
+                    "RUNTIME_OR_ENDPOINT_NOT_FOUND" => ("UNVERIFIED", "ENDPOINT_NOT_FOUND"),
+                    "UPSTREAM_UNAVAILABLE" when inventory.HttpStatus == 429 => ("DEGRADED", "HTTP_RATE_LIMITED"),
+                    "UPSTREAM_UNAVAILABLE" when inventory.HttpStatus is null => ("DOWN", "CONNECTION_FAILED"),
+                    "UPSTREAM_UNAVAILABLE" => (inventory.HttpStatus >= 500 ? "DOWN" : "UNVERIFIED", "HTTP_ERROR"),
+                    _ => ("UNVERIFIED", inventory.Reason),
+                };
+            }
+            return Result(target, status, reason, DateTimeOffset.UtcNow, inventory.HttpStatus,
+                Math.Round(started.Elapsed.TotalMilliseconds, 1), inventory.Success ? new Dictionary<string, string>
+                {
+                    ["inventory_total"] = inventory.Rows.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ["page_count"] = inventory.PageCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                } : null);
+        }
 
         using var request = new HttpRequestMessage(HttpMethod.Get, target.Url);
         request.Headers.UserAgent.ParseAdd("MSG-Sentinel/0.1");
@@ -99,16 +129,6 @@ public sealed class PlatformProbeClient(HttpClient httpClient, HeartbeatStore? h
             {
                 var result = RuntimeProbeContract.Check(root, target, DateTimeOffset.UtcNow);
                 return Measured(result.Status, result.Reason, code, result.Components);
-            }
-            if (target.Kind == "scheduler_inventory")
-            {
-                if (!root.TryGetProperty("code", out var resultCode) || resultCode.ValueKind != JsonValueKind.String
-                    || resultCode.GetString() != "SUCCESS" || !root.TryGetProperty("data", out var data)
-                    || data.ValueKind != JsonValueKind.Array || data.GetArrayLength() > 20
-                    || data.EnumerateArray().Any(item => item.ValueKind != JsonValueKind.Object))
-                    return Measured("UNVERIFIED", "INVALID_INVENTORY_CONTRACT", code);
-                return Measured("HEALTHY", "SCHEDULER_QUERY_READY", code,
-                    new Dictionary<string, string> { ["recent_count"] = data.GetArrayLength().ToString(System.Globalization.CultureInfo.InvariantCulture) });
             }
             if (target.Kind == "broker_inventory")
             {

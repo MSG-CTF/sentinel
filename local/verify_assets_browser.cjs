@@ -22,7 +22,7 @@ async (page) => {
     check("sentinel_map_card_includes_added_probes", (await page.locator(".map-observer-reading span").first().textContent()) === `실측: 직접 ${direct} · 구성 요소 4`);
     await page.screenshot({path:`output/playwright/assets-architecture-${suffix}.png`,fullPage:true});
     await page.getByRole("button",{name:/^공통 제어 Scheduler ·/}).click();
-    check("scheduler_discloses_recent_list_scope", (await page.locator("#detail-reason").textContent()).includes("최근 20건"));
+    check("scheduler_discloses_full_list_scope", (await page.locator("#detail-reason").textContent()).includes("전체 목록"));
     check("scheduler_has_local_recovery_and_explicit_verification", (await page.locator("#detail-access-state").textContent()).includes("로컬 복구 활성") && (await page.locator("#detail-access").textContent()).includes("DB 연결 정상 2회"));
     await page.keyboard.press("Escape");
     await page.getByRole("button",{name:/^문제 실행 Runtime API/}).click();

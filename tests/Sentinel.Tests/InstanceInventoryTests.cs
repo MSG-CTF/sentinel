@@ -31,20 +31,20 @@ public sealed class InstanceInventoryTests
             ["state"] = "RUNNING", ["ready"] = true, ["restart_count"] = 0 }),
     };
     private static string Envelope(params JsonObject[] rows) => new JsonObject
-    { ["code"] = "SUCCESS", ["data"] = new JsonArray(rows.Select(row => (JsonNode)row).ToArray()) }.ToJsonString();
+    { ["code"] = "SUCCESS", ["data"] = new JsonObject { ["items"] = new JsonArray(rows.Select(row => (JsonNode)row).ToArray()), ["next_cursor"] = null } }.ToJsonString();
     private static HttpResponseMessage Json(string text, HttpStatusCode code = HttpStatusCode.OK) => new(code)
     { Content = new StringContent(text, Encoding.UTF8, "application/json") };
 
     [Fact]
-    public async Task ReadinessDoesNotImplyCompleteInventoryOrChallengeHealth()
+    public async Task CompleteInventoryDoesNotImplyChallengeHealth()
     {
         using var lab = new Lab();
         await lab.Inventory.RefreshAsync();
         var snapshot = lab.Inventory.Snapshot();
         var row = Assert.Single(snapshot.Instances);
-        Assert.Equal("PARTIAL", snapshot.Status);
-        Assert.False(snapshot.CompleteInventory);
-        Assert.Equal("recent_20", snapshot.Coverage);
+        Assert.Equal("COMPLETE", snapshot.Status);
+        Assert.True(snapshot.CompleteInventory);
+        Assert.Equal("all_pages", snapshot.Coverage);
         Assert.Equal("READY", row.Status);
         Assert.Equal("UNVERIFIED", row.ChallengeHealth);
         Assert.Equal("UNMAPPED", row.Track);
@@ -155,7 +155,7 @@ public sealed class InstanceInventoryTests
         if (fault == "expiry_missing") row.Remove("hard_expires_at");
         if (fault == "unknown_status") row["status"] = "SUCCESS";
         var rows = fault == "duplicate" ? new[] { row, Row() } : fault == "over_limit"
-            ? Enumerable.Range(0, 21).Select(_ => Row()).ToArray() : [row];
+            ? Enumerable.Range(0, 201).Select(_ => Row()).ToArray() : [row];
         using var lab = new Lab(Envelope(rows));
         await lab.Inventory.RefreshAsync();
         Assert.Equal("INVALID_SCHEDULER_INVENTORY", lab.Inventory.Snapshot().ReasonCode);
@@ -164,13 +164,13 @@ public sealed class InstanceInventoryTests
     }
 
     [Fact]
-    public async Task EmptyRecentWindowDoesNotProveThereAreNoOlderInstances()
+    public async Task EmptyFinalPageConfirmsEmptyInventory()
     {
         using var lab = new Lab(Envelope());
         await lab.Inventory.RefreshAsync();
-        Assert.Equal("PARTIAL", lab.Inventory.Snapshot().Status);
-        Assert.Equal("RECENT_WINDOW_EMPTY", lab.Inventory.Snapshot().ReasonCode);
-        Assert.False(lab.Inventory.Snapshot().CompleteInventory);
+        Assert.Equal("COMPLETE", lab.Inventory.Snapshot().Status);
+        Assert.Equal("INVENTORY_EMPTY", lab.Inventory.Snapshot().ReasonCode);
+        Assert.True(lab.Inventory.Snapshot().CompleteInventory);
     }
 
     [Theory]
@@ -217,7 +217,7 @@ public sealed class InstanceInventoryTests
         using var lab = new Lab();
         await lab.Inventory.RefreshAsync();
         lab.Clock.Current = Now.AddSeconds(61);
-        Assert.Equal("PARTIAL", lab.Inventory.Snapshot().Status);
+        Assert.Equal("COMPLETE", lab.Inventory.Snapshot().Status);
         Assert.Equal("STALE", Assert.Single(lab.Inventory.Snapshot().Instances).Status);
     }
 
@@ -354,7 +354,7 @@ public sealed class InstanceInventoryTests
             }));
             var inventory = new InstanceInventory(client, Options.Create(new InstanceInventoryOptions
             {
-                Enabled = true, TimeoutSeconds = 1, SchedulerTokenEnv = key, SchedulerUrl = "http://scheduler.local/api/instances/recent",
+                Enabled = true, TimeoutSeconds = 1, SchedulerTokenEnv = key, SchedulerUrl = "http://scheduler.local/api/instances",
                 RuntimeTargets = [new() { TargetId = "local-k3s", BaseUrl = "http://runtime.local", AuthTokenEnv = key }],
                 FunctionalChecks = [Check()],
             }), new TestClock());
@@ -382,24 +382,24 @@ public sealed class InstanceInventoryTests
             }));
             var inventory = new InstanceInventory(client, Options.Create(new InstanceInventoryOptions
             {
-                Enabled = true, TimeoutSeconds = 1, SchedulerTokenEnv = key, SchedulerUrl = "http://scheduler.local/api/instances/recent",
+                Enabled = true, TimeoutSeconds = 1, SchedulerTokenEnv = key, SchedulerUrl = "http://scheduler.local/api/instances",
                 RuntimeTargets = [new() { TargetId = "local-k3s", BaseUrl = "http://runtime.local", AuthTokenEnv = key }],
             }), new TestClock());
             await inventory.RefreshAsync().WaitAsync(TimeSpan.FromSeconds(5));
-            Assert.Equal("PARTIAL", inventory.Snapshot().Status);
+            Assert.Equal("COMPLETE", inventory.Snapshot().Status);
             Assert.Equal("UPSTREAM_TIMEOUT", Assert.Single(inventory.Snapshot().Instances).ReasonCode);
         }
         finally { Environment.SetEnvironmentVariable(key, null); }
     }
 
     [Fact]
-    public async Task FullRecentWindowUsesAtMostFourConcurrentRuntimeRequests()
+    public async Task FullPageUsesAtMostFourConcurrentRuntimeRequests()
     {
         var key = "INSTANCE_CONCURRENCY_" + Guid.NewGuid().ToString("N").ToUpperInvariant();
         Environment.SetEnvironmentVariable(key, "secret-token");
         try
         {
-            var rows = Enumerable.Range(0, 20).Select(_ => { var row = Row(); row["instance_id"] = Guid.NewGuid().ToString(); return row; }).ToArray();
+            var rows = Enumerable.Range(0, 200).Select(_ => { var row = Row(); row["instance_id"] = Guid.NewGuid().ToString(); return row; }).ToArray();
             var active = 0; var maximum = 0; var gate = new object();
             using var client = new HttpClient(new AsyncHandler(async (request, token) =>
             {
@@ -415,11 +415,11 @@ public sealed class InstanceInventoryTests
             }));
             var inventory = new InstanceInventory(client, Options.Create(new InstanceInventoryOptions
             {
-                Enabled = true, SchedulerTokenEnv = key, SchedulerUrl = "http://scheduler.local/api/instances/recent",
+                Enabled = true, SchedulerTokenEnv = key, SchedulerUrl = "http://scheduler.local/api/instances",
                 RuntimeTargets = [new() { TargetId = "local-k3s", BaseUrl = "http://runtime.local", AuthTokenEnv = key }],
             }), new TestClock());
             await inventory.RefreshAsync();
-            Assert.Equal(20, inventory.Snapshot().Instances.Count);
+            Assert.Equal(200, inventory.Snapshot().Instances.Count);
             Assert.All(inventory.Snapshot().Instances, row => Assert.Equal("READY", row.Status));
             Assert.InRange(maximum, 2, 4);
         }
@@ -463,7 +463,7 @@ public sealed class InstanceInventoryTests
             }));
             Inventory = new(_client, Options.Create(new InstanceInventoryOptions
             {
-                Enabled = true, SchedulerUrl = "http://scheduler.local/api/instances/recent", SchedulerTokenEnv = TokenKey,
+                Enabled = true, SchedulerUrl = "http://scheduler.local/api/instances", SchedulerTokenEnv = TokenKey,
                 RuntimeTargets = [new() { TargetId = "local-k3s", BaseUrl = "http://runtime.local", AuthTokenEnv = TokenKey }],
                 FunctionalChecks = functional is null ? [] : [functional],
             }), Clock);

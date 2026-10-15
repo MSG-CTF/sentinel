@@ -3,26 +3,37 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 require("../src/Sentinel.Api/wwwroot/instance-inventory.js");
 const {present} = globalThis.SentinelInstances;
-const snapshot = () => ({status:"PARTIAL",reason_code:"RECENT_WINDOW_ONLY",coverage:"recent_20",complete_inventory:false,
+const snapshot = () => ({status:"COMPLETE",reason_code:"ALL_PAGES_READ",coverage:"all_pages",complete_inventory:true,
   checked_at:"2026-10-13T04:00:00Z",instances:[{instance_id:"11111111-1111-4111-8111-111111111111",scheduler_status:"RUNNING",
     track:"UNMAPPED",status:"READY",reason_code:"RUNTIME_READY_HEALTHCHECK_UNVERIFIED",runtime_phase:"READY",
     runtime_observed_at:"2026-10-13T04:00:00Z",expires_at:"2026-10-13T05:00:00Z",ttl_expired:false,
     challenge_health:"UNVERIFIED",recovery_action:"none"}]});
 
-test("ready workload remains partial and does not claim challenge health", () => {
+test("complete inventory does not claim challenge health", () => {
   const model = present(snapshot());
-  assert.equal(model.state,"최근 1개 조회");
+  assert.equal(model.state,"전체 1개 조회");
   assert.match(model.rows[0].title,/문제 기능 미확인/);
   assert.match(model.caption,/문제 기능 점검 미확인/);
 });
-test("empty recent window is not a complete inventory", () => {
+test("empty complete inventory is displayed clearly", () => {
   const value = snapshot(); value.instances = [];
-  assert.match(present(value).caption,/전체 인스턴스가 없다는 뜻은 아님/);
+  assert.match(present(value).caption,/등록된 인스턴스 없음/);
+});
+
+test("all 437 rows are visible, including the oldest cleanup request", () => {
+  const value = snapshot(), row = value.instances[0];
+  value.instances = Array.from({length:437}, (_, index) => ({...row,
+    instance_id:`80000000-0000-4000-8000-${(index+1).toString(16).padStart(12,"0")}`,
+    scheduler_status:index === 436 ? "CLEANUP_PENDING" : "RUNNING"}));
+  const model = present(value);
+  assert.equal(model.state,"전체 437개 조회");
+  assert.equal(model.rows.length,437);
+  assert.match(model.rows[436].detail,/CLEANUP_PENDING/);
 });
 test("failure and invalid contracts clear previous ready results", () => {
   for (const fault of ["offline","full_inventory","duplicate","unknown_status","bad_id","false_health","false_stale"]) {
     const value = snapshot();
-    if (fault === "full_inventory") value.complete_inventory = true;
+    if (fault === "full_inventory") value.complete_inventory = false;
     if (fault === "duplicate") value.instances.push({...value.instances[0]});
     if (fault === "unknown_status") value.instances[0].status = "HEALTHY";
     if (fault === "bad_id") value.instances[0].instance_id = "<script>";
@@ -33,7 +44,7 @@ test("failure and invalid contracts clear previous ready results", () => {
   }
 });
 test("aged observations cannot retain a ready label", () => {
-  const value = snapshot(); value.status = "STALE"; value.instances[0].status = "STALE";
+  const value = snapshot(); value.status = "STALE"; value.complete_inventory = false; value.instances[0].status = "STALE";
   value.instances[0].reason_code = "INVENTORY_REFRESH_STALE"; value.instances[0].recovery_action = "manual_review";
   const model = present(value);
   assert.equal(model.state,"갱신 지연");

@@ -1,6 +1,6 @@
 {
-  "reviewed_date": "2026-10-13",
-  "execution": "recent_instance_observation_and_real_local_functional_fixture_lifecycle",
+  "reviewed_date": "2026-10-15",
+  "execution": "paginated_scheduler_inventory_and_existing_runtime_observation",
   "mode": "observe_only",
   "scope": "scheduler_and_runtime_inventory",
   "local_recovery": {
@@ -12,18 +12,19 @@
     "production_enabled": false
   },
   "scheduler": {
-    "local_execution": "authenticated_recent_query",
-    "local_url": "http://scheduler:8080/api/instances/recent",
-    "source_sha": "5c695142871a5a926b96d7befcaf0832c691933f",
+    "local_execution": "authenticated_paginated_query",
+    "local_url": "http://scheduler:8080/api/instances",
+    "source_sha": "eb674aa34f7b808c518eff0a477f89d2d1c7a590",
     "method": "GET",
-    "path": "/api/instances/recent",
+    "path": "/api/instances",
     "authentication": "Bearer service token",
-    "response_envelope": "code=SUCCESS, data=array",
-    "coverage": "latest_20_by_created_at",
-    "complete_inventory": false,
+    "response_envelope": "code=SUCCESS, data.items=array, data.next_cursor=string_or_null",
+    "coverage": "all_pages_without_status_or_date_filters",
+    "complete_inventory": true,
+    "pagination": {"limit": 200, "termination": "next_cursor=null", "scan_timeout_seconds": 60, "max_page_bytes": 2097152, "failure_policy": "UNAVAILABLE_without_partial_rows", "legacy_url_policy": "recent_path_migrates_to_list_path"},
     "fields": ["instance_id", "challenge_id", "status", "runtime_type", "runtime_target_id", "runtime_workload_id", "registry_revision", "updated_at", "expires_at", "idle_expires_at", "hard_expires_at"],
     "missing_fields": ["runtime_operation_id", "track", "healthcheck_result"],
-    "required_inputs": ["base_url", "service_token_reference", "approved_track_mapping", "complete_inventory_or_pagination_contract"]
+    "required_inputs": ["base_url", "service_token_reference", "approved_track_mapping"]
   },
   "runtime": {
     "local_execution": "fixed_nginx_fixture_and_scheduler_created_functional_fixture_on_local_k3s_with_postgres_store",
@@ -46,7 +47,7 @@
   },
   "comparison": {
     "local_api": "/api/instances",
-    "inventory_status": "PARTIAL_even_when_all_recent_rows_are_ready_or_the_window_is_empty",
+    "inventory_status": "COMPLETE_only_after_all_pages_are_validated_otherwise_UNAVAILABLE",
     "workload_ready_status": "READY_with_challenge_health_UNVERIFIED_unless_an_explicit_local_functional_binding_passes",
     "runtime_connection_policy": "explicit_target_id_to_trusted_base_url_mapping_KUBERNETES_only",
     "observation_max_age_seconds": 60,

@@ -9,7 +9,7 @@ namespace Sentinel.Tests;
 public sealed class InventoryProbeTests
 {
     [Theory]
-    [InlineData("scheduler_inventory", "{\"code\":\"SUCCESS\",\"data\":[]}", "SCHEDULER_QUERY_READY")]
+    [InlineData("scheduler_inventory", "{\"code\":\"SUCCESS\",\"data\":{\"items\":[],\"next_cursor\":null}}", "SCHEDULER_QUERY_READY")]
     [InlineData("broker_inventory", "{\"total\":0,\"limit\":100,\"offset\":0,\"items\":[]}", "BROKER_QUERY_READY")]
     public async Task EmptyAuthenticatedInventoryProvesQueryOnly(string kind, string body, string reason)
     {
@@ -79,7 +79,7 @@ public sealed class InventoryProbeTests
         {
             var handler = new Handler { Body = body };
             var target = new PlatformTarget { TargetId="control", Name="Control", Role="CONTROL", Track="CONTROL",
-                Kind=kind, Url="http://localhost/inventory", AuthTokenEnv=key, EvidenceScope="query_only" };
+                Kind=kind, Url=kind == "scheduler_inventory" ? "http://localhost/api/instances" : "http://localhost/inventory", AuthTokenEnv=key, EvidenceScope="query_only" };
             var result = await new PlatformProbeClient(new HttpClient(handler)).CheckAsync(target, 2);
             return (result, handler.Requests);
         }

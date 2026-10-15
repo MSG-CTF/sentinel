@@ -1,4 +1,4 @@
-"""Read-only local checks: real recent inventory, then a synthetic Scheduler row joined to real Runtime."""
+"""Read-only local checks: real paginated inventory, then a synthetic Scheduler row joined to real Runtime."""
 import datetime as dt
 import json
 import os
@@ -10,6 +10,7 @@ import tempfile
 import threading
 import time
 import urllib.request
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import execution_lab as lab
@@ -44,7 +45,7 @@ def wait(check):
 
 def main():
     report = {"started_at": now(), "passed": False, "checks": [],
-              "scope": "live_empty_recent_inventory_and_synthetic_row_joined_to_real_runtime",
+              "scope": "live_complete_inventory_and_synthetic_row_joined_to_real_runtime",
               "scheduler_creation_flow_verified": False, "competition_challenge_verified": False,
               "instance_mutations_sent": 0}
 
@@ -58,12 +59,24 @@ def main():
     process = None
     server = None
     try:
-        live = wait(lambda: (lambda value: value if value["status"] == "PARTIAL" else None)(get("http://127.0.0.1:58240/api/instances")))
-        scheduler = get("http://127.0.0.1:58182/api/instances/recent", credentials["SCHEDULER_API_TOKEN"])
-        check("live_recent_window_is_partial", live["complete_inventory"] is False and live["coverage"] == "recent_20")
-        check("live_recent_window_matches_real_scheduler", scheduler["code"] == "SUCCESS"
-              and {row["instance_id"] for row in live["instances"]} == {row["instance_id"] for row in scheduler["data"]})
-        report["live_recent_count"] = len(live["instances"])
+        live = wait(lambda: (lambda value: value if value["status"] == "COMPLETE" else None)(get("http://127.0.0.1:58240/api/instances")))
+        scheduler_rows, cursors, cursor = [], set(), None
+        deadline = time.monotonic() + 60
+        while True:
+            query = urllib.parse.urlencode({"limit": 200, **({"cursor": cursor} if cursor is not None else {})})
+            page = get("http://127.0.0.1:58182/api/instances?" + query, credentials["SCHEDULER_API_TOKEN"])
+            check("scheduler_page_valid", page["code"] == "SUCCESS" and isinstance(page["data"]["items"], list))
+            scheduler_rows.extend(page["data"]["items"])
+            cursor = page["data"]["next_cursor"]
+            if cursor is None:
+                break
+            if not isinstance(cursor, str) or not cursor or cursor in cursors or time.monotonic() >= deadline:
+                raise RuntimeError("INVALID_SCHEDULER_PAGINATION")
+            cursors.add(cursor)
+        check("live_inventory_is_complete", live["complete_inventory"] is True and live["coverage"] == "all_pages")
+        check("live_inventory_matches_real_scheduler", [row["instance_id"] for row in live["instances"]]
+              == [row["instance_id"] for row in scheduler_rows])
+        report["live_instance_count"] = len(live["instances"])
         status = lab.runtime("instances/" + lab.INSTANCE + "/runtime-status")
         check("fixed_runtime_fixture_ready", status["phase"] == "READY" and status["instance_id"] == lab.INSTANCE)
         fixture_token = secrets.token_urlsafe(32)
@@ -78,11 +91,11 @@ def main():
                 pass
 
             def do_GET(self):
-                if self.path != "/api/instances/recent" or self.headers.get("Authorization") != "Bearer " + fixture_token:
+                if self.path != "/api/instances?limit=200" or self.headers.get("Authorization") != "Bearer " + fixture_token:
                     self.send_response(401)
                     self.end_headers()
                     return
-                payload = json.dumps({"code": "SUCCESS", "data": [dict(state["row"])]}).encode()
+                payload = json.dumps({"code": "SUCCESS", "data": {"items": [dict(state["row"])], "next_cursor": None}}).encode()
                 self.send_response(state["code"])
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(payload)))
@@ -100,7 +113,7 @@ def main():
                         "targets": [{"target_id": "unused", "name": "Unused", "role": "TEST", "track": "TEST", "enabled": False}]},
                        "platform_recovery": {"enabled": False},
                        "instance_monitor": {"enabled": True, "poll_interval_seconds": 5,
-                        "scheduler_url": f"http://127.0.0.1:{server.server_port}/api/instances/recent",
+                        "scheduler_url": f"http://127.0.0.1:{server.server_port}/api/instances",
                         "scheduler_token_env": "INSTANCE_FIXTURE_TOKEN", "runtime_targets": [
                             {"target_id": lab.TARGET, "base_url": "http://127.0.0.1:58188", "auth_token_env": "INSTANCE_FIXTURE_RUNTIME_TOKEN"}]}}
             profile_path = folder / "profile.json"
@@ -122,7 +135,7 @@ def main():
                     joined = observe("RUNTIME_READY_HEALTHCHECK_UNVERIFIED")
                     check("synthetic_row_joins_real_runtime_readiness", joined["instances"][0]["status"] == "READY")
                     check("joined_row_keeps_health_and_track_unverified", joined["instances"][0]["challenge_health"] == "UNVERIFIED"
-                          and joined["instances"][0]["track"] == "UNMAPPED" and joined["complete_inventory"] is False)
+                          and joined["instances"][0]["track"] == "UNMAPPED" and joined["complete_inventory"] is True)
                     state["row"] = dict(row, status="CLEANED")
                     check("synthetic_terminal_row_detects_real_resource", observe("TERMINAL_RESOURCE_PRESENT")["instances"][0]["status"] == "DOWN")
                     state["row"] = dict(row, expires_at="2026-01-01T00:00:00Z")

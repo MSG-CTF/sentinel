@@ -12,7 +12,7 @@ REPORT = f.lab.LOCAL / "artifacts/functional-flow-verification.json"
 def inventory_row(instance_id):
     with urllib.request.build_opener(urllib.request.ProxyHandler({})).open("http://127.0.0.1:58240/api/instances", timeout=6) as response:
         data = json.load(response)
-    f.recovery.require(data["complete_inventory"] is False and data["coverage"] == "recent_20", "INVALID_INVENTORY_SCOPE")
+    f.recovery.require(data["complete_inventory"] is True and data["coverage"] == "all_pages", "INVALID_INVENTORY_SCOPE")
     return next((row for row in data["instances"] if row["instance_id"] == instance_id), None)
 
 
