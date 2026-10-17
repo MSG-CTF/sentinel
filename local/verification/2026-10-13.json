@@ -1,0 +1,198 @@
+{
+  "schema_version": 1,
+  "reviewed_date": "2026-10-13",
+  "timezone": "Asia/Seoul",
+  "generated_at": "2026-10-13T04:10:39.376112+00:00",
+  "evidence_origin": "local_execution_not_github_actions",
+  "worktree_base_commit": "6b527e31d7ccc084f34966882742a1e08562a43b",
+  "review_scope": {
+    "captured_at": "2026-10-13T12:37:11.512939+09:00",
+    "repositories": 10,
+    "remote_branches": 328,
+    "open_pull_requests": 21,
+    "all_branch_code_paths_executed": false,
+    "implementation_focus": "SLA_inventory_runtime_contracts",
+    "notion_task_rows": 15,
+    "notion_main_page_unreadable_repository_objects": 2
+  },
+  "unit_verification": {
+    "dotnet_unit_tests": 146,
+    "dotnet_new_inventory_cases": 39,
+    "dotnet_entrypoint_test": 1,
+    "dotnet_test_command": "dotnet test Sentinel.sln --no-restore",
+    "dashboard_tests": 57,
+    "dashboard_inventory_cases": 5,
+    "dashboard_test_command": "node --test local/*.test.cjs",
+    "result": "passed"
+  },
+  "local_contract_verification": {
+    "started_at": "2026-10-13T03:59:03.620243Z",
+    "passed": true,
+    "checks": [
+      {
+        "name": "live_recent_window_is_partial",
+        "passed": true
+      },
+      {
+        "name": "live_recent_window_matches_real_scheduler",
+        "passed": true
+      },
+      {
+        "name": "fixed_runtime_fixture_ready",
+        "passed": true
+      },
+      {
+        "name": "synthetic_row_joins_real_runtime_readiness",
+        "passed": true
+      },
+      {
+        "name": "joined_row_keeps_health_and_track_unverified",
+        "passed": true
+      },
+      {
+        "name": "synthetic_terminal_row_detects_real_resource",
+        "passed": true
+      },
+      {
+        "name": "synthetic_expiry_detects_real_resource",
+        "passed": true
+      },
+      {
+        "name": "synthetic_binding_mismatch_stays_unverified",
+        "passed": true
+      },
+      {
+        "name": "scheduler_failure_clears_joined_rows",
+        "passed": true
+      },
+      {
+        "name": "real_fixture_binding_preserved",
+        "passed": true
+      }
+    ],
+    "scope": "live_empty_recent_inventory_and_synthetic_row_joined_to_real_runtime",
+    "scheduler_creation_flow_verified": false,
+    "competition_challenge_verified": false,
+    "instance_mutations_sent": 0,
+    "live_recent_count": 0,
+    "completed_at": "2026-10-13T03:59:35.807340Z"
+  },
+  "browser_verification": {
+    "passed": true,
+    "checks": [
+      "live_empty_recent_window_remains_incomplete",
+      "existing_assets_remain_sixteen_healthy",
+      "synthetic_ready_row_does_not_claim_problem_health",
+      "no_instance_reset_control",
+      "mobile_has_no_page_overflow",
+      "failed_inventory_clears_ready_rows",
+      "inventory_failure_does_not_remove_asset_results",
+      "offline_clears_instance_and_asset_readiness",
+      "reconnection_restores_real_empty_window",
+      "no_javascript_errors"
+    ],
+    "synthetic_ui_rows": true,
+    "command": "playwright-cli -s=sentinel-sla-1013 --raw run-code --filename local/verify_instance_browser.cjs",
+    "desktop_viewport": [
+      1440,
+      1000
+    ],
+    "mobile_viewport": [
+      390,
+      844
+    ]
+  },
+  "live_state": {
+    "profile": "local-recovery",
+    "mode": "automatic_local",
+    "direct_healthy_targets": 12,
+    "dashboard_healthy_assets": 16,
+    "dashboard_unconfigured_assets": 9,
+    "local_recovery_executor_connected": true,
+    "local_recovery_asset_count": 8,
+    "instance_inventory": {
+      "status": "PARTIAL",
+      "reason_code": "RECENT_WINDOW_EMPTY",
+      "coverage": "recent_20",
+      "complete_inventory": false,
+      "checked_at": "2026-10-13T04:10:21.3429368Z",
+      "instances": []
+    }
+  },
+  "deployment": {
+    "project": "msg-sla-real-local",
+    "monitor_image_id": "sha256:3d2521f7adb693227c2c6d5914f6c44e8c5018ce669b0d3bac849653712ba7f8",
+    "dashboard_assets": "read_only_source_mount",
+    "upstream_services": "existing_pinned_lab_versions_restarted"
+  },
+  "limitations": [
+    "recent_20_is_not_full_inventory",
+    "actual_scheduler_recent_window_was_empty",
+    "synthetic_scheduler_rows_are_not_a_real_creation_flow",
+    "runtime_fixture_is_not_a_competition_challenge",
+    "challenge_functional_health_and_track_mapping_unverified",
+    "no_instance_mutation_or_automatic_instance_recovery",
+    "prior_backup_restore_and_service_cutover_drills_not_rerun",
+    "windows_koth_cloud_assets_not_connected",
+    "unit_and_browser_mocks_are_E2_not_full_cross_team_E3_or_deployed_E4"
+  ],
+  "source_hash_normalization": "utf8_crlf_to_lf",
+  "source_hashes": [
+    {
+      "file": "src/Sentinel.Api/Program.cs",
+      "sha256": "8cf88555d1e040a00e3505d0573a75b494bd3c7a4af16070aba74dc1dfd14c40"
+    },
+    {
+      "file": "src/Sentinel.Api/wwwroot/instance-inventory.js",
+      "sha256": "fdf313b386351421a395c8638a4186fcacec11a78782125c80ffcbadecbcf4fe"
+    },
+    {
+      "file": "src/Sentinel.Api/wwwroot/index.html",
+      "sha256": "3fccf0941c893080ece7de3fad5c0c04aef035f3ad22c8f8062b10466cfe2fe6"
+    },
+    {
+      "file": "src/Sentinel.Api/wwwroot/dashboard.js",
+      "sha256": "4bd36871679f511f0fbc3c7bef533bb40219b9526a1a34e381c664463aabdd33"
+    },
+    {
+      "file": "src/Sentinel.Api/wwwroot/dashboard.css",
+      "sha256": "54d12a524189122ce21214d702ce490e428e4d8c0e313b9ccee8a7c24ab6f397"
+    },
+    {
+      "file": "src/Sentinel.Monitor/Instances/InstanceInventory.cs",
+      "sha256": "805c30598c5c99d0152f09ac665f70c513976d3b725b52d54148a1244f975a96"
+    },
+    {
+      "file": "src/Sentinel.Monitor/Instances/InstanceInventoryOptions.cs",
+      "sha256": "ad52409ff3dbb4f2abc5a390cf0af568e683d78c582efccc790d8feb59ff84e1"
+    },
+    {
+      "file": "src/Sentinel.Monitor/Instances/InstanceInventoryRegistration.cs",
+      "sha256": "d29b4c3384784102e13b94d8b85965a79abcde3eac2f1959cf94b2e38e456c04"
+    },
+    {
+      "file": "tests/Sentinel.Tests/InstanceInventoryTests.cs",
+      "sha256": "b68333cd9ab60b6fe08426d0fecb2bca8a884d10d762d26ea8a6f4db85b4f6bc"
+    },
+    {
+      "file": "local/execution_lab.py",
+      "sha256": "336c321d7cfb0f4e3916cfffff002e53902a50d1301a4b481515af33b808cf8d"
+    },
+    {
+      "file": "local/instance-inventory.test.cjs",
+      "sha256": "fd0b562879ec05245977fe1e903f5898dc8cd51b4a6cce605d983b4001e194d3"
+    },
+    {
+      "file": "local/verify_instance_inventory.py",
+      "sha256": "ccde087049c68705117b9ce8a0cc2a680c62a1bb1208a88e04908ac6df8866d1"
+    },
+    {
+      "file": "local/verify_instance_browser.cjs",
+      "sha256": "459f6c9e579bbf3147389a8d095a7f998c1229ee9bce6df3d65a55cc84307610"
+    },
+    {
+      "file": "local/inventory-contracts.json",
+      "sha256": "1a5e5261f3983de29b0f49b2ba0e22aa1a41a08350fcda609603fdd67b5f683e"
+    }
+  ]
+}

@@ -1,0 +1,397 @@
+{
+  "schema_version": 1,
+  "reviewed_date": "2026-10-13",
+  "timezone": "Asia/Seoul",
+  "generated_at": "2026-10-13T04:48:12.821917+00:00",
+  "evidence_origin": "local_execution_not_github_actions",
+  "evidence_level": "E3_local_service_boundaries_with_explicit_test_catalog_and_imported_fixture",
+  "worktree_base_commit": "6b527e31d7ccc084f34966882742a1e08562a43b",
+  "changes_committed": false,
+  "source_versions": {
+    "scheduler": "5c695142871a5a926b96d7befcaf0832c691933f",
+    "broker": "99ff5b884e4bf2198dabca84a179c11f5a516785",
+    "runtime": "19d2fdffef753bb9415861c4a6b382b6408455ea"
+  },
+  "running_image_ids": {
+    "scheduler": "sha256:b4d82d3c342fdf008c4f043276872e451153158e319ec095ad5f469a9c64a4f7",
+    "broker": "sha256:1f1f6201f7e7398b77896566d69d4d06a6f2fda53b94f23ea5a605258e3b0b11",
+    "runtime": "sha256:d90c69e1fdfa554e14a6114ae264aa460ff24bcaf33177e45cf20a331ff78c45",
+    "sentinel": "sha256:80b9876d7d78faaec699cc11ee03184c84f9a6502e36b0c2f5b63c861d18ea03"
+  },
+  "fixture_image": {
+    "image": "ghcr.io/msg-ctf/sentinel-local-functional-fixture@sha256:7e4261c42137345a3a3f788311d18e24d0629444d81188bcee5df1c79ecef409",
+    "published": false,
+    "scope": "sentinel_local_functional_fixture"
+  },
+  "unit_verification": {
+    "dotnet_unit_cases_verified": 167,
+    "full_unit_run_passed": 166,
+    "supplemental_timeout_case_passed": 1,
+    "dotnet_entrypoint_test_passed": 1,
+    "dashboard_tests_passed": 59,
+    "commands": [
+      "dotnet test Sentinel.sln --no-restore",
+      "dotnet test tests/Sentinel.Tests --no-restore --filter FullyQualifiedName~UnresponsiveFunctionHasABoundedDeadline",
+      "node --test local/*.test.cjs"
+    ]
+  },
+  "local_lifecycle_verification": {
+    "started_at": "2026-10-13T04:38:17.772387+00:00",
+    "passed": true,
+    "scope": "real_local_scheduler_broker_runtime_with_imported_functional_fixture",
+    "competition_challenge_verified": false,
+    "cloud_api_verified": false,
+    "node_agent_verified": false,
+    "automatic_instance_recovery_enabled": false,
+    "checks": [
+      {
+        "name": "real_create_and_commit",
+        "passed": true,
+        "checked_at": "2026-10-13T04:38:18.919187+00:00",
+        "evidence": {
+          "instance_id": "36707ab3-5c17-4785-b66a-4bc6f643fc4a",
+          "observation": {
+            "instance_id": "36707ab3-5c17-4785-b66a-4bc6f643fc4a",
+            "scheduler_status": "RUNNING",
+            "track": "UNMAPPED",
+            "status": "READY",
+            "reason_code": "RUNTIME_READY_FUNCTIONAL_CHECK_PASSED",
+            "runtime_phase": "READY",
+            "runtime_observed_at": "2026-10-13T04:38:06.5891739Z",
+            "expires_at": "2026-10-13T06:34:15.1330000Z",
+            "ttl_expired": false,
+            "challenge_health": "UP",
+            "recovery_action": "none",
+            "functional_check": {
+              "check_id": "local_36707ab35c174785b66a4bc6f643fc4a",
+              "scope": "local_functional_fixture",
+              "status": "UP",
+              "reason_code": "FUNCTION_RESULT_CONFIRMED",
+              "checked_at": "2026-10-13T04:38:06.8481566Z"
+            }
+          }
+        }
+      },
+      {
+        "name": "wrong_result_distinguished_from_ready",
+        "passed": true,
+        "checked_at": "2026-10-13T04:38:37.128492+00:00",
+        "evidence": {
+          "instance_id": "36707ab3-5c17-4785-b66a-4bc6f643fc4a",
+          "scheduler_status": "RUNNING",
+          "track": "UNMAPPED",
+          "status": "DOWN",
+          "reason_code": "FUNCTIONAL_CHECK_FAILED",
+          "runtime_phase": "READY",
+          "runtime_observed_at": "2026-10-13T04:38:36.2311099Z",
+          "expires_at": "2026-10-13T06:34:15.1330000Z",
+          "ttl_expired": false,
+          "challenge_health": "DOWN",
+          "recovery_action": "manual_review",
+          "functional_check": {
+            "check_id": "local_36707ab35c174785b66a4bc6f643fc4a",
+            "scope": "local_functional_fixture",
+            "status": "DOWN",
+            "reason_code": "WRONG_FUNCTION_RESULT",
+            "checked_at": "2026-10-13T04:38:36.8395234Z"
+          }
+        }
+      },
+      {
+        "name": "invalid_json_distinguished_from_ready",
+        "passed": true,
+        "checked_at": "2026-10-13T04:39:08.840486+00:00",
+        "evidence": {
+          "instance_id": "36707ab3-5c17-4785-b66a-4bc6f643fc4a",
+          "scheduler_status": "RUNNING",
+          "track": "UNMAPPED",
+          "status": "UNVERIFIED",
+          "reason_code": "FUNCTIONAL_CHECKER_ERROR",
+          "runtime_phase": "READY",
+          "runtime_observed_at": "2026-10-13T04:39:06.6229943Z",
+          "expires_at": "2026-10-13T06:34:15.1330000Z",
+          "ttl_expired": false,
+          "challenge_health": "CHECKER_ERROR",
+          "recovery_action": "manual_review",
+          "functional_check": {
+            "check_id": "local_36707ab35c174785b66a4bc6f643fc4a",
+            "scope": "local_functional_fixture",
+            "status": "CHECKER_ERROR",
+            "reason_code": "INVALID_JSON",
+            "checked_at": "2026-10-13T04:39:06.8356127Z"
+          }
+        }
+      },
+      {
+        "name": "unavailable_distinguished_from_ready",
+        "passed": true,
+        "checked_at": "2026-10-13T04:39:37.308012+00:00",
+        "evidence": {
+          "instance_id": "36707ab3-5c17-4785-b66a-4bc6f643fc4a",
+          "scheduler_status": "RUNNING",
+          "track": "UNMAPPED",
+          "status": "DOWN",
+          "reason_code": "FUNCTIONAL_CHECK_FAILED",
+          "runtime_phase": "READY",
+          "runtime_observed_at": "2026-10-13T04:39:36.5579618Z",
+          "expires_at": "2026-10-13T06:34:15.1330000Z",
+          "ttl_expired": false,
+          "challenge_health": "DOWN",
+          "recovery_action": "manual_review",
+          "functional_check": {
+            "check_id": "local_36707ab35c174785b66a4bc6f643fc4a",
+            "scope": "local_functional_fixture",
+            "status": "DOWN",
+            "reason_code": "FUNCTION_UNAVAILABLE",
+            "checked_at": "2026-10-13T04:39:36.7646070Z"
+          }
+        }
+      },
+      {
+        "name": "manual_fault_clear_restores_function",
+        "passed": true,
+        "checked_at": "2026-10-13T04:40:07.949352+00:00",
+        "evidence": {
+          "instance_id": "36707ab3-5c17-4785-b66a-4bc6f643fc4a",
+          "scheduler_status": "RUNNING",
+          "track": "UNMAPPED",
+          "status": "READY",
+          "reason_code": "RUNTIME_READY_FUNCTIONAL_CHECK_PASSED",
+          "runtime_phase": "READY",
+          "runtime_observed_at": "2026-10-13T04:40:06.5849457Z",
+          "expires_at": "2026-10-13T06:34:15.1330000Z",
+          "ttl_expired": false,
+          "challenge_health": "UP",
+          "recovery_action": "none",
+          "functional_check": {
+            "check_id": "local_36707ab35c174785b66a4bc6f643fc4a",
+            "scope": "local_functional_fixture",
+            "status": "UP",
+            "reason_code": "FUNCTION_RESULT_CONFIRMED",
+            "checked_at": "2026-10-13T04:40:06.8202854Z"
+          }
+        }
+      },
+      {
+        "name": "user_delete_releases_real_resources",
+        "passed": true,
+        "checked_at": "2026-10-13T04:40:36.791771+00:00",
+        "evidence": {
+          "instance_id": "36707ab3-5c17-4785-b66a-4bc6f643fc4a",
+          "scheduler": "CLEANED",
+          "runtime": "TERMINATED",
+          "broker": "RELEASED",
+          "release_reason": "SCHEDULER_CANCELLED",
+          "namespace_absent": true,
+          "sentinel": "REMOVED"
+        }
+      },
+      {
+        "name": "ttl_expiry_releases_real_resources",
+        "passed": true,
+        "checked_at": "2026-10-13T04:42:36.633073+00:00",
+        "evidence": {
+          "instance_id": "20adeef1-4b18-4091-9056-ef7e5caa8618",
+          "scheduler": "CLEANED",
+          "runtime": "TERMINATED",
+          "broker": "RELEASED",
+          "release_reason": "SCHEDULER_CANCELLED",
+          "namespace_absent": true,
+          "sentinel": "REMOVED"
+        }
+      },
+      {
+        "name": "existing_nginx_fixture_preserved",
+        "passed": true,
+        "checked_at": "2026-10-13T04:42:36.710278+00:00",
+        "evidence": null
+      }
+    ],
+    "ttl_instance_id": "20adeef1-4b18-4091-9056-ef7e5caa8618",
+    "finished_at": "2026-10-13T04:42:36.777993+00:00"
+  },
+  "k3s_pod_recovery_verification": {
+    "started_at": "2026-10-13T04:44:37.702542+00:00",
+    "instance_id": "284037fc-0ca1-4a9d-b22f-b2c1e83b506e",
+    "passed": true,
+    "scope": "owned_local_functional_fixture",
+    "recovery_actor": "k3s_deployment_controller",
+    "sentinel_recovery_request_sent": false,
+    "sentinel_down_observed": false,
+    "before_pod_uid": "71b83f16-6c95-48ae-8bfb-e3f18712df03",
+    "after_pod_uid": "fe20fb47-f52c-47eb-9b17-7183ec18be44",
+    "runtime_phase": "READY",
+    "broker_status": "COMMITTED",
+    "observation": {
+      "instance_id": "284037fc-0ca1-4a9d-b22f-b2c1e83b506e",
+      "scheduler_status": "RUNNING",
+      "track": "UNMAPPED",
+      "status": "READY",
+      "reason_code": "RUNTIME_READY_FUNCTIONAL_CHECK_PASSED",
+      "runtime_phase": "READY",
+      "runtime_observed_at": "2026-10-13T04:44:51.0191079Z",
+      "expires_at": "2026-10-13T06:42:56.2780000Z",
+      "ttl_expired": false,
+      "challenge_health": "UP",
+      "recovery_action": "none",
+      "functional_check": {
+        "check_id": "local_284037fc0ca14a9db22fb2c1e83b506e",
+        "scope": "local_functional_fixture",
+        "status": "UP",
+        "reason_code": "FUNCTION_RESULT_CONFIRMED",
+        "checked_at": "2026-10-13T04:44:51.4481758Z"
+      }
+    },
+    "finished_at": "2026-10-13T04:45:09.961761+00:00"
+  },
+  "functional_browser_verification": {
+    "passed": true,
+    "checks": [
+      "real_functional_pass_present",
+      "real_deleted_instances_visible",
+      "all_recent_rows_rendered",
+      "local_fixture_scope_visible",
+      "sixteen_assets_still_healthy",
+      "no_automatic_instance_reset_control",
+      "mobile_no_overflow",
+      "no_javascript_errors"
+    ],
+    "real_runtime_rows": true,
+    "synthetic_ui_rows": false
+  },
+  "browser_regression": {
+    "passed": true,
+    "checks": [
+      "live_recent_window_remains_incomplete",
+      "existing_assets_remain_sixteen_healthy",
+      "synthetic_ready_row_does_not_claim_problem_health",
+      "no_instance_reset_control",
+      "mobile_has_no_page_overflow",
+      "failed_inventory_clears_ready_rows",
+      "inventory_failure_does_not_remove_asset_results",
+      "offline_clears_instance_and_asset_readiness",
+      "reconnection_restores_real_window",
+      "no_javascript_errors"
+    ],
+    "synthetic_ui_rows": true
+  },
+  "final_observation": {
+    "checked_at": "2026-10-13T04:48:12.865474+00:00",
+    "inventory": {
+      "status": "PARTIAL",
+      "reason_code": "RECENT_WINDOW_ONLY",
+      "coverage": "recent_20",
+      "complete_inventory": false,
+      "checked_at": "2026-10-13T04:47:50.9201015Z",
+      "instances": [
+        {
+          "instance_id": "284037fc-0ca1-4a9d-b22f-b2c1e83b506e",
+          "scheduler_status": "RUNNING",
+          "track": "UNMAPPED",
+          "status": "READY",
+          "reason_code": "RUNTIME_READY_FUNCTIONAL_CHECK_PASSED",
+          "runtime_phase": "READY",
+          "runtime_observed_at": "2026-10-13T04:47:50.6687253Z",
+          "expires_at": "2026-10-13T06:42:56.2780000Z",
+          "ttl_expired": false,
+          "challenge_health": "UP",
+          "recovery_action": "none",
+          "functional_check": {
+            "check_id": "local_284037fc0ca14a9db22fb2c1e83b506e",
+            "scope": "local_functional_fixture",
+            "status": "UP",
+            "reason_code": "FUNCTION_RESULT_CONFIRMED",
+            "checked_at": "2026-10-13T04:47:50.9200812Z"
+          }
+        },
+        {
+          "instance_id": "20adeef1-4b18-4091-9056-ef7e5caa8618",
+          "scheduler_status": "CLEANED",
+          "track": "UNMAPPED",
+          "status": "REMOVED",
+          "reason_code": "RUNTIME_DELETION_CONFIRMED",
+          "runtime_phase": "TERMINATED",
+          "runtime_observed_at": "2026-10-13T04:47:49.9818361Z",
+          "expires_at": "2026-10-13T04:41:40.7030000Z",
+          "ttl_expired": false,
+          "challenge_health": "UNVERIFIED",
+          "recovery_action": "none",
+          "functional_check": null
+        },
+        {
+          "instance_id": "36707ab3-5c17-4785-b66a-4bc6f643fc4a",
+          "scheduler_status": "CLEANED",
+          "track": "UNMAPPED",
+          "status": "REMOVED",
+          "reason_code": "RUNTIME_DELETION_CONFIRMED",
+          "runtime_phase": "TERMINATED",
+          "runtime_observed_at": "2026-10-13T04:47:49.9815571Z",
+          "expires_at": "2026-10-13T06:34:15.1330000Z",
+          "ttl_expired": false,
+          "challenge_health": "UNVERIFIED",
+          "recovery_action": "none",
+          "functional_check": null
+        }
+      ]
+    },
+    "direct_healthy": 12,
+    "dashboard_healthy_assets": 16,
+    "unconfigured": 9,
+    "recovery_executor_connected": true,
+    "recovery_storage_healthy": true,
+    "recovery_bindings": 8,
+    "canary_instance_id": "284037fc-0ca1-4a9d-b22f-b2c1e83b506e",
+    "canary_expires_at": "2026-10-13T06:42:56.2780000Z"
+  },
+  "review": {
+    "method": "sequential_architecture_contract_failure_scope_and_presentation_review",
+    "subagents_used": false,
+    "style_lint": "passed",
+    "public_contract_naming_lint": "passed_78_contract_fields_and_47_live_response_fields",
+    "screenshots_visually_checked": [
+      "output/playwright/functional-live-desktop-20261013.png",
+      "output/playwright/functional-live-mobile-20261013.png"
+    ]
+  },
+  "source_sha256": {
+    "src/Sentinel.Monitor/Instances/InstanceInventory.cs": "750722d0924344b03c6ca038aa5ff55049c2fa3099faee7da63da57c54315216",
+    "src/Sentinel.Monitor/Instances/InstanceInventoryOptions.cs": "4dbb4762c88746c518ff0143698225bd94ef008cde8702bb055cc0fc91469a02",
+    "src/Sentinel.Monitor/Instances/InstanceInventoryRegistration.cs": "d29b4c3384784102e13b94d8b85965a79abcde3eac2f1959cf94b2e38e456c04",
+    "src/Sentinel.Monitor/Instances/LocalFunctionalProbe.cs": "79c57c235212b551e85a6aebf892ca97823501792c62e2a107c725c293869b49",
+    "src/Sentinel.Api/Program.cs": "208e63d5f9b10edff409f65b232096b6b8b9c94f7534e0fcf19de63f7054a4f2",
+    "src/Sentinel.Api/wwwroot/instance-inventory.js": "18c636815cc7261e16e7fa750f5593db84f0481228e54b523e86843e3974997a",
+    "src/Sentinel.Api/wwwroot/index.html": "5a5f678728d35518f544ed4d5e666732ab2ef673615ded654e644cacf0e766dc",
+    "tests/Sentinel.Tests/InstanceInventoryTests.cs": "8a631ed8fad2e644fbe97d2966151ca484a6e7a47472450a4b4b411354b768a5",
+    "local/functional-fixture/main.go": "8dd3d95ff7dfb011f54f0f0dc28c597fd807161d674288daed6135df05a220c2",
+    "local/functional-fixture/Dockerfile": "39f70399ed131c0d75139677593f4ac33ab655a37aa78e1649e76d3e1228ff5e",
+    "local/functional_lab.py": "214c754668e75afb39a6153b00490a119be6277d449688198a24814186b2f326",
+    "local/seed_functional_capacity.py": "cec15c2227d2201371687ea5f9f41b34a3686a31f0b8c3d2f9497fb8a4d7a25f",
+    "local/verify_functional_flow.py": "c7e75e9d2a879da87e112c368398c77dee8b7c93aecab4e22778b88c206228ad",
+    "local/verify_owned_pod_recovery.py": "0e228247a6a934d4451ac5bc80d6ec4cbdab143a7d5e342aa5d763421f3b16a3",
+    "local/verify_functional_browser.cjs": "f1698b8079fc562444ae0dd4df6cbdd6c0c0b0fe36a91a2df6662af70cee52a7",
+    "local/execution_lab.py": "9ff4e0c5d13da2eb6c6d4db6b2d4d58ed5fbd94bc11178cd9b0f09d1f35a5868",
+    "local/instance-inventory.test.cjs": "5a4c91453174f67c1e4df019a124485ebfc3a8d6f9d3c1354a6d274a09c31d83",
+    "local/verify_instance_browser.cjs": "237326a35cb66eba624864a966057589971f723184793842f7eed5206e249a43"
+  },
+  "remaining": [
+    "complete_instance_inventory_or_pagination",
+    "track_mapping",
+    "competition_challenge_function_contracts",
+    "runtime_function_result_delivery_contract",
+    "backend_registry_release_to_runtime_flow",
+    "cloud_account_quota_and_node_agent_observations",
+    "authenticated_instance_recovery_receiver",
+    "windows_and_koth_execution_assets",
+    "runtime_store_backup_restore",
+    "admin_alerts_and_production_failover"
+  ],
+  "limits": {
+    "broker_capacity": "explicit_bounded_local_test_fixture_not_cloud_quota_or_agent_measurement",
+    "image_delivery": "local_import_not_ghcr_publish",
+    "functional_fault_recovery_actor": "local_test_operator",
+    "pod_recovery_actor": "k3s_deployment_controller",
+    "sentinel_automatic_instance_recovery": false,
+    "production_verified": false,
+    "prior_data_recovery_fault_drills_reexecuted": false
+  }
+}

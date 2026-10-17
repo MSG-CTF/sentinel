@@ -4,4 +4,8 @@
     <ProjectReference Include="..\Sentinel.Contracts\Sentinel.Contracts.csproj" />
     <ProjectReference Include="..\Sentinel.Infrastructure\Sentinel.Infrastructure.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="prometheus-net" Version="8.2.1" />
+    <PackageReference Include="SSH.NET" Version="2026.0.0" />
+  </ItemGroup>
 </Project>

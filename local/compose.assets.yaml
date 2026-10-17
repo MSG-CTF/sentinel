@@ -1,0 +1,146 @@
+services:
+  scheduler-db:
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    environment:
+      POSTGRES_DB: scheduler
+      POSTGRES_USER: scheduler
+      POSTGRES_PASSWORD: local-scheduler-db-only
+    volumes: [scheduler_postgres:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U scheduler -d scheduler"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
+    mem_limit: 256m
+    networks: [scheduler_data]
+
+  broker-db:
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    environment:
+      POSTGRES_DB: broker
+      POSTGRES_USER: broker
+      POSTGRES_PASSWORD: local-broker-db-only
+    volumes: [broker_postgres:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U broker -d broker"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
+    mem_limit: 256m
+    networks: [broker_data]
+
+  broker-migrate:
+    image: msg-sla-broker:99ff5b88
+    build: {context: ./.sources/broker}
+    environment:
+      DATABASE_URL: postgresql+psycopg://broker:local-broker-db-only@broker-db:5432/broker
+    command: [alembic, upgrade, head]
+    depends_on:
+      broker-db: {condition: service_healthy}
+    mem_limit: 384m
+    networks: [broker_data]
+
+  broker:
+    labels: {io.msgctf.sentinel.recovery: local-broker}
+    image: msg-sla-broker:99ff5b88
+    build: {context: ./.sources/broker}
+    env_file: [./.assets/broker.env]
+    environment:
+      DATABASE_URL: postgresql+psycopg://broker:local-broker-db-only@broker-db:5432/broker
+      ADMIN_ID: local-sentinel-admin
+      AWS_EC2_METADATA_DISABLED: "true"
+    ports: ["127.0.0.1:58183:8000"]
+    depends_on:
+      broker-migrate: {condition: service_completed_successfully}
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 512m
+    cpus: 1.0
+    networks: [broker_data, monitoring, local_access]
+
+  scheduler:
+    labels: {io.msgctf.sentinel.recovery: local-scheduler}
+    image: msg-sla-scheduler:5c695142
+    build:
+      context: ./.sources/scheduler
+      dockerfile: ../../Scheduler.Dockerfile
+    env_file: [./.assets/scheduler.env]
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DOCKER_COMPOSE_ENABLED: "false"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://scheduler-db:5432/scheduler
+      SPRING_DATASOURCE_USERNAME: scheduler
+      SPRING_DATASOURCE_PASSWORD: local-scheduler-db-only
+      SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT: "2000"
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "12"
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      SCHEDULER_BROKER_BASE_URL: http://broker:8000
+      SCHEDULER_RUNTIME_BASE_URL: http://runtime:8080
+      SCHEDULER_OPERATION_PARALLELISM: "1"
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_COMPONENTS: always
+      MANAGEMENT_HEALTH_REDIS_ENABLED: "false"
+    ports: ["127.0.0.1:58182:8080"]
+    depends_on:
+      scheduler-db: {condition: service_healthy}
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 1024m
+    cpus: 1.5
+    networks: [scheduler_data, monitoring, local_access]
+
+  frontend-internal:
+    labels: {io.msgctf.sentinel.recovery: local-internal-frontend}
+    image: msg-sla-frontend:c0a85359
+    build: {context: ./.sources/frontend}
+    environment:
+      PORT: "8080"
+      BACKEND_URL: http://backend-internal:8080
+    ports: ["127.0.0.1:58184:8080"]
+    depends_on: [backend-internal]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 128m
+    networks: [monitoring, local_access]
+
+  frontend-external:
+    labels: {io.msgctf.sentinel.recovery: local-external-frontend}
+    image: msg-sla-frontend:c0a85359
+    build: {context: ./.sources/frontend}
+    environment:
+      PORT: "8080"
+      BACKEND_URL: http://backend-external:8080
+    ports: ["127.0.0.1:58185:8080"]
+    depends_on: [backend-external]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 128m
+    networks: [monitoring, local_access]
+
+  edge:
+    labels: {io.msgctf.sentinel.recovery: local-edge}
+    image: nginxinc/nginx-unprivileged:1.31-alpine@sha256:aa8c9087d36d93e9d650c5365f883b421e8214aedbad24ade52b844c583358f1
+    volumes: [./edge.conf:/etc/nginx/conf.d/default.conf:ro]
+    ports: ["127.0.0.1:58186:8080", "127.0.0.1:58187:8081"]
+    depends_on: [frontend-internal, frontend-external]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 128m
+    networks: [monitoring, local_access]
+
+networks:
+  local_access:
+  scheduler_data:
+    internal: true
+    ipam: {config: [{subnet: "10.246.244.0/24"}]}
+  broker_data:
+    internal: true
+
+volumes:
+  scheduler_postgres:
+  broker_postgres:

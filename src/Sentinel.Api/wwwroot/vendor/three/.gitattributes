@@ -1,0 +1,2 @@
+# Preserve upstream GLSL template-string whitespace in the minified runtime.
+*.js -whitespace

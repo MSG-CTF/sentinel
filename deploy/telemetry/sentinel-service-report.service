@@ -1,0 +1,24 @@
+[Unit]
+Description=Sentinel read-only service heartbeat
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=sentinel-telemetry
+Group=sentinel-telemetry
+LoadCredential=reporter.json:/etc/sentinel-telemetry/reporter.json
+ExecStart=/usr/bin/python3 /opt/sentinel-telemetry/report_service.py
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+UMask=0077
+TimeoutStartSec=25
+MemoryMax=48M
+CPUQuota=10%

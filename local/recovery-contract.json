@@ -1,0 +1,190 @@
+{
+  "schema_version": 2,
+  "scope": "local_windows_docker_desktop",
+  "profile": "local-recovery",
+  "mode": "automatic_local",
+  "api": [
+    {
+      "method": "GET",
+      "path": "/api/recovery",
+      "authentication": "none",
+      "purpose": "redacted_status"
+    },
+    {
+      "method": "GET",
+      "path": "/internal/recovery/requests/next",
+      "authentication": "executor_bearer",
+      "purpose": "heartbeat_and_poll"
+    },
+    {
+      "method": "POST",
+      "path": "/internal/recovery/requests/{request_id}/claim",
+      "authentication": "executor_bearer",
+      "request_fields": [
+        "executor_id"
+      ],
+      "response_fields": [
+        "request",
+        "claim_id"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/internal/recovery/requests/{request_id}/result",
+      "authentication": "executor_bearer_and_claim",
+      "request_fields": [
+        "executor_id",
+        "claim_id",
+        "result_code"
+      ],
+      "response_fields": [
+        "accepted"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/internal/recovery/inspections",
+      "authentication": "executor_bearer",
+      "request_fields": [
+        "executor_id",
+        "assets"
+      ],
+      "asset_fields": [
+        "asset_id",
+        "stopped_eligible"
+      ],
+      "purpose": "fresh_fixed_asset_stop_confirmation"
+    }
+  ],
+  "request_id_format": "uuid",
+  "json_naming": "snake_case",
+  "unknown_request_fields": "reject",
+  "request_body_limit_bytes": 4096,
+  "result_codes": [
+    "CONTAINER_STARTED",
+    "PRECONDITION_NOT_MET",
+    "EXECUTION_FAILED",
+    "OUTCOME_UNKNOWN"
+  ],
+  "states": [
+    "QUEUED",
+    "CLAIMED",
+    "VERIFYING",
+    "SUCCEEDED",
+    "BLOCKED",
+    "CANCELLED",
+    "EXPIRED"
+  ],
+  "dispatch_requirements": [
+    "healthy_baseline",
+    "fresh_connection_failure_or_confirmed_stopped_timeout_streak",
+    "executor_connected",
+    "durable_journals",
+    "exact_container_binding",
+    "container_exited_without_oom",
+    "healthy_upstream_observations_for_frontend_and_edge",
+    "running_dependency_containers_with_healthy_check_when_present",
+    "runtime_requires_fresh_host_stop_and_store_readiness_confirmation_for_all_failure_reasons"
+  ],
+  "request_lifetime_seconds": 120,
+  "verification_timeout_seconds": 120,
+  "cooldown_seconds": 300,
+  "attempt_limit_per_incident": 1,
+  "completion": "two_distinct_fresh_asset_and_verification_target_samples_after_execution_receipt",
+  "duplicate_claim": "conflict",
+  "duplicate_result": "same_result_idempotent",
+  "executor_crash_during_execution": "outcome_unknown_without_replay",
+  "public_omissions": [
+    "claim_id",
+    "bearer_token",
+    "command_output",
+    "credentials"
+  ],
+  "production_enabled": false,
+  "bindings": [
+    {
+      "asset_id": "internal-backend",
+      "track": "INTERNAL",
+      "executor_id": "local-docker",
+      "action": "start_stopped_service",
+      "compose_project": "msg-sla-real-local",
+      "compose_service": "backend-internal",
+      "container_label": "io.msgctf.sentinel.recovery=local-internal-backend"
+    },
+    {
+      "asset_id": "external-backend",
+      "track": "EXTERNAL",
+      "executor_id": "local-docker",
+      "action": "start_stopped_service",
+      "compose_project": "msg-sla-real-local",
+      "compose_service": "backend-external",
+      "container_label": "io.msgctf.sentinel.recovery=local-external-backend"
+    },
+    {
+      "asset_id": "scheduler",
+      "track": "CONTROL",
+      "executor_id": "local-docker",
+      "action": "start_stopped_service",
+      "compose_project": "msg-sla-real-local",
+      "compose_service": "scheduler",
+      "container_label": "io.msgctf.sentinel.recovery=local-scheduler"
+    },
+    {
+      "asset_id": "broker",
+      "track": "CONTROL",
+      "executor_id": "local-docker",
+      "action": "start_stopped_service",
+      "compose_project": "msg-sla-real-local",
+      "compose_service": "broker",
+      "container_label": "io.msgctf.sentinel.recovery=local-broker"
+    },
+    {
+      "asset_id": "internal-frontend",
+      "track": "INTERNAL",
+      "executor_id": "local-docker",
+      "action": "start_stopped_service",
+      "compose_project": "msg-sla-real-local",
+      "compose_service": "frontend-internal",
+      "container_label": "io.msgctf.sentinel.recovery=local-internal-frontend"
+    },
+    {
+      "asset_id": "external-frontend",
+      "track": "EXTERNAL",
+      "executor_id": "local-docker",
+      "action": "start_stopped_service",
+      "compose_project": "msg-sla-real-local",
+      "compose_service": "frontend-external",
+      "container_label": "io.msgctf.sentinel.recovery=local-external-frontend"
+    },
+    {
+      "asset_id": "edge",
+      "track": "ACCESS",
+      "executor_id": "local-docker",
+      "action": "start_stopped_service",
+      "compose_project": "msg-sla-real-local",
+      "compose_service": "edge",
+      "container_label": "io.msgctf.sentinel.recovery=local-edge"
+    },
+    {
+      "asset_id": "runtime",
+      "track": "RUNTIME",
+      "executor_id": "local-docker",
+      "action": "start_stopped_service",
+      "compose_project": "msg-sla-real-local",
+      "compose_service": "runtime",
+      "container_label": "io.msgctf.sentinel.recovery=local-runtime",
+      "host_dependencies": ["runtime-db"],
+      "verification_targets": ["runtime", "runtime-db", "linux-pool"],
+      "instance_id": "a716671b-48a3-4fcb-813a-1b9a2280463e",
+      "target_id": "sentinel-local-k3s"
+    }
+  ],
+  "global_active_request_limit": 1,
+  "cooldown_scope": "per_asset",
+  "rearm_requirement": "cooldown_elapsed_and_two_fresh_healthy_observations",
+  "recurrence_during_cooldown": "operator_attention_required_if_healthy_baseline_cannot_be_restored",
+  "monitor_restart": "cancel_unclaimed_requests_reset_baselines_preserve_consumed_claims",
+  "journal_migration": "version_1_history_and_claims_preserved_in_version_2",
+  "data_service_recovery_enabled": false,
+  "timeout_dispatch": "three_fresh_timeouts_with_host_stop_confirmation_received_within_15_seconds"
+}

@@ -1,0 +1,84 @@
+{
+  "started_at": "2026-10-15T04:59:37.691688+00:00",
+  "passed": true,
+  "scope": "real_scheduler_postgresql_and_sentinel_http_no_runtime",
+  "checks": [
+    {
+      "name": "real_scheduler_authentication",
+      "passed": true
+    },
+    {
+      "name": "empty_database_is_complete",
+      "passed": true
+    },
+    {
+      "name": "all_437_database_ids_match_in_order",
+      "passed": true,
+      "missing": 0,
+      "duplicates": 0,
+      "includes_equal_microsecond_timestamps": true,
+      "includes_unsigned_uuid_boundary": true
+    },
+    {
+      "name": "older_cleanup_pending_survives_recent_window",
+      "passed": true
+    },
+    {
+      "name": "all_scheduler_states_are_preserved",
+      "passed": true
+    },
+    {
+      "name": "probe_also_reads_three_pages",
+      "passed": true
+    },
+    {
+      "name": "unconfigured_runtime_is_not_claimed_healthy",
+      "passed": true
+    },
+    {
+      "name": "later_page_503_is_not_complete",
+      "passed": true
+    },
+    {
+      "name": "fresh_scan_recovers_after_503",
+      "passed": true
+    },
+    {
+      "name": "later_page_401_is_not_complete",
+      "passed": true
+    },
+    {
+      "name": "fresh_scan_recovers_after_401",
+      "passed": true
+    },
+    {
+      "name": "later_page_cursor_cycle_is_not_complete",
+      "passed": true
+    },
+    {
+      "name": "fresh_scan_recovers_after_cursor_cycle",
+      "passed": true
+    },
+    {
+      "name": "next_scan_starts_from_beginning_after_insert_delete",
+      "passed": true
+    },
+    {
+      "name": "legacy_profile_uses_only_authenticated_new_endpoint",
+      "passed": true
+    },
+    {
+      "name": "no_credentials_in_public_snapshot",
+      "passed": true
+    }
+  ],
+  "cleaned_up": true,
+  "completed_at": "2026-10-15T05:00:41.715238+00:00",
+  "scheduler_sha": "eb674aa34f7b808c518eff0a477f89d2d1c7a590",
+  "sentinel_base_sha": "38c4c505d5fdccfd28f93a7d0a9f691a9714674f",
+  "unit_and_integration_tests": {
+    "dotnet": 273,
+    "javascript": 85,
+    "data_recovery_guards": 13
+  }
+}

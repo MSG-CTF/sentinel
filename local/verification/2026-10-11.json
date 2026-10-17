@@ -1,0 +1,396 @@
+{
+  "schema_version": 1,
+  "reviewed_date": "2026-10-11",
+  "timezone": "Asia/Seoul",
+  "evidence_origin": "local_execution_not_github_actions",
+  "base_commit": "e17e94dd394f96045f2b1882dac7be369fb93f7a",
+  "verification_scope": "local_real_services_and_fixed_nginx_runtime_fixture",
+  "unit_verification": {
+    "dotnet_unit_tests": 107,
+    "dotnet_entrypoint_test": 1,
+    "dotnet_test_command": "dotnet test Sentinel.sln --no-restore",
+    "python_tests": 27,
+    "python_test_command": "python -m unittest discover -s local -p \"*_test.py\"",
+    "dashboard_tests": 52,
+    "dashboard_test_command": "node --test local/*.test.cjs",
+    "result": "passed"
+  },
+  "browser_verification": {
+    "passed": true,
+    "checks": [
+      "only_sixteen_connected_assets_are_healthy",
+      "runtime_has_live_local_recovery_binding",
+      "runtime_scope_identifies_connection_fixture",
+      "windows_remains_a_plan",
+      "runtime_connections_have_live_evidence",
+      "eight_application_recovery_bindings",
+      "six_store_restore_evidence_is_preserved",
+      "service_cutover_has_separate_dated_evidence",
+      "runtime_recovery_is_visible",
+      "missing_rollback_evidence_cannot_claim_pass",
+      "offline_live_counts_are_not_green",
+      "offline_cutover_record_is_explicitly_historical",
+      "mobile_has_no_page_overflow",
+      "no_javascript_errors"
+    ]
+  },
+  "runtime_fault_verification": {
+    "scope": "local_runtime_k3s",
+    "started_at": "2026-10-10T16:11:39.175276+00:00",
+    "completed_at": "2026-10-10T16:19:10.912927+00:00",
+    "passed": true,
+    "checks": [
+      {
+        "name": "three_real_runtime_observations",
+        "passed": true
+      },
+      {
+        "name": "postgres_store_selected",
+        "passed": true
+      },
+      {
+        "name": "loopback_nodeport_serves_workload",
+        "passed": true
+      },
+      {
+        "name": "runtime_rejects_unauthenticated_access",
+        "passed": true
+      },
+      {
+        "name": "runtime_stopped_service_automatically_recovered",
+        "passed": true
+      },
+      {
+        "name": "runtime_restart_keeps_container_identity",
+        "passed": true
+      },
+      {
+        "name": "runtime_recovery_does_not_restart_store",
+        "passed": true
+      },
+      {
+        "name": "stored_operation_survives_runtime_restart",
+        "passed": true
+      },
+      {
+        "name": "workload_survives_runtime_restart",
+        "passed": true
+      },
+      {
+        "name": "workload_is_owned_by_fixed_instance",
+        "passed": true
+      },
+      {
+        "name": "k3s_controller_recreates_deleted_pod",
+        "passed": true
+      },
+      {
+        "name": "pod_recovery_preserves_runtime_binding",
+        "passed": true
+      },
+      {
+        "name": "store_fault_starts_with_recovery_armed",
+        "passed": true
+      },
+      {
+        "name": "store_outage_is_not_reported_healthy",
+        "passed": true
+      },
+      {
+        "name": "no_runtime_recovery_while_store_is_stopped",
+        "passed": true
+      },
+      {
+        "name": "runtime_automatically_recovered_after_store_ready",
+        "passed": true
+      },
+      {
+        "name": "store_restart_preserves_completed_operation",
+        "passed": true
+      },
+      {
+        "name": "store_cascade_preserves_container_identity",
+        "passed": true
+      },
+      {
+        "name": "all_connected_targets_healthy",
+        "passed": true
+      }
+    ],
+    "monitor_image_id": "sha256:e4809e05215f1c21d00140db585cbf3a21513c03fe62e610879ba49e8b4dfc6a",
+    "runtime_exited_on_store_disconnect": true,
+    "store_fault_reason": "TIMEOUT"
+  },
+  "k3s_lifecycle_verification": {
+    "scope": "local_k3s_stop_start",
+    "started_at": "2026-10-10T16:19:58.779006+00:00",
+    "completed_at": "2026-10-10T16:20:46.888349+00:00",
+    "passed": true,
+    "checks": [
+      {
+        "name": "only_registered_node_stopped",
+        "passed": true
+      },
+      {
+        "name": "node_outage_distinguished_from_runtime_store",
+        "passed": true
+      },
+      {
+        "name": "node_container_preserved_after_start",
+        "passed": true
+      },
+      {
+        "name": "operation_and_service_binding_preserved",
+        "passed": true
+      },
+      {
+        "name": "nodeport_serves_after_node_restart",
+        "passed": true
+      },
+      {
+        "name": "runtime_and_store_not_restarted",
+        "passed": true
+      },
+      {
+        "name": "node_outage_does_not_trigger_host_application_recovery",
+        "passed": true
+      }
+    ],
+    "monitor_image_id": "sha256:9f1bc2ad81e14abcae97490c9f70797c1d399835a03d42f9a8dfc5d287a60023"
+  },
+  "k3s_capability_verification": {
+    "checked_at": "2026-10-10T15:44:24.978872+00:00",
+    "scope": "local_k3s_only",
+    "passed": true,
+    "network_baseline_reachable": true,
+    "ingress_deny_enforced": true,
+    "ingress_restored": true,
+    "egress_deny_enforced": true,
+    "egress_restored": true,
+    "strict_groups": [
+      "101"
+    ],
+    "pod_cgroup_pid_limit": 128,
+    "check_namespace_removed": true
+  },
+  "service_cutover_verification": {
+    "scope": "local_service_cutover_round_trip",
+    "started_at": "2026-10-10T15:56:29.613525+00:00",
+    "completed_at": "2026-10-10T16:02:55.036563+00:00",
+    "passed": true,
+    "assets": [
+      {
+        "asset_id": "internal-backend-database",
+        "service": "postgres-internal",
+        "kind": "postgres",
+        "passed": true,
+        "tables": 45,
+        "rows": 268,
+        "row_hashes_match": true,
+        "sequences": 9,
+        "sequences_match": true
+      },
+      {
+        "asset_id": "external-backend-database",
+        "service": "postgres-external",
+        "kind": "postgres",
+        "passed": true,
+        "tables": 45,
+        "rows": 268,
+        "row_hashes_match": true,
+        "sequences": 9,
+        "sequences_match": true
+      },
+      {
+        "asset_id": "scheduler-db",
+        "service": "scheduler-db",
+        "kind": "postgres",
+        "passed": true,
+        "tables": 3,
+        "rows": 17,
+        "row_hashes_match": true,
+        "sequences": 0,
+        "sequences_match": true
+      },
+      {
+        "asset_id": "broker-db",
+        "service": "broker-db",
+        "kind": "postgres",
+        "passed": true,
+        "tables": 9,
+        "rows": 1,
+        "row_hashes_match": true,
+        "sequences": 0,
+        "sequences_match": true
+      },
+      {
+        "asset_id": "internal-backend-cache",
+        "service": "redis-internal",
+        "kind": "redis",
+        "passed": true,
+        "snapshot_keys": 0,
+        "loaded_keys": 0,
+        "expired_keys": 0,
+        "aof_enabled": true
+      },
+      {
+        "asset_id": "external-backend-cache",
+        "service": "redis-external",
+        "kind": "redis",
+        "passed": true,
+        "snapshot_keys": 0,
+        "loaded_keys": 0,
+        "expired_keys": 0,
+        "aof_enabled": true
+      }
+    ],
+    "applications": [
+      {
+        "service": "backend-internal",
+        "passed": true,
+        "scope": "healthz_database_cache",
+        "model_rows": {
+          "users": 0,
+          "migrations": 53
+        }
+      },
+      {
+        "service": "backend-external",
+        "passed": true,
+        "scope": "healthz_database_cache",
+        "model_rows": {
+          "users": 0,
+          "migrations": 53
+        }
+      },
+      {
+        "service": "scheduler",
+        "passed": true,
+        "scope": "authenticated_inventory_query",
+        "returned_items": 0
+      },
+      {
+        "service": "broker",
+        "passed": true,
+        "scope": "authenticated_inventory_query",
+        "returned_items": 0
+      }
+    ],
+    "rollback_applications": [
+      {
+        "service": "backend-internal",
+        "passed": true,
+        "scope": "healthz_database_cache",
+        "model_rows": {
+          "users": 0,
+          "migrations": 53
+        }
+      },
+      {
+        "service": "backend-external",
+        "passed": true,
+        "scope": "healthz_database_cache",
+        "model_rows": {
+          "users": 0,
+          "migrations": 53
+        }
+      },
+      {
+        "service": "scheduler",
+        "passed": true,
+        "scope": "authenticated_inventory_query",
+        "returned_items": 0
+      },
+      {
+        "service": "broker",
+        "passed": true,
+        "scope": "authenticated_inventory_query",
+        "returned_items": 0
+      }
+    ],
+    "restored_volume_bindings_verified": true,
+    "original_volume_bindings_verified": true,
+    "restore_lab_removed": true,
+    "executor_resumed_after_healthy_samples": true,
+    "automatic_data_restore_enabled": false
+  },
+  "final_observation": {
+    "checked_at": "2026-10-10T16:21:44.617Z",
+    "profile": "local-recovery",
+    "mode": "automatic_local",
+    "direct_healthy": 12,
+    "derived_healthy": 4,
+    "unconfigured": 9,
+    "recovery_bindings": 8,
+    "event_storage_healthy": true,
+    "recovery_storage_healthy": true,
+    "executor_connected": true,
+    "all_original_volumes_active": true,
+    "data_ports_not_published": true,
+    "all_published_ports_loopback": true,
+    "cutover_active": false,
+    "restore_lab_removed": true,
+    "monitor_image_id": "sha256:9f1bc2ad81e14abcae97490c9f70797c1d399835a03d42f9a8dfc5d287a60023",
+    "runtime_image_id": "sha256:d90c69e1fdfa554e14a6114ae264aa460ff24bcaf33177e45cf20a331ff78c45",
+    "passed": true
+  },
+  "private_boundary": {
+    "http_paths_checked": 8,
+    "all_returned_404": true,
+    "service_tokens_absent_from_public_responses": true
+  },
+  "tested_source_files": [
+    {
+      "file": "src/Sentinel.Api/Program.cs",
+      "sha256": "3db4fdfa2f7de356fb1a5c710b67177f53b8f6a2d4a28cca57b874ca85161f34"
+    },
+    {
+      "file": "src/Sentinel.Monitor/Platform/RuntimeProbeContract.cs",
+      "sha256": "3e1552de48776bb0d539155d5479f88fb6ec58c9008121ad9f1309ff23650e38"
+    },
+    {
+      "file": "src/Sentinel.Monitor/Recovery/RecoveryCoordinator.cs",
+      "sha256": "cb0a5f4bc68e20107b9cf7f60865bf4a553d7cbe8ded9afa09918f4157d52ad1"
+    },
+    {
+      "file": "src/Sentinel.Monitor/Recovery/RecoveryOptions.cs",
+      "sha256": "b6b6245d510f18e432c1f03b3cfbed3376975f5c362bc76cd39356d7f8a32dab"
+    },
+    {
+      "file": "local/recovery_agent.py",
+      "sha256": "efe646c19ad2926c33f8268684ae5c36e0d0a13419d4afc72d727679c0d15ebe"
+    },
+    {
+      "file": "local/data_recovery.py",
+      "sha256": "f8a874eb8bdaf8d31db06b155f176b96a2d7191133ed00e29181720635849046"
+    },
+    {
+      "file": "local/data_cutover.py",
+      "sha256": "69ff8c33240e467dff0328a6090e3d5605a032565dd4b3a92cc23855ce2d9125"
+    },
+    {
+      "file": "local/execution_lab.py",
+      "sha256": "033945503785b95a527b91a37b5b43159c426c0e74e7edd94d86271f1a3faf95"
+    },
+    {
+      "file": "src/Sentinel.Api/wwwroot/architecture-model.js",
+      "sha256": "c3067217f2b016663e8ddc1562299a2dbe71a5ed4d3cf4c4162ff462ef072381"
+    },
+    {
+      "file": "src/Sentinel.Api/wwwroot/data-recovery.js",
+      "sha256": "ffef4baa3dc411721757a1cedfb5e5a53b5850a0af89b91c51abd9841faf0d8b"
+    }
+  ],
+  "limitations": [
+    "nginx_fixture_not_competition_challenge",
+    "scheduler_to_runtime_creation_not_verified",
+    "runtime_store_backup_restore_not_verified",
+    "windows_koth_cloud_delivery_not_connected",
+    "business_rows_and_inflight_workloads_not_verified",
+    "crash_rollback_not_fault_injected",
+    "initial_back_to_back_fault_failed_during_300_second_cooldown_then_passed_after_healthy_rearm",
+    "final_runtime_connection_failure_guard_verified_by_two_additional_unit_cases_after_fault_drill",
+    "raw_logs_backups_credentials_and_host_configuration_remain_local"
+  ],
+  "source_hash_normalization": "utf8_crlf_to_lf"
+}

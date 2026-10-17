@@ -1,0 +1,231 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: MSG Sentinel observation service with private SSM deployment and GitHub OIDC
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+  ExistingOidcProviderArn:
+    Type: String
+    Default: ''
+    AllowedPattern: '^$|^arn:aws:iam::[0-9]{12}:oidc-provider/token.actions.githubusercontent.com$'
+  ImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+Conditions:
+  CreateOidc: !Equals [!Ref ExistingOidcProviderArn, '']
+Resources:
+  Artifacts:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: {SSEAlgorithm: AES256}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules: [{ObjectOwnership: BucketOwnerEnforced}]
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireReleaseBundles
+            Status: Enabled
+            Prefix: releases/
+            ExpirationInDays: 3
+            AbortIncompleteMultipartUpload: {DaysAfterInitiation: 1}
+  ArtifactPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref Artifacts
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource: [!GetAtt Artifacts.Arn, !Sub '${Artifacts.Arn}/*']
+            Condition: {Bool: {'aws:SecureTransport': 'false'}}
+  HostRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ec2.amazonaws.com}
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore'
+      Policies:
+        - PolicyName: ReadSentinelRelease
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub '${Artifacts.Arn}/releases/*'
+  HostProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: {Roles: [!Ref HostRole]}
+  HostSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Sentinel has no inbound access; use SSM port forwarding
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - {IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 0.0.0.0/0, Description: AWS APIs and HTTPS probes}
+        - {IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0, Description: Package repositories and HTTP probes}
+        - {IpProtocol: tcp, FromPort: 8080, ToPort: 8080, CidrIp: 0.0.0.0/0, Description: Temporary scheduler health endpoint}
+  Host:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref ImageId
+      InstanceType: t3.small
+      CreditSpecification: {CPUCredits: standard}
+      IamInstanceProfile: !Ref HostProfile
+      MetadataOptions: {HttpTokens: required, HttpPutResponseHopLimit: 1, HttpEndpoint: enabled}
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs: {VolumeSize: 30, VolumeType: gp3, Encrypted: true, DeleteOnTermination: true}
+      NetworkInterfaces:
+        - DeviceIndex: '0'
+          AssociatePublicIpAddress: true
+          SubnetId: !Ref SubnetId
+          GroupSet: [!Ref HostSecurityGroup]
+      Tags:
+        - {Key: Name, Value: msg-sentinel}
+        - {Key: Project, Value: MSG-CTF}
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          set -euo pipefail
+          dnf install -y docker python3 logrotate
+          systemctl enable --now docker amazon-ssm-agent
+          install -d -m 0755 /opt/msg-sentinel/releases
+          install -d -m 0750 -o 1654 -g 1654 /opt/msg-sentinel/data
+          cat > /etc/logrotate.d/msg-sentinel <<'EOF'
+          /opt/msg-sentinel/data/events.jsonl {
+              daily
+              maxsize 10M
+              rotate 7
+              compress
+              missingok
+              notifempty
+              copytruncate
+              su root root
+          }
+          EOF
+          cat > /etc/systemd/system/msg-sentinel-logrotate.service <<'EOF'
+          [Unit]
+          Description=Rotate Sentinel event history
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/sbin/logrotate /etc/logrotate.d/msg-sentinel
+          EOF
+          cat > /etc/systemd/system/msg-sentinel-logrotate.timer <<'EOF'
+          [Unit]
+          Description=Bound Sentinel event storage
+          [Timer]
+          OnBootSec=5min
+          OnUnitActiveSec=1h
+          [Install]
+          WantedBy=timers.target
+          EOF
+          systemctl daemon-reload
+          systemctl enable --now msg-sentinel-logrotate.timer
+  DeployDocument:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Command
+      UpdateMethod: NewVersion
+      Content:
+        schemaVersion: '2.2'
+        description: Validate and activate a tested Sentinel release
+        parameters:
+          ArtifactKey:
+            type: String
+            allowedPattern: '^releases/[0-9a-f]{40}-[0-9]+-[0-9]+\.tar\.gz$'
+          ArtifactSha256:
+            type: String
+            allowedPattern: '^[0-9a-f]{64}$'
+        mainSteps:
+          - action: aws:runShellScript
+            name: DeploySentinel
+            inputs:
+              timeoutSeconds: '600'
+              runCommand:
+                - !Sub |
+                    #!/bin/bash
+                    set -euo pipefail
+                    umask 077
+                    cloud-init status --wait >/dev/null
+                    exec 9>/var/lock/msg-sentinel-deploy.lock
+                    flock -w 60 9
+                    incoming=$(mktemp -d /opt/msg-sentinel/incoming.XXXXXX)
+                    trap 'rm -rf -- "$incoming"' EXIT
+                    aws s3 cp 's3://${Artifacts}/{{ ArtifactKey }}' "$incoming/bundle.tar.gz" --only-show-errors --region '${AWS::Region}'
+                    printf '%s  %s\n' '{{ ArtifactSha256 }}' "$incoming/bundle.tar.gz" | sha256sum --check --status
+                    python3 - "$incoming" <<'PY'
+                    import pathlib, sys, tarfile
+                    root = pathlib.Path(sys.argv[1])
+                    required = {'image.tar.gz', 'release.json', 'deploy_host.py', 'profile.json', 'probe.env'}
+                    with tarfile.open(root / 'bundle.tar.gz', 'r:gz') as archive:
+                        members = archive.getmembers()
+                        if len(members) != len(required) or {m.name for m in members} != required:
+                            raise SystemExit('Unexpected release contents')
+                        for member in members:
+                            limit = 1024 * 1024 * 1024 if member.name == 'image.tar.gz' else 1024 * 1024
+                            if not member.isfile() or not 0 <= member.size <= limit:
+                                raise SystemExit('Invalid release member')
+                            with archive.extractfile(member) as source, (root / member.name).open('wb') as target:
+                                import shutil
+                                shutil.copyfileobj(source, target)
+                    PY
+                    python3 "$incoming/deploy_host.py" "$incoming"
+  GitHubOidc:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateOidc
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If [CreateOidc, !Ref GitHubOidc, !Ref ExistingOidcProviderArn]
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                token.actions.githubusercontent.com:sub: repo:MSG-CTF/sentinel:environment:aws-production
+      Policies:
+        - PolicyName: DeploySentinelOnly
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:PutObject, s3:AbortMultipartUpload]
+                Resource: !Sub '${Artifacts.Arn}/releases/*'
+              - Effect: Allow
+                Action: ssm:SendCommand
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:document/${DeployDocument}'
+                  - !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${Host}'
+              - Effect: Allow
+                Action: ssm:GetCommandInvocation
+                Resource: '*'
+Outputs:
+  AwsRegion: {Value: !Ref 'AWS::Region'}
+  AwsRoleArn: {Value: !GetAtt DeployRole.Arn}
+  AwsInstanceId: {Value: !Ref Host}
+  AwsArtifactBucket: {Value: !Ref Artifacts}
+  AwsDeployDocument: {Value: !Ref DeployDocument}

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#090c10"><meta name="robots" content="noindex,nofollow">
+  <title>Sentinel · 관리자 로그인</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/login.css"><link rel="stylesheet" href="/mechanism.css">
+  <script src="/sentinel-core.js" defer></script><script src="/login.js" defer></script>
+</head>
+<body>
+  <main class="access-shell">
+    <div class="access-scene">
+      <div class="mechanism" data-sentinel-core="access"><div class="mechanism-assembly"><img class="mechanism-image" src="/assets/sentinel-optic-poster.jpg" width="1000" height="1000" alt="" fetchpriority="high" decoding="async" draggable="false"></div></div>
+    </div>
+    <div class="scene-shade" aria-hidden="true"></div>
+    <header class="access-header">
+      <a class="wordmark" href="/login" aria-label="Sentinel 로그인"><svg class="sentinel-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M24 6H12L6 12v6h14v3H7v5h13l6-6V13H12v-1l1-1h11Z"/><path class="mark-signal" d="M26 6h2v5h-2Z"/></svg><span>MSG CTF</span><i></i><small>OPERATIONS</small></a>
+      <span class="access-classification"><i></i> PRIVATE ACCESS</span>
+    </header>
+    <section class="identity-panel" aria-label="MSG CTF Sentinel">
+      <div class="identity-title"><p>SERVICE LEVEL ASSURANCE</p><h1>Sentinel<span>Infrastructure, in focus.</span></h1></div>
+      <div class="identity-caption"><span class="caption-rule"></span><p>모든 신호를,<br>놓치지 않도록.</p><small>MSG CTF 인프라 관제 시스템</small></div>
+      <div class="scene-controls" data-core-controls="access" hidden aria-label="코어 움직임">
+        <button type="button" data-core-view="auto" aria-pressed="true"><span>01</span> 자동</button><button type="button" data-core-view="exploded" aria-pressed="false"><span>02</span> 분해</button><button type="button" data-core-view="assembled" aria-pressed="false"><span>03</span> 조립</button><button type="button" data-core-view="detail" aria-pressed="false"><span>04</span> 내부</button>
+        <button class="motion-toggle" data-motion-toggle type="button" aria-label="모션 끄기" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4v8m8-8v8"/></svg><span>MOTION ON</span></button>
+      </div>
+      <div class="camera-controls" data-core-controls="access" hidden aria-label="카메라 시점">
+        <svg class="camera-glyph" viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="6" width="14" height="10" rx="2"/><path d="m6 6 1-2h6l1 2"/><circle cx="10" cy="11" r="2.5"/></svg>
+        <button type="button" data-core-camera="cinematic" aria-pressed="true">자동 카메라</button><button type="button" data-core-camera="orbit" aria-pressed="false">자유 시점</button>
+        <span class="camera-hint">드래그로 둘러보기</span>
+        <button type="button" class="camera-reset" data-camera-reset aria-label="카메라 초기화" title="카메라 초기화"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 8a6 6 0 1 1 0 5M4 3v5h5"/></svg></button>
+      </div>
+    </section>
+    <section class="login-panel" aria-labelledby="login-title">
+      <div class="login-content">
+        <div class="access-label"><span>ADMINISTRATOR</span></div>
+        <div class="login-heading"><h2 id="login-title">관제실 로그인</h2><p class="login-description">관리자 계정으로 접속하세요</p></div>
+        <form id="login-form" method="post" action="/auth/login">
+          <label for="username">아이디</label>
+          <div class="account-field"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3"/><path d="M5 20v-2a7 7 0 0 1 14 0v2"/></svg><input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="32" placeholder="관리자 아이디" required></div>
+          <label for="password">비밀번호</label>
+          <div class="password-field"><svg class="input-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="1"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2"/></svg><input id="password" name="password" type="password" autocomplete="current-password" maxlength="256" placeholder="비밀번호 입력" required><button id="toggle-password" type="button" aria-label="비밀번호 표시" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"/><circle cx="12" cy="12" r="2.5"/></svg></button></div>
+          <p id="caps-lock" class="caps-lock" hidden>Caps Lock이 켜져 있습니다</p>
+          <p id="login-error" class="login-error" role="alert" aria-live="polite"></p>
+          <button id="sign-in" class="sign-in" type="submit"><span>로그인</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6"/></svg></button>
+        </form>
+        <div class="access-note"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m10 2 6 2v5c0 4-6 8-6 8S4 13 4 9V4l6-2Z"/><path d="m7 9 2 2 4-4"/></svg><span>승인된 관리자만 접근할 수 있습니다</span></div>
+        <noscript><p class="login-error">로그인하려면 JavaScript를 켜 주세요</p></noscript>
+      </div>
+    </section>
+    <footer class="access-footer"><span>MSG CTF · INFRASTRUCTURE OPERATIONS</span><span>SENTINEL <i></i> PRIVATE CONSOLE</span></footer>
+  </main>
+</body>
+</html>

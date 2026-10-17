@@ -1,0 +1,531 @@
+{
+  "other_asset_review": {
+    "reviewed_date": "2026-10-13",
+    "verification": "verification/2026-10-13-other-assets.json",
+    "remote_repositories": 5,
+    "remote_branches": 189,
+    "open_prs": 12,
+    "notion_pages": 5,
+    "local_application_recovery_verified": 8,
+    "runtime_store_restore_verified": true,
+    "runtime_store_live_cluster_reconnected": false,
+    "direct_healthy": 12,
+    "derived_healthy": 4,
+    "unconfigured": 9
+  },
+  "functional_instance_update": {
+    "reviewed_date": "2026-10-13",
+    "scope": "E3_local_service_boundaries_with_explicit_test_catalog_and_imported_fixture",
+    "verification": "verification/2026-10-13-functional.json",
+    "source_versions": {
+      "scheduler": "5c695142871a5a926b96d7befcaf0832c691933f",
+      "broker": "99ff5b884e4bf2198dabca84a179c11f5a516785",
+      "runtime": "19d2fdffef753bb9415861c4a6b382b6408455ea"
+    },
+    "running_image_ids": {
+      "scheduler": "sha256:b4d82d3c342fdf008c4f043276872e451153158e319ec095ad5f469a9c64a4f7",
+      "broker": "sha256:1f1f6201f7e7398b77896566d69d4d06a6f2fda53b94f23ea5a605258e3b0b11",
+      "runtime": "sha256:d90c69e1fdfa554e14a6114ae264aa460ff24bcaf33177e45cf20a331ff78c45",
+      "sentinel": "sha256:80b9876d7d78faaec699cc11ee03184c84f9a6502e36b0c2f5b63c861d18ea03"
+    },
+    "scheduler_creation_flow_verified": true,
+    "competition_challenge_verified": false,
+    "cloud_api_verified": false,
+    "automatic_instance_recovery_enabled": false
+  },
+  "execution_lab_update": {
+    "reviewed_date": "2026-10-11",
+    "timezone": "Asia/Seoul",
+    "scope": "local_runtime_k3s_and_reversible_service_cutover",
+    "source_project": "msg-sla-real-local",
+    "cluster": "msg-sla-execution",
+    "runtime_source_sha": "19d2fdffef753bb9415861c4a6b382b6408455ea",
+    "runtime_image_id": "sha256:d90c69e1fdfa554e14a6114ae264aa460ff24bcaf33177e45cf20a331ff78c45",
+    "runtime_binary_sha256": "1621df875b253f2fbc1ed16a210eb16a11bf46cb1e6a91e8cbaf30ac70f2b36c",
+    "runtime_store": "postgresql_17_11",
+    "go_toolchain": "go1.26.9",
+    "go_archive_sha256": "d722201a9c0c086d1610e111c48203009af690892ed708072bd5ae20160e7a59",
+    "k3d_version": "v5.9.0",
+    "k3d_binary_sha256": "49d0b9c796f5b8ba6f58a1dd5469e8b7b34bf9b6ce9078633eedb2789680a034",
+    "k3s_image": "ghcr.io/k3s-io/k3s@sha256:2074403abe1bded11ef3dde09d457e13be8e0b64c218b1c4f8269b4565cfbc65",
+    "k3s_version": "v1.35.5+k3s1",
+    "k3s_memory_limit_gib": 3,
+    "default_context_selected": false,
+    "provider_field_is_local_protocol_placeholder": true,
+    "workload_scope": "fixed_nginx_connection_fixture_web_profile",
+    "workload_image": "nginxinc/nginx-unprivileged@sha256:aa8c9087d36d93e9d650c5365f883b421e8214aedbad24ade52b844c583358f1",
+    "instance_id": "a716671b-48a3-4fcb-813a-1b9a2280463e",
+    "target_id": "sentinel-local-k3s",
+    "operation_id": "b285923122354e6ef7e2107f9425a42f",
+    "runtime_api_url": "http://127.0.0.1:58188",
+    "kubernetes_api_url": "https://127.0.0.1:58643",
+    "fixture_url": "http://127.0.0.1:30082",
+    "production_enabled": false,
+    "scheduler_creation_flow_verified": false,
+    "competition_challenge_verified": false,
+    "pwn_gvisor_verified": false,
+    "capability_report": "artifacts/execution-capabilities.json",
+    "capability_checks": [
+      "ingress_deny_and_restore",
+      "egress_deny_and_restore",
+      "strict_groups_101",
+      "pod_cgroup_pid_limit_128"
+    ],
+    "monitor_image_id": "sha256:9f1bc2ad81e14abcae97490c9f70797c1d399835a03d42f9a8dfc5d287a60023",
+    "dashboard_assets": "read_only_source_mount",
+    "connected_targets": [
+      "runtime",
+      "runtime-db",
+      "linux-pool"
+    ],
+    "direct_healthy": 12,
+    "derived_healthy": 4,
+    "unconfigured": 9,
+    "recovery_bindings": 8,
+    "verification": {
+      "dotnet_tests": 107,
+      "python_tests": 27,
+      "dashboard_model_tests": 52,
+      "browser_checks": 14,
+      "runtime_fault_report": "artifacts/execution-verification.json",
+      "runtime_fault_checks_passed": 19,
+      "runtime_fault_monitor_image_id": "sha256:e4809e05215f1c21d00140db585cbf3a21513c03fe62e610879ba49e8b4dfc6a",
+      "final_guard_change": "connection_failure_also_requires_fresh_runtime_and_store_host_confirmation_verified_by_two_additional_unit_cases",
+      "initial_cooldown_failure_report": "artifacts/execution-verification-cooldown-20261011.json",
+      "cluster_lifecycle_report": "artifacts/execution-lifecycle.json",
+      "cluster_lifecycle_checks_passed": 7,
+      "final_state_report": "artifacts/execution-final-state-20261011.json",
+      "browser_log": "artifacts/execution-browser-20261011.log"
+    },
+    "service_cutover": {
+      "run_id": "20261010T155629Z-9fa4fc56",
+      "backup_id": "20261010T155659Z-76654c17",
+      "report": "artifacts/data-cutover-20261010T155629Z-9fa4fc56.json",
+      "stores_restored": 6,
+      "applications_on_restored_volumes": 4,
+      "applications_after_rollback": 4,
+      "original_volumes_active": true,
+      "restore_lab_removed": true,
+      "runtime_store_included": false,
+      "automatic_data_restore_enabled": false,
+      "crash_rollback_drill_verified": false
+    },
+    "remaining": [
+      "windows_problem_vm",
+      "koth_service_and_scoring",
+      "cloud_accounts_and_vm_bindings",
+      "challenge_delivery_pipeline",
+      "scheduler_to_runtime_creation",
+      "runtime_store_backup_restore",
+      "business_data_and_inflight_workload_recovery"
+    ]
+  },
+  "data_recovery_update": {
+    "reviewed_date": "2026-10-10",
+    "timezone": "Asia/Seoul",
+    "scope": "isolated_local_data_restore",
+    "source_project": "msg-sla-real-local",
+    "backup_id": "20261010T143008Z-25fb5e41",
+    "restore_run_id": "20261010T143338Z-13bf534c",
+    "restore_report": "artifacts/data-restore-20261010T143338Z-13bf534c.json",
+    "final_state_report": "artifacts/data-recovery-final-state-20261010.json",
+    "engines": {
+      "postgres": "17.11",
+      "redis": "8.10.2"
+    },
+    "image_binding": "exact_source_image_ids_in_private_backup_manifest",
+    "data_services_verified": 6,
+    "application_queries_verified": 4,
+    "matched_tables": 102,
+    "matched_rows": 554,
+    "matched_sequences": 18,
+    "nonempty_data_scope": "migration_history_django_permissions_and_content_types",
+    "original_redis_keys": 0,
+    "redis_fixture_scope": "isolated_logical_databases_1_and_7_values_ttl_and_aof_restart",
+    "restore_duration_seconds": 71.45,
+    "cross_service_atomic": false,
+    "automatic_data_restore_enabled": false,
+    "source_container_identity_preserved": true,
+    "all_restore_lab_resources_removed": true,
+    "application_recovery_requests_unchanged": 11,
+    "verification": {
+      "guard_tests_passed": 13,
+      "guard_test_log": "artifacts/data-recovery-guard-tests-20261010.log",
+      "dashboard_model_tests_passed": 50,
+      "dashboard_model_log": "artifacts/data-recovery-dashboard-regression-20261010.log",
+      "browser_assertions_passed": 22,
+      "browser_logs": [
+        "artifacts/data-recovery-browser-20261010.log",
+        "artifacts/data-recovery-existing-ui-regression-20261010.log"
+      ],
+      "redis_regression_report": "artifacts/data-restore-20261010T142608Z-caa9a8f7.json",
+      "scheduler_configuration_report": "artifacts/data-restore-20261010T143022Z-1c82cc9f.json"
+    },
+    "remaining": [
+      "source_cutover_policy",
+      "cross_store_consistency",
+      "business_data_and_inflight_workload_recovery",
+      "backup_schedule_and_retention",
+      "remote_asset_access"
+    ]
+  },
+  "multi_asset_recovery_update": {
+    "reviewed_date": "2026-10-10",
+    "timezone": "Asia/Seoul",
+    "scope": "local_fixed_application_stop_recovery",
+    "final_profile": "local-recovery",
+    "final_mode": "automatic_local",
+    "asset_ids": [
+      "internal-backend",
+      "external-backend",
+      "scheduler",
+      "broker",
+      "internal-frontend",
+      "external-frontend",
+      "edge"
+    ],
+    "action": "start_stopped_service",
+    "attempt_limit_per_incident": 1,
+    "cooldown_scope": "per_asset",
+    "cooldown_seconds": 300,
+    "global_active_request_limit": 1,
+    "timeout_guard": "fresh_host_stop_confirmation_within_15_seconds_required",
+    "journal_schema_version": 2,
+    "version_1_history_preserved": true,
+    "production_enabled": false,
+    "data_service_recovery_enabled": false,
+    "monitor_image_id": "sha256:82d668c0216bfeed84d1e4e410ce8a23ef47789c337705abf36333dfba0d529c",
+    "dashboard_assets": "read_only_source_mount_includes_final_policy_copy",
+    "final_status": {
+      "profile": "local-recovery",
+      "mode": "automatic_local",
+      "direct_healthy": 9,
+      "unconfigured": 12,
+      "recovery_assets": 7,
+      "historical_requests_preserved": 2,
+      "requests": 11,
+      "event_storage_healthy": true,
+      "recovery_storage_healthy": true,
+      "executor_connected": true,
+      "checked_at": "2026-10-10T14:14:02.7417350Z"
+    },
+    "verification": {
+      "unit_tests_passed": 90,
+      "entrypoint_tests_passed": 1,
+      "dotnet_log": "artifacts/dotnet-multi-recovery-tests-20261010.log",
+      "executor_tests_passed": 8,
+      "executor_log": "artifacts/host-multi-recovery-tests-20261010.log",
+      "dashboard_model_tests_passed": 43,
+      "dashboard_model_log": "artifacts/dashboard-multi-recovery-tests-20261010.log",
+      "actual_services_recovered": 7,
+      "actual_recovery_report": "artifacts/multi-recovery-20261010T140000Z.json",
+      "initial_timeout_regression_report": "artifacts/multi-recovery-20261010T135226Z.json",
+      "scheduler_timeout_evidence": "artifacts/scheduler-recovery-evidence-20261010.json",
+      "dependency_and_access_checks_passed": 30,
+      "dependency_and_access_report": "artifacts/assets-verification-20261010T141205Z.json",
+      "profile_checks_passed": 4,
+      "profile_report": "artifacts/recovery-profile-verification-20261010T141308Z.json",
+      "browser_checks_passed": 25,
+      "browser_logs": [
+        "artifacts/browser-multi-assets-20261010.log",
+        "artifacts/browser-multi-recovery-20261010.log"
+      ],
+      "final_policy_copy_log": "artifacts/browser-multi-final-copy-20261010.log",
+      "screenshot": "../output/playwright/recovery-seven-services-20261010.png",
+      "public_contract_fields_checked": 616,
+      "contract_naming": "static_pass",
+      "korean_prose_style": "passed",
+      "other_source_checkouts_clean": true
+    },
+    "environment_repair": {
+      "docker_data_reset": false,
+      "engine_started": true,
+      "engine_start_mode": "unattended",
+      "socket_directories_preserved": true,
+      "portable_sdk": "local/.tooling/dotnet",
+      "sdk_version": "8.0.425",
+      "sdk_vendor_sha512_verified": true
+    }
+  },
+  "verified_date": "2026-10-07",
+  "asset_monitor_update": {
+    "verified_date": "2026-10-10",
+    "scope": "all_architecture_roles_and_local_service_checks",
+    "final_profile": "local-recovery",
+    "mode": "automatic_local",
+    "registered_roles": 25,
+    "healthy_assets": 13,
+    "direct_probes": 9,
+    "backend_dependency_observations": 4,
+    "unconfigured_roles": 12,
+    "sources": [
+      {
+        "role": "scheduler",
+        "revision": "5c695142871a5a926b96d7befcaf0832c691933f",
+        "source": "cached_origin_dev",
+        "execution": "pinned_local_export"
+      },
+      {
+        "role": "broker",
+        "revision": "99ff5b884e4bf2198dabca84a179c11f5a516785",
+        "source": "cached_origin_staging",
+        "execution": "pinned_local_export"
+      },
+      {
+        "role": "frontend",
+        "revision": "c0a85359be9878a212ab7b7ac955b898844430c5",
+        "source": "local_fix_admin_operation_reliability",
+        "execution": "pinned_local_export"
+      },
+      {
+        "role": "runtime",
+        "revision": "19d2fdffef753bb9415861c4a6b382b6408455ea",
+        "execution": "not_started_missing_real_k3s_registry"
+      }
+    ],
+    "images": {
+      "sentinel": "sha256:5fd2947aa06be27c906a10964827d968a2b6e25572098e78f5b7347ace7bca04",
+      "scheduler": "sha256:b4d82d3c342fdf008c4f043276872e451153158e319ec095ad5f469a9c64a4f7",
+      "broker": "sha256:1f1f6201f7e7398b77896566d69d4d06a6f2fda53b94f23ea5a605258e3b0b11",
+      "frontend": "sha256:309d7c2c3a36f41450cedfa4e6aa7f02071047ac6910518ea4595d14572e9129",
+      "edge": "sha256:aa8c9087d36d93e9d650c5365f883b421e8214aedbad24ade52b844c583358f1"
+    },
+    "new_recovery_actions_enabled": false,
+    "automatic_recovery_scope": "internal_backend_only",
+    "inventory_state": "scheduler_recent_empty_and_broker_inventory_empty",
+    "production_deployment_verified": false,
+    "verification": {
+      "functional_checks_passed": 31,
+      "functional_report": "artifacts/assets-verification-20261009T181601Z.json",
+      "unit_tests_passed": 77,
+      "entrypoint_tests_passed": 1,
+      "dotnet_log": "artifacts/dotnet-assets-final-tests-20261010.log",
+      "dashboard_model_tests_passed": 43,
+      "dashboard_model_log": "artifacts/dashboard-assets-tests-20261010.log",
+      "browser_checks_passed": 13,
+      "browser_log": "artifacts/browser-assets-final-20261010.log",
+      "screenshots_suffix": "2026-10-09T18-20-54-164Z",
+      "profile_checks_passed": 4,
+      "profile_report": "artifacts/recovery-profile-verification-20261009T181924Z.json",
+      "all_thirteen_running_services_preserved_across_profile_switch": true,
+      "original_six_containers_preserved_during_added_asset_fault_tests": true,
+      "broker_database_fault_reason": "TIMEOUT",
+      "broker_database_fault_root_cause_identified_by_monitor": false,
+      "restoration_method": "verification_script_starts_exact_container_id",
+      "contract_naming_fields_checked": 856,
+      "contract_naming": "static_pass",
+      "korean_prose_style": "passed"
+    }
+  },
+  "recovery_update": {
+    "verified_date": "2026-10-10",
+    "timezone": "Asia/Seoul",
+    "scope": "asset_access_planning_and_one_local_recovery_binding",
+    "historical_reviews_preserved": true,
+    "final_profile": "local-recovery",
+    "mode": "automatic_local",
+    "asset_id": "internal-backend",
+    "action": "start_stopped_service",
+    "executor": "local_windows_process",
+    "production_adapters_connected": false,
+    "access_plan_role_count": 25,
+    "additional_self_monitoring_plan": "sentinel",
+    "container_image": "sha256:baef942cd569fe2990a1b4acedd5dd20b67f87b1021890e74d5ca090c6796e7a",
+    "verification": {
+      "unit_tests_passed": 63,
+      "entrypoint_tests_passed": 1,
+      "dotnet_log": "artifacts/dotnet-recovery-final-20261010.log",
+      "dashboard_model_tests_passed": 41,
+      "executor_unit_tests_passed": 4,
+      "functional_checks_passed": 18,
+      "functional_report": "artifacts/recovery-verification-20261009T173936Z.json",
+      "earlier_functional_report": "artifacts/recovery-verification-20261009T172701Z.json",
+      "recovery_profile_checks_passed": 4,
+      "recovery_profile_report": "artifacts/recovery-profile-verification-20261009T173846Z.json",
+      "browser_checks_passed": 10,
+      "browser_log": "artifacts/browser-recovery-final-20261010.log",
+      "browser_pan_initial_log": "artifacts/browser-recovery-pan-before-20261010.log",
+      "observe_only_baseline_report": "artifacts/actual-verification-20261009T172428570719Z.json",
+      "deployed_profile_report": "artifacts/profile-verification-20261009T172511669500Z.json",
+      "contract_fields_checked": 574,
+      "contract_naming": "static_pass",
+      "korean_prose_style": "passed"
+    }
+  },
+  "current_review": {
+    "reviewed_date": "2026-10-10",
+    "timezone": "Asia/Seoul",
+    "scope": "local_sla_and_read_only_architecture_contract_review",
+    "historical_fields_below_remain_2026_10_07": true,
+    "checkouts_preserved": true,
+    "sources": [
+      {
+        "role": "sla",
+        "default_branch": "dev",
+        "checkout_branch": "feat/real-platform-monitoring",
+        "checkout_sha": "e17e94dd394f96045f2b1882dac7be369fb93f7a",
+        "remote_sha": "e17e94dd394f96045f2b1882dac7be369fb93f7a",
+        "local_changes": true
+      },
+      {
+        "role": "backend",
+        "default_branch": "main",
+        "checkout_sha": "a045ceff2eb09a15a2f48126bd85faa8433dd19b",
+        "remote_sha": "5896bb52e77a4ab2c4b4ace3718c1c9a73f3428f",
+        "delta": "cd_workflow_only"
+      },
+      {
+        "role": "scheduler",
+        "default_branch": "dev",
+        "checkout_sha": "37ad2a08c0c5ea7ab9d96d8bf655b65c7ea699ec",
+        "remote_sha": "5c695142871a5a926b96d7befcaf0832c691933f",
+        "delta": "optional_healthcheck_validation_storage_forwarding",
+        "execution": "not_started"
+      },
+      {
+        "role": "broker",
+        "default_branch": "dev",
+        "checkout_sha": "bde6361dd36440c7ee299adf4ded113b978da25d",
+        "remote_sha": "bde6361dd36440c7ee299adf4ded113b978da25d",
+        "implementation_branch": "staging",
+        "implementation_sha": "99ff5b884e4bf2198dabca84a179c11f5a516785",
+        "execution": "not_started",
+        "approved_execution_branch": null
+      },
+      {
+        "role": "runtime",
+        "default_branch": "main",
+        "default_branch_sha": "738419f6045680b175fbc744f71108ad37d76439",
+        "checkout_branch": "dev",
+        "checkout_sha": "19d2fdffef753bb9415861c4a6b382b6408455ea",
+        "remote_dev_sha": "19d2fdffef753bb9415861c4a6b382b6408455ea",
+        "execution": "not_started"
+      }
+    ],
+    "notion": {
+      "fetched_date": "2026-10-10",
+      "returned_as_of": "2026-10-07T07:06:33.629Z",
+      "page_last_edited_at": "2026-10-07T07:06:02.831Z",
+      "latest_live_revision_verified": false,
+      "text_read": true,
+      "attachment_images_read": 0,
+      "attachment_count": 4
+    },
+    "production_probe": {
+      "url": "https://msgctf.kr/healthz",
+      "checked_at": "2026-10-09T16:21:42.926717+00:00",
+      "http_status_code": 200,
+      "content_type": "text/html",
+      "bytes_read": 2201,
+      "backend_contract_matched": false,
+      "track": "PUBLIC",
+      "deployed_sha_verified": false,
+      "response_body_saved": false
+    },
+    "inventory_contract": "inventory-contracts.json",
+    "verification": {
+      "dashboard_model_tests_passed": 39,
+      "dashboard_model_log": "artifacts/dashboard-tests-20261010.log",
+      "browser_checks_passed": 12,
+      "browser_log": "artifacts/browser-verification-20261010.log",
+      "browser_regression_before_fix": "artifacts/browser-detail-before-20261010.log",
+      "browser_regression_fixed": "preserve_map_position_when_details_change_viewport_width",
+      "baseline_report": "artifacts/actual-verification-20261009T163320128246Z.json",
+      "baseline_passed": true,
+      "fault_report": "artifacts/actual-fault-verification-20261009T163445540390Z.json",
+      "fault_passed": true,
+      "fault_check_count": 23,
+      "redis_failure_monitor_reason": "TIMEOUT",
+      "redis_dependency_identified_by_monitor": false,
+      "unit_tests_passed": 45,
+      "entrypoint_tests_passed": 1,
+      "dotnet_log": "artifacts/dotnet-tests-20261010.log",
+      "profile_report": "artifacts/profile-verification-20261009T163842488457Z.json",
+      "profile_switch_preserved_six_container_ids_and_start_times": true,
+      "final_profile": "local",
+      "contract_naming": "static_pass_only_143_fields",
+      "korean_prose_style": "passed"
+    }
+  },
+  "architecture_source": "https://app.notion.com/p/3e20f19c72be80d1a2ebd1c9e8f2a894",
+  "sources": [
+    {
+      "role": "sla",
+      "repo": "MSG-CTF/sentinel",
+      "branch": "dev",
+      "baseline_sha": "e17e94dd394f96045f2b1882dac7be369fb93f7a",
+      "local_changes": true
+    },
+    {
+      "role": "backend",
+      "repo": "MSG-CTF/msg-backend",
+      "branch": "main",
+      "sha": "a045ceff2eb09a15a2f48126bd85faa8433dd19b"
+    },
+    {
+      "role": "scheduler",
+      "repo": "MSG-CTF/instance-scheduler",
+      "branch": "dev",
+      "sha": "37ad2a08c0c5ea7ab9d96d8bf655b65c7ea699ec",
+      "execution": "not_started"
+    },
+    {
+      "role": "broker",
+      "repo": "MSG-CTF/resource-broker",
+      "branch": "dev",
+      "sha": "bde6361dd36440c7ee299adf4ded113b978da25d",
+      "execution": "readme_only_default_branch"
+    },
+    {
+      "role": "runtime",
+      "repo": "MSG-CTF/secure-provisioner",
+      "branch": "dev",
+      "sha": "19d2fdffef753bb9415861c4a6b382b6408455ea",
+      "execution": "not_started",
+      "default_branch": "main",
+      "default_branch_sha": "738419f6045680b175fbc744f71108ad37d76439",
+      "default_branch_state": "readme_only"
+    },
+    {
+      "role": "devsecops",
+      "repo": "MSG-CTF/msgctf-devsecops",
+      "branch": "main",
+      "sha": "cd47cb5c738ab612dae57e385368f279d26054aa",
+      "execution": "source_audit_only"
+    },
+    {
+      "role": "frontend",
+      "repo": "MSG-CTF/front-team",
+      "branch": "main",
+      "sha": "516fbc9487fc36a32ccf9b95c98a41e5af244b97",
+      "execution": "source_audit_only"
+    },
+    {
+      "role": "challenge_publish",
+      "repo": "MSG-CTF/2026_MSG_CTF",
+      "branch": "main",
+      "sha": "955027d92d4c0e69202d9709f4a2ea5cf9e96e3d",
+      "execution": "caller_source_audit_only"
+    }
+  ],
+  "deployed_version": "unknown_no_release_metadata_verified",
+  "production_probe": "https://msgctf.kr/healthz",
+  "production_observation": "HTTP_200_HTML_NOT_BACKEND_HEALTH_JSON",
+  "recovery_mode": "observe_only",
+  "verification": {
+    "unit_tests_passed": 45,
+    "entrypoint_tests_passed": 1,
+    "actual_fault_report": "artifacts/actual-fault-verification.json",
+    "actual_fault_report_passed": true,
+    "actual_fault_finished_at": "2026-10-07T08:04:25.662824Z",
+    "redis_failure_monitor_reason": "TIMEOUT",
+    "redis_dependency_identified_by_monitor": false,
+    "deployed_profile_checked_at": "2026-10-07T08:05:10.9809509Z",
+    "deployed_backend_reason": "EXPECTED_JSON_RECEIVED_OTHER",
+    "sentinel_core_image_id": "sha256:c70589315572ebe91f573c473c1a7c16cb5b16cca6c66642d15eb37f8188236a",
+    "dashboard_assets": "read_only_source_mount_for_local_development",
+    "architecture_report": "architecture-audit.md",
+    "architecture_scope": "notion_text_and_pinned_source_audit_not_production_e2e",
+    "dashboard_model_tests_passed": 33
+  }
+}

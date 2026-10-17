@@ -4,4 +4,7 @@
     <ProjectReference Include="..\Sentinel.Infrastructure\Sentinel.Infrastructure.csproj" />
     <ProjectReference Include="..\Sentinel.Monitor\Sentinel.Monitor.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="prometheus-net.AspNetCore" Version="8.2.1" />
+  </ItemGroup>
 </Project>

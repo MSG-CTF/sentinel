@@ -1,0 +1,419 @@
+{
+  "title": "Sentinel · 운영 지표",
+  "uid": "sentinel-django-health",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 5,
+  "refresh": "15s",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "백엔드 점검 실행",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "expr": "sentinel_django_check_success",
+          "legendFormat": "{{target_id}}",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "text": "계약 미확인",
+                  "color": "orange"
+                },
+                "1": {
+                  "text": "검증 완료",
+                  "color": "green"
+                },
+                "-1": {
+                  "text": "미확인",
+                  "color": "orange"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "noValue": "미수집"
+        },
+        "overrides": []
+      },
+      "id": 1,
+      "description": "백엔드 healthz 계약을 검증한 결과입니다. HTML 응답은 정상으로 처리하지 않습니다.",
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Django · DB · Redis",
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "expr": "sentinel_django_component_health",
+          "legendFormat": "{{target_id}} / {{component}}",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "미확인",
+                  "color": "orange"
+                },
+                "0": {
+                  "text": "장애",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "정상",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "noValue": "미수집"
+        },
+        "overrides": []
+      },
+      "id": 2,
+      "description": "확인하지 못한 컴포넌트는 Unverified로 표시됩니다. 공개 웹 접속만으로 DB 상태를 추정하지 않습니다.",
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "자산별 상태 이력",
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "expr": "sentinel_target_health",
+          "legendFormat": "{{target_id}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "Unverified",
+                  "color": "orange"
+                },
+                "0": {
+                  "text": "Down",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Healthy",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "noValue": "미수집"
+        }
+      },
+      "id": 3,
+      "description": "1: 정상 · 0: 장애 · -1: 미확인/미연결/오래된 관측입니다. 디스코드 봇 값은 서버의 systemd heartbeat 범위입니다.",
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "자산별 응답 시간",
+      "gridPos": {
+        "x": 12,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "expr": "sentinel_target_latency_ms",
+          "legendFormat": "{{target_id}}",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "noValue": "미수집"
+        }
+      },
+      "id": 4,
+      "description": "Sentinel에서 각 점검 대상까지 측정한 응답 시간입니다.",
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "메트릭 수집",
+      "description": "Prometheus가 Sentinel의 인증된 metrics 경로를 수집한 결과입니다.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "expr": "up{job=\"sentinel\"}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "미수집",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "오류",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "정상",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "이벤트 저장",
+      "description": "Sentinel의 이벤트 저장소 상태입니다.",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "expr": "sentinel_event_storage_healthy",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "미수집",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "오류",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "정상",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      }
+    }
+  ],
+  "editable": false,
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "tags": [
+    "MSG CTF",
+    "Sentinel"
+  ],
+  "links": [
+    {
+      "title": "Sentinel 관제실",
+      "type": "link",
+      "url": "/",
+      "targetBlank": false,
+      "icon": "dashboard"
+    }
+  ],
+  "timepicker": {
+    "refresh_intervals": [
+      "15s",
+      "30s",
+      "1m",
+      "5m",
+      "15m"
+    ]
+  }
+}

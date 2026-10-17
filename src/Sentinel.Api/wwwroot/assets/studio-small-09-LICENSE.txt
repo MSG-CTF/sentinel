@@ -1,0 +1,13 @@
+Studio Small 09
+Author: Sergej Majboroda / Poly Haven
+Asset: https://polyhaven.com/a/studio_small_09
+License: CC0 1.0 Universal
+https://creativecommons.org/publicdomain/zero/1.0/
+https://polyhaven.com/license
+
+Original, unmodified 1K Radiance HDR file:
+https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/studio_small_09_1k.hdr
+MD5: d5d7eb9d26d341d6aa4d11c1a54fd97c
+Size: 1615248 bytes
+
+Stored locally as studio-small-09.hdr. No third-party requests at runtime.

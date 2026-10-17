@@ -1,0 +1,57 @@
+# Opt-in local execution lab, created by execution_lab.py
+services:
+  runtime-db:
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    environment:
+      POSTGRES_DB: runtime
+      POSTGRES_USER: runtime
+      POSTGRES_PASSWORD: local-runtime-db-only
+    volumes: [runtime_postgres:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U runtime -d runtime"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
+    mem_limit: 256m
+    networks: [runtime_data]
+
+  runtime:
+    labels: {io.msgctf.sentinel.recovery: local-runtime}
+    image: msg-sla-runtime:19d2fdff
+    build:
+      context: ./.execution/build
+      dockerfile: ../../Runtime.Dockerfile
+    env_file: [./.assets/runtime.env]
+    environment:
+      PROVISIONER_ADDR: 0.0.0.0:8080
+      PROVISIONER_CLUSTER_REGISTRY: /config/clusters.json
+      PROVISIONER_STORE_MODE: postgres
+      PROVISIONER_DATABASE_URL: postgresql://runtime:local-runtime-db-only@runtime-db:5432/runtime?sslmode=disable
+      PROVISIONER_WORKERS: "1"
+    volumes:
+      - ./.execution/runtime:/config:ro
+    ports: ["127.0.0.1:58188:8080"]
+    depends_on:
+      runtime-db: {condition: service_healthy}
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 384m
+    cpus: 1.0
+    networks: [runtime_data, monitoring, execution, local_access]
+
+  sentinel:
+    env_file: [./.execution/monitor.env]
+    volumes: [./.execution/monitor.json:/config/profile.json:ro]
+
+networks:
+  runtime_data:
+    internal: true
+    ipam: {config: [{subnet: "10.246.246.0/24"}]}
+  execution:
+    external: true
+    name: k3d-msg-sla-execution
+
+volumes:
+  runtime_postgres:
