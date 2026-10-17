@@ -21,6 +21,13 @@ CPU는 /proc/stat의 두 측정값을 1초 간격으로 비교하며 load averag
 - sudoers에는 sentinel-asset-command status, resources, start만 허용
 - 다른 자산에 연결할 때 해당 호스트의 고정 서비스와 키·지문을 별도로 검증
 
+스케줄러와 런타임 관리 서버도 같은 보고기와 제한된 SSH 작업을 사용한다
+호스트에 설치하는 asset_command.py의 SERVICE는 해당 서버에서 확인한 systemd 서비스 하나로 고정한다
+각 서버의 전용 키는 SENTINEL_SSH_SCHEDULER_B64 또는 SENTINEL_SSH_RUNTIME_B64로 분리한다
+service_heartbeat는 관리 프로세스와 호스트 자원을 확인하며 문제 컨테이너의 실행 가능 여부를 보장하지 않는다
+서비스 HTTP 점검과 스케줄러 전체 목록 조회는 별도의 HTTPS 대상에 연결한다
+런타임 클러스터가 등록되지 않았으면 인스턴스 실행 상태를 정상으로 추정하지 않는다
+
 이 콘솔은 임의 셸 명령, PTY, 포트 전달, 파일 업로드를 제공하지 않는다
 상태 조회는 선택한 서비스의 공개 상태 필드만 반환하고 환경 변수·봇 토큰·서비스 로그 원문은 읽지 않는다
 자원 조회는 보고기와 같은 자원 수치를 반환한다

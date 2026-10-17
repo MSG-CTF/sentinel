@@ -31,7 +31,7 @@ def token_name(value):
               "SENTINEL_PROFILE_FILE", "SENTINEL_AUTH_FILE", "SENTINEL_CANDIDATE",
               "SENTINEL_OPERATIONS_JSON", "SENTINEL_SSH_DISCORD_B64", "SENTINEL_DISCORD_WEBHOOK_URL"}
     if (not isinstance(value, str) or not re.fullmatch(r"[A-Z][A-Z0-9_]{0,63}", value)
-            or "__" in value or value in denied or value.startswith(("AWS_", "DOTNET_", "ASPNETCORE_", "LD_"))):
+            or "__" in value or value in denied or value.startswith(("AWS_", "DOTNET_", "ASPNETCORE_", "LD_", "SENTINEL_SSH_"))):
         raise ValueError("Invalid probe credential name")
     return value
 
@@ -210,6 +210,8 @@ def operations_environment(profile, environment):
         if not isinstance(assets, list) or not 1 <= len(assets) <= 32:
             raise ValueError('Invalid operations collection')
         seen = set()
+        key_names = set()
+        allowed_keys = {'SENTINEL_SSH_DISCORD_B64', 'SENTINEL_SSH_SCHEDULER_B64', 'SENTINEL_SSH_RUNTIME_B64'}
         for asset in assets:
             if (not isinstance(asset, dict) or set(asset) != {'asset_id', 'host', 'port', 'username', 'host_key_sha256', 'service', 'private_key_env'}
                     or not re.fullmatch(r'[a-z][a-z0-9_-]{0,63}', asset['asset_id']) or asset['asset_id'] in seen
@@ -217,17 +219,20 @@ def operations_environment(profile, environment):
                     or not isinstance(asset['port'], int) or not 1 <= asset['port'] <= 65535
                     or not re.fullmatch(r'[a-z_][a-z0-9_-]{0,31}', asset['username'])
                     or not re.fullmatch(r'[a-zA-Z0-9_.@-]{1,100}\.service', asset['service'])
-                    or asset['private_key_env'] != 'SENTINEL_SSH_DISCORD_B64'):
+                    or asset['private_key_env'] not in allowed_keys):
                 raise ValueError('Invalid SSH operations binding')
             if len(base64.b64decode(asset['host_key_sha256'], validate=True)) != 32:
                 raise ValueError('SSH host key pin required')
             seen.add(asset['asset_id'])
-        key = environment.get('SENTINEL_SSH_DISCORD_B64', '').strip()
-        decoded = base64.b64decode(key, validate=True)
-        if not 100 <= len(decoded) <= 8192 or b'PRIVATE KEY-----' not in decoded:
-            raise ValueError('Dedicated SSH key required')
-        lines.extend(['SENTINEL_OPERATIONS_JSON=' + json.dumps(assets, separators=(',', ':')),
-                      'SENTINEL_SSH_DISCORD_B64=' + key])
+            key_names.add(asset['private_key_env'])
+        key_lines = []
+        for name in sorted(key_names):
+            key = environment.get(name, '').strip()
+            decoded = base64.b64decode(key, validate=True)
+            if not 100 <= len(decoded) <= 8192 or b'PRIVATE KEY-----' not in decoded:
+                raise ValueError('Dedicated SSH key required')
+            key_lines.append(name + '=' + key)
+        lines.extend(['SENTINEL_OPERATIONS_JSON=' + json.dumps(assets, separators=(',', ':')), *key_lines])
     return ''.join(line + '\n' for line in lines)
 
 

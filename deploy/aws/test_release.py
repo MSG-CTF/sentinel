@@ -42,6 +42,53 @@ class ConfigurationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             release.validate_configuration(config, {"BOT_TOKEN": "a" * 40})
 
+    def test_each_managed_host_keeps_its_own_key_and_unused_keys_are_not_packaged(self):
+        assets = []
+        environment = {}
+        for index, name in enumerate(('DISCORD', 'SCHEDULER', 'RUNTIME')):
+            key_name = 'SENTINEL_SSH_' + name + '_B64'
+            assets.append({'asset_id': name.lower(), 'host': name.lower() + '.example.com', 'port': 22,
+                           'username': 'sentinel-ops', 'service': name.lower() + '.service',
+                           'host_key_sha256': base64.b64encode(bytes([index]) * 32).decode(),
+                           'private_key_env': key_name})
+            environment[key_name] = base64.b64encode(b'-----BEGIN OPENSSH PRIVATE KEY-----\n' + bytes([65 + index]) * 120).decode()
+        environment['SENTINEL_OPERATIONS_JSON'] = json.dumps(assets)
+        packed = dict(line.split('=', 1) for line in release.operations_environment(profile(), environment).splitlines())
+        self.assertEqual(json.loads(packed.pop('SENTINEL_OPERATIONS_JSON')), assets)
+        self.assertEqual(packed, {key: environment[key] for key in packed})
+        self.assertEqual(len(packed), 3)
+        environment['SENTINEL_OPERATIONS_JSON'] = json.dumps(assets[:1])
+        single = release.operations_environment(profile(), environment)
+        self.assertNotIn('SENTINEL_SSH_SCHEDULER_B64', single)
+        self.assertNotIn('SENTINEL_SSH_RUNTIME_B64', single)
+
+    def test_missing_or_malformed_key_on_a_second_host_blocks_the_release(self):
+        assets = [{'asset_id': name.lower(), 'host': name.lower() + '.example.com', 'port': 22,
+                   'username': 'sentinel-ops', 'service': name.lower() + '.service',
+                   'host_key_sha256': base64.b64encode(bytes(32)).decode(),
+                   'private_key_env': 'SENTINEL_SSH_' + name + '_B64'} for name in ('DISCORD', 'RUNTIME')]
+        valid = base64.b64encode(b'-----BEGIN OPENSSH PRIVATE KEY-----\n' + b'a' * 120).decode()
+        for bad in (None, '', 'invalid-base64!', base64.b64encode(b'not a private key').decode()):
+            environment = {'SENTINEL_OPERATIONS_JSON': json.dumps(assets), 'SENTINEL_SSH_DISCORD_B64': valid}
+            if bad is not None:
+                environment['SENTINEL_SSH_RUNTIME_B64'] = bad
+            with self.subTest(value=bad), self.assertRaises(ValueError):
+                release.operations_environment(profile(), environment)
+
+    def test_operations_cannot_reference_an_arbitrary_deployment_secret(self):
+        asset = {'asset_id': 'runtime', 'host': 'runtime.example.com', 'port': 22, 'username': 'sentinel-ops',
+                 'service': 'runtime.service', 'host_key_sha256': base64.b64encode(bytes(32)).decode()}
+        for name in ('AWS_ROLE_ARN', 'SENTINEL_ADMIN_PASSWORD', 'SENTINEL_SSH_UNREGISTERED_B64'):
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                release.operations_environment(profile(), {'SENTINEL_OPERATIONS_JSON': json.dumps([{**asset, 'private_key_env': name}])})
+
+    def test_probe_credentials_cannot_overwrite_any_operations_key(self):
+        config = profile()
+        for name in ('SENTINEL_SSH_DISCORD_B64', 'SENTINEL_SSH_SCHEDULER_B64', 'SENTINEL_SSH_RUNTIME_B64'):
+            config['platform_monitor']['targets'][0]['auth_token_env'] = name
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                release.validate_configuration(config, {name: 'probe-must-not-overwrite-ssh-key'})
+
     def test_observe_only_without_tokens(self):
         self.assertEqual(release.validate_configuration(profile(), {}), "")
 

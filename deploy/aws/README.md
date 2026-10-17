@@ -68,10 +68,14 @@ aws-production 환경의 Secrets:
 | SENTINEL_DISCORD_WEBHOOK_URL | 주의·위험·정상 복귀 알림용 Discord 웹후크 |
 | SENTINEL_OPERATIONS_JSON | 자산별 관리 호스트·전용 SSH 계정·포트·서비스·호스트 키 SHA-256·키 환경 변수 이름 |
 | SENTINEL_SSH_DISCORD_B64 | 고정 작업만 허용한 봇 서버 전용 SSH 개인키의 Base64 |
+| SENTINEL_SSH_SCHEDULER_B64 | 고정 작업만 허용한 스케줄러 서버 전용 SSH 개인키의 Base64 |
+| SENTINEL_SSH_RUNTIME_B64 | 고정 작업만 허용한 런타임 관리 서버 전용 SSH 개인키의 Base64 |
 | BROKER_ADMIN_USERNAME | 브로커 콘솔 관리자 계정 |
 | BROKER_ADMIN_PASSWORD | 브로커 콘솔 관리자 비밀번호 |
 
 브로커 콘솔 관리자 비밀번호는 감시 API의 Bearer 토큰으로 사용하지 않는다
+SSH 키는 SENTINEL_OPERATIONS_JSON에서 참조한 것만 배포하며 각 자산은 별도의 키와 호스트 지문을 사용한다
+초기 서버 설정용 관리자 키는 배포 Secrets에 넣지 않는다
 해당 관리자 Secrets는 현재 배포 컨테이너에 주입하지 않는다
 인증이 필요한 점검을 활성화하려면 HTTPS 주소와 감시 전용 토큰을 함께 등록한다
 프로필은 platform_monitor.profile=aws, event_file=data/events.jsonl,
