@@ -122,6 +122,10 @@ class Http:
                 body.extend(chunk)
                 if len(body) > LIMIT:
                     raise ProbeFailure("RESPONSE_TOO_LARGE", "CHECKER_ERROR")
+            # shutdown() may wake a blocked read as EOF rather than an exception
+            # on Linux. Preserve the deadline result before checking body framing.
+            if expired.is_set() or time.monotonic() >= self.deadline:
+                raise TimeoutError()
             if expected_length is not None and len(body) != expected_length:
                 raise ProbeFailure("TRUNCATED_RESPONSE", "CHECKER_ERROR")
             inspect(body)
