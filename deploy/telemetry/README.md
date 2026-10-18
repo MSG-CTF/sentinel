@@ -130,6 +130,7 @@ CPU·메모리는 같은 노드 식별자와 60초 이내의 Kubernetes metrics 
 점검기는 별도의 HTTP·TCP 연결을 사용하며 제어 서비스의 인증·쿠키를 전송하지 않는다
 HTTP 요청과 경로, TCP 명령은 프로필에 고정돼 있으며 리다이렉트·호스트 불일치·사설 주소·멀티캐스트·NodePort 범위 밖 주소를 거부한다
 연결과 개별 읽기에는 최대 4초 제한을 적용하고 전체 응답은 32 KiB 이내로 제한한다
+프로필 전체에는 20초 제한을 적용하며 HTTP 헤더나 본문이 조금씩 계속 도착하는 경우에도 남은 시간이 끝나면 연결을 종료한다
 결과에는 원문 응답·접속 주소·토큰·플래그를 포함하지 않으며 형식은 `challenge-functional-observation.schema.json`에 고정한다
 
 검증 입력은 [고정된 문제 소스](https://github.com/MSG-CTF/2026_MSG_CTF/tree/1dea73b652f9eeb98204c1fda7f66b9afb89505d)에 있는 정상 기능에서 가져왔다

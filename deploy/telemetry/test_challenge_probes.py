@@ -1,6 +1,7 @@
 import json
 import socket
 import struct
+import threading
 import time
 import unittest
 from unittest.mock import patch
@@ -29,6 +30,9 @@ class Socket:
     def close(self):
         self.closed = True
 
+    def shutdown(self, how):
+        pass
+
 
 class Response:
     def __init__(self, code, body, content_type="text/html", length=None):
@@ -44,7 +48,10 @@ class Response:
 
 class Connection:
     def __init__(self, responses):
-        self.responses, self.requests, self.closed, self.sock = responses, [], False, None
+        self.responses, self.requests, self.closed, self.sock = responses, [], False, Socket(b"")
+
+    def connect(self):
+        pass
 
     def request(self, *args):
         self.requests.append(args)
@@ -168,6 +175,35 @@ class ChallengeProbeTests(unittest.TestCase):
                 self.assertEqual(result["reason_code"], reason)
                 self.assertEqual(len(connection.requests), 1)
                 self.assertNotIn("do_not_log", json.dumps(result))
+
+    def test_absolute_http_deadline_stops_dripping_headers_and_body(self):
+        payloads = [b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok",
+                    b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n" + b"x" * 100]
+        for index, payload in enumerate(payloads):
+            with self.subTest(part="headers" if index == 0 else "body"):
+                listener = socket.socket(); listener.bind(("127.0.0.1", 0)); listener.listen(1); listener.settimeout(1)
+                port = listener.getsockname()[1]
+
+                def server():
+                    try:
+                        with listener.accept()[0] as peer:
+                            peer.recv(4096)
+                            initial = 0 if index == 0 else payload.index(b"\r\n\r\n") + 4
+                            if initial:
+                                peer.sendall(payload[:initial])
+                            for byte in payload[initial:]:
+                                peer.sendall(bytes([byte])); time.sleep(0.1)
+                    except OSError:
+                        pass
+
+                thread = threading.Thread(target=server, daemon=True); thread.start()
+                started = time.monotonic()
+                try:
+                    client = probes.Http("127.0.0.1", port, started + 0.15)
+                    with self.assertRaises(TimeoutError): client.request("GET", "/")
+                    self.assertLess(time.monotonic() - started, 2)
+                finally:
+                    listener.close(); thread.join(timeout=2)
 
 
 if __name__ == "__main__":

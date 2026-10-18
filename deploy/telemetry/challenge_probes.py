@@ -11,6 +11,7 @@ import json
 import secrets
 import socket
 import struct
+import threading
 import time
 from urllib.parse import urlencode, urlsplit
 
@@ -70,10 +71,29 @@ class Http:
         if remaining <= 0:
             raise TimeoutError()
         connection = http.client.HTTPConnection(self.host, self.port, timeout=min(4, remaining))
+        alarm, expired = None, threading.Event()
         headers = {"Accept": "application/json, text/html", "Cache-Control": "no-store", "User-Agent": "MSG-Sentinel-Functional/1"}
         if data is not None:
             headers["Content-Type"] = "application/x-www-form-urlencoded"
         try:
+            connection.connect()
+            transport = connection.sock
+
+            def expire():
+                expired.set()
+                try:
+                    transport.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+
+            # Socket timeouts alone are inactivity limits. Also bound a peer that
+            # drips headers or body bytes often enough to avoid those timeouts.
+            remaining = self.deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError()
+            alarm = threading.Timer(remaining, expire)
+            alarm.daemon = True
+            alarm.start()
             connection.request(method, path, data, headers)
             response = connection.getresponse()
             if 300 <= response.status < 400:
@@ -106,7 +126,13 @@ class Http:
                 raise ProbeFailure("TRUNCATED_RESPONSE", "CHECKER_ERROR")
             inspect(body)
             return response.status, response.getheader("Content-Type", "").split(";")[0].lower(), bytes(body)
+        except (OSError, http.client.HTTPException):
+            if expired.is_set():
+                raise TimeoutError() from None
+            raise
         finally:
+            if alarm is not None:
+                alarm.cancel()
             connection.close()
 
 
