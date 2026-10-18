@@ -8,7 +8,8 @@ from unittest.mock import patch
 
 import challenge_probes as probes
 
-HOST = "34.134.53.193"
+# Synthetic public address for mocked transports; no deployment address is stored here.
+HOST = "1.1.1.1"
 NONCE = "1234567890abcdef12345678"
 
 
