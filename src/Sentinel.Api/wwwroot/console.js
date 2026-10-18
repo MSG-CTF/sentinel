@@ -83,9 +83,10 @@
     for (const [key,unit] of [["latency_ms","ms"],["cpu_used_percent","%"],["memory_used_percent","%"],["disk_used_percent","%"]]) {
       const value = policy[key]; if (!value) continue;
       const row = make("div",undefined,"policy-row"); row.append(make("strong",SentinelAssets.metricNames[key]), make("span",`${value.warning}${unit}`), make("span",`${value.critical}${unit}`)); table.append(row);
-      const note = make("p",`해제: 주의 ${value.warning-value.clear_margin}${unit} 미만 · 위험 ${value.critical-value.clear_margin}${unit} 미만`,"policy-clear"); table.append(note);
+      const entry = level => value[`${level}_seconds`] || value[`${level}_samples`]>1 ? `${value[`${level}_seconds`] || 0}초·새 측정 ${value[`${level}_samples`] || 1}회` : "즉시";
+      const note = make("p",`주의 ${entry("warning")} / 위험 ${entry("critical")} · 해제 ${value.warning-value.clear_margin}${unit} / ${value.critical-value.clear_margin}${unit} 미만`,"policy-clear"); table.append(note);
     }
-    byId("risk-policy-description").textContent = `기준 도달 시 즉시 표시 · 해제 기준 아래의 새 측정 ${policy.clear_samples}회 연속 확인 후 해제 · 같은 보고의 재조회는 제외`;
+    byId("risk-policy-description").textContent = `높은 부하의 지속 시간과 새 측정 횟수를 함께 확인 · 서비스 오류는 즉시 표시 · 해제 기준 아래의 새 측정 ${policy.clear_samples}회 연속 확인 후 해제 · 같은 보고의 재조회는 제외`;
   }
   function inspector(asset) {
     root.SentinelAssetOps?.render(asset);
@@ -94,7 +95,7 @@
     panel.append(make("h3","측정값과 경고 기준"));
     for (const signal of asset.risk.signals) {
       const row = make("div",undefined,"detail-risk-row"); row.dataset.level = signal.level;
-      row.append(make("strong",`${SentinelAssets.metricNames[signal.metric]} · ${Number(signal.value.toFixed(1))}${signal.unit}`), make("span",`${SentinelAssets.riskNames[signal.level]}${signal.recovering ? " · 회복 확인 중" : ""}`), make("small",`주의 ≥${signal.warning}${signal.unit} / 위험 ≥${signal.critical}${signal.unit}${signal.recovering ? ` · ${signal.clear_below}${signal.unit} 미만 연속 확인 필요` : ""}`)); panel.append(row);
+      row.append(make("strong",`${SentinelAssets.metricNames[signal.metric]} · ${Number(signal.value.toFixed(1))}${signal.unit}`), make("span",`${signal.pending_level && signal.level === "NORMAL" ? "부하 관찰 중" : SentinelAssets.riskNames[signal.level]}${signal.recovering ? " · 회복 확인 중" : ""}`), make("small",`주의 ≥${signal.warning}${signal.unit} / 위험 ≥${signal.critical}${signal.unit}${signal.recovering ? ` · ${signal.clear_below}${signal.unit} 미만 연속 확인 필요` : ""}`)); panel.append(row);
     }
   }
   root.SentinelConsole = {mount,render,inspector,matches,sort};

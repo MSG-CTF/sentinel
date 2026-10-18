@@ -61,7 +61,7 @@
     for (const [key,title,caption] of [["cpu","CPU",parts.cpu_logical_count?`${parts.cpu_logical_count} vCPU · ${asset.kind==="cluster_heartbeat"?"Kubernetes metrics":"1초 표본"}`:"코어 수 미수집"],["memory","메모리",`${bytes(parts.memory_used_bytes)} / ${bytes(parts.memory_total_bytes)}`],["disk","디스크",`${bytes(parts.disk_used_bytes)} / ${bytes(parts.disk_total_bytes)} · /`]]) {
       const card=node("div",undefined,"resource-card"), value=parts[`${key}_used_percent`], signal=asset.risk.signals.find(s=>s.metric===`${key}_used_percent`);
       card.dataset.level = direct ? "UNKNOWN" : signal?.level || "UNKNOWN";
-      card.append(node("span",title),node("strong",value!=null?`${Number(value).toFixed(1)}%`:"—"),node("small",caption));
+      card.append(node("span",title),node("strong",value!=null?`${Number(value).toFixed(1)}%`:"—"),node("small",!direct&&signal?.pending_level?`${caption} · 부하 관찰 중`:caption));
       const meter=node("meter"); meter.min=0;meter.max=100;meter.value=Number(value)||0;meter.hidden=value==null;meter.setAttribute("aria-label",`${title} 사용률`);card.append(meter);cards.append(card);
     }
     byId("asset-cpu-model").textContent=parts.cpu_model || "CPU 모델 미수집";
