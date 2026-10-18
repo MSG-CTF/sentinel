@@ -17,6 +17,17 @@ def profile():
 
 
 class ConfigurationTests(unittest.TestCase):
+    def test_cluster_heartbeat_requires_its_own_credential_and_explicit_identity(self):
+        config = profile()
+        target = {'target_id': 'runtime-cluster', 'kind': 'cluster_heartbeat', 'auth_token_env': 'CLUSTER_TOKEN',
+                  'expected_fields': {'cluster_target_id': 'registered-cluster'}}
+        config['platform_monitor']['targets'] = [target]
+        self.assertEqual(release.validate_configuration(config, {'CLUSTER_TOKEN': 'c' * 48}), 'CLUSTER_TOKEN=' + 'c' * 48 + '\n')
+        for identity in ['', '../../other', 'cluster\nspoof']:
+            with self.subTest(identity=identity), self.assertRaises(ValueError):
+                target['expected_fields']['cluster_target_id'] = identity
+                release.validate_configuration(config, {'CLUSTER_TOKEN': 'c' * 48})
+
     def test_notification_webhook_is_required_only_when_enabled_and_never_accepts_redirect_hosts(self):
         config=profile(); self.assertEqual(release.operations_environment(config, {}),'')
         config['discord_alerts']={'enabled':True,'state_file':'data/discord-alerts.json'}

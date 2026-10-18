@@ -58,7 +58,7 @@
     byId("asset-os").textContent=parts.os_name || "운영체제 미수집";
     byId("asset-architecture").textContent=parts.architecture || "";
     byId("asset-hostname").textContent=parts.hostname || (asset.parent_target_id ? "호스트 자원은 관리 에이전트 연결 후 표시" : "서버 식별 정보 미수집");
-    for (const [key,title,caption] of [["cpu","CPU",parts.cpu_logical_count?`${parts.cpu_logical_count} vCPU · 1초 표본`:"코어 수 미수집"],["memory","메모리",`${bytes(parts.memory_used_bytes)} / ${bytes(parts.memory_total_bytes)}`],["disk","디스크",`${bytes(parts.disk_used_bytes)} / ${bytes(parts.disk_total_bytes)} · /`]]) {
+    for (const [key,title,caption] of [["cpu","CPU",parts.cpu_logical_count?`${parts.cpu_logical_count} vCPU · ${asset.kind==="cluster_heartbeat"?"Kubernetes metrics":"1초 표본"}`:"코어 수 미수집"],["memory","메모리",`${bytes(parts.memory_used_bytes)} / ${bytes(parts.memory_total_bytes)}`],["disk","디스크",`${bytes(parts.disk_used_bytes)} / ${bytes(parts.disk_total_bytes)} · /`]]) {
       const card=node("div",undefined,"resource-card"), value=parts[`${key}_used_percent`], signal=asset.risk.signals.find(s=>s.metric===`${key}_used_percent`);
       card.dataset.level = direct ? "UNKNOWN" : signal?.level || "UNKNOWN";
       card.append(node("span",title),node("strong",value!=null?`${Number(value).toFixed(1)}%`:"—"),node("small",caption));
@@ -66,7 +66,8 @@
     }
     byId("asset-cpu-model").textContent=parts.cpu_model || "CPU 모델 미수집";
     byId("asset-resource-source").textContent=direct?"SSH 실측":fresh&&parts.os_name?"서버 보고":"수집 대기";
-    byId("asset-resource-note").textContent=direct?"SSH 조회 시점의 값 · 경고 판정은 정기 수집 결과를 사용합니다":parts.os_name?`${new Date(asset.checked_at).toLocaleTimeString("ko-KR")} 수신 · 가동 ${Math.floor(Number(parts.uptime_seconds || 0)/86400)}일`:
+    byId("asset-resource-note").textContent=asset.kind==="cluster_heartbeat"&&fresh?`${parts.ready_node_count || 0}/${parts.node_count || 0} 노드 Ready · 배치 가능 ${parts.schedulable_node_count || 0} · 메모리는 Kubernetes working set · 디스크 사용률 미수집`:
+      direct?"SSH 조회 시점의 값 · 경고 판정은 정기 수집 결과를 사용합니다":parts.os_name?`${new Date(asset.checked_at).toLocaleTimeString("ko-KR")} 수신 · 가동 ${Math.floor(Number(parts.uptime_seconds || 0)/86400)}일`:
       asset.status==="STALE"?"오래된 자원 수치는 현재 값으로 표시하지 않습니다":"HTTP 응답만으로 운영체제·서버 자원을 알 수 없어 수집기 연결이 필요합니다";
   }
   async function execute(action) {

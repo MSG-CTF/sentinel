@@ -133,13 +133,16 @@ def validate_configuration(profile, credentials):
         if not isinstance(target, dict):
             raise ValueError("Invalid target definition")
         if target.get("enabled", True):
-            if target.get("kind") == "service_heartbeat":
+            if target.get("kind") in {"service_heartbeat", "cluster_heartbeat"}:
                 if target.get("url") or not target.get("auth_token_env"):
                     raise ValueError("Heartbeat requires a dedicated token and no probe URL")
                 name = token_name(target["auth_token_env"])
                 if not isinstance(credentials.get(name), str) or len(credentials[name]) < 32:
                     raise ValueError("Heartbeat credential must contain at least 32 characters")
                 names.add(name)
+                if target.get("kind") == "cluster_heartbeat" and not re.fullmatch(
+                        r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", target.get("expected_fields", {}).get("cluster_target_id", "")):
+                    raise ValueError("Cluster heartbeat requires an explicit cluster binding")
                 continue
             name = target.get("auth_token_env")
             remote_endpoint(target.get("url"), https=bool(name))

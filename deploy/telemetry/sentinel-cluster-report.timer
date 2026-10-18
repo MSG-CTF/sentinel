@@ -1,0 +1,11 @@
+[Unit]
+Description=Collect cluster nodes every minute
+
+[Timer]
+OnBootSec=30
+OnUnitActiveSec=60
+RandomizedDelaySec=5
+Unit=sentinel-cluster-report.service
+
+[Install]
+WantedBy=timers.target

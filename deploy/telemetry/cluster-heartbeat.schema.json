@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Cluster heartbeat",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["checked_at", "cluster_target_id", "query_state", "node_count", "ready_node_count", "schedulable_node_count", "memory_pressure_node_count", "disk_pressure_node_count", "pid_pressure_node_count", "unknown_condition_node_count"],
+  "properties": {
+    "checked_at": {"type": "string", "format": "date-time"},
+    "cluster_target_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"},
+    "query_state": {"enum": ["ok", "query_failed", "not_registered", "disabled"]},
+    "node_count": {"type": "integer", "minimum": 0, "maximum": 100},
+    "ready_node_count": {"type": "integer", "minimum": 0, "maximum": 100},
+    "schedulable_node_count": {"type": "integer", "minimum": 0, "maximum": 100},
+    "memory_pressure_node_count": {"type": "integer", "minimum": 0, "maximum": 100},
+    "disk_pressure_node_count": {"type": "integer", "minimum": 0, "maximum": 100},
+    "pid_pressure_node_count": {"type": "integer", "minimum": 0, "maximum": 100},
+    "unknown_condition_node_count": {"type": "integer", "minimum": 0, "maximum": 100},
+    "cpu_used_percent": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+    "memory_used_percent": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+    "cpu_logical_count": {"type": ["integer", "null"], "minimum": 1, "maximum": 65536},
+    "memory_total_bytes": {"type": ["integer", "null"], "minimum": 1, "maximum": 9007199254740991},
+    "memory_used_bytes": {"type": ["integer", "null"], "minimum": 0, "maximum": 9007199254740991},
+    "os_name": {"type": ["string", "null"], "minLength": 1, "maxLength": 160},
+    "architecture": {"type": ["string", "null"], "minLength": 1, "maxLength": 32},
+    "hostname": {"type": ["string", "null"], "minLength": 1, "maxLength": 128}
+  }
+}

@@ -72,7 +72,7 @@ def collect(service):
 def send(config, observation):
     url = urlsplit(config["endpoint"])
     if (url.scheme != "https" or not url.hostname or url.username or url.password or url.query or url.fragment
-            or not re.fullmatch(r"/ingest/heartbeat/[a-z][a-z0-9_-]{0,63}", url.path)
+            or not re.fullmatch(r"/ingest/(?:heartbeat|cluster)/[a-z][a-z0-9_-]{0,63}", url.path)
             or not isinstance(config.get("token"), str) or len(config["token"]) < 32):
         raise ValueError("Invalid telemetry destination")
     conn = http.client.HTTPSConnection(url.hostname, url.port or 443, timeout=10)

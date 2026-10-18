@@ -5,7 +5,7 @@ using Sentinel.Monitor.Instances;
 
 namespace Sentinel.Monitor.Platform;
 
-public sealed class PlatformProbeClient(HttpClient httpClient, HeartbeatStore? heartbeatStore = null)
+public sealed class PlatformProbeClient(HttpClient httpClient, HeartbeatStore? heartbeatStore = null, ClusterHeartbeatStore? clusterHeartbeatStore = null)
 {
     private const int MaxBodyBytes = 65536;
 
@@ -18,6 +18,8 @@ public sealed class PlatformProbeClient(HttpClient httpClient, HeartbeatStore? h
             return Result(target, "UNVERIFIED", "INVALID_CONFIGURATION", null, null, null);
         if (target.Kind == "service_heartbeat")
             return heartbeatStore?.Read(target) ?? Result(target, "UNCONFIGURED", "HEARTBEAT_PENDING", null, null, null);
+        if (target.Kind == "cluster_heartbeat")
+            return clusterHeartbeatStore?.Read(target) ?? Result(target, "UNCONFIGURED", "HEARTBEAT_PENDING", null, null, null);
 
         if (target.Kind == "scheduler_inventory")
         {

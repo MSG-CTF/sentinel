@@ -87,7 +87,7 @@ public sealed class RiskEvaluator(RiskPolicy policy)
                 (level == 2 ? threshold.Critical : threshold.Warning) - threshold.ClearMargin, level > raw));
         }
         Add("latency_ms", observation.LatencyMs, "ms", policy.LatencyMs, double.MaxValue);
-        if (observation.Kind == "service_heartbeat")
+        if (observation.Kind is "service_heartbeat" or "cluster_heartbeat")
         {
             double? Component(string name) => double.TryParse(observation.Components.GetValueOrDefault(name),
                 NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : null;

@@ -160,10 +160,11 @@ class WebProxyIntegrationTests(unittest.TestCase):
                         'X-Panel-Title':'Django · DB · Redis','X-Dashboard-Title':'Sentinel · Operations'})
                     self.assertEqual(status,200)
                     self.assertEqual(body,b'grafana:admin||||')
-                status, headers, body = request("/ingest/heartbeat/discord-bot", "admin", "fixture-token")
-                self.assertEqual(status, 200)
-                self.assertIn(b"upstream:Basic ", body)
-                self.assertTrue(body.endswith(b"|"))
+                for path in ("/ingest/heartbeat/discord-bot", "/ingest/cluster/runtime-cluster"):
+                    status, headers, body = request(path, "admin", "fixture-token")
+                    self.assertEqual(status, 200)
+                    self.assertIn(b"upstream:Basic ", body)
+                    self.assertTrue(body.endswith(b"|"))
             finally:
                 for name in reversed(created):
                     docker(["rm", "-f", name], required=False)
