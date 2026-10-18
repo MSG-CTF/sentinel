@@ -5,9 +5,11 @@ using Sentinel.Monitor.Instances;
 
 namespace Sentinel.Monitor.Platform;
 
-public sealed class PlatformProbeClient(HttpClient httpClient, HeartbeatStore? heartbeatStore = null, ClusterHeartbeatStore? clusterHeartbeatStore = null)
+public sealed class PlatformProbeClient(HttpClient httpClient, HeartbeatStore? heartbeatStore = null, ClusterHeartbeatStore? clusterHeartbeatStore = null,
+    TimeProvider? timeProvider = null)
 {
     private const int MaxBodyBytes = 65536;
+    private DateTimeOffset Now => (timeProvider ?? TimeProvider.System).GetUtcNow();
 
     public async Task<ProbeObservation> CheckAsync(
         PlatformTarget target, int timeoutSeconds, CancellationToken cancellationToken = default)
@@ -42,7 +44,7 @@ public sealed class PlatformProbeClient(HttpClient httpClient, HeartbeatStore? h
                     _ => ("UNVERIFIED", inventory.Reason),
                 };
             }
-            return Result(target, status, reason, DateTimeOffset.UtcNow, inventory.HttpStatus,
+            return Result(target, status, reason, Now, inventory.HttpStatus,
                 Math.Round(started.Elapsed.TotalMilliseconds, 1), inventory.Success ? new Dictionary<string, string>
                 {
                     ["inventory_total"] = inventory.Rows.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
@@ -52,6 +54,8 @@ public sealed class PlatformProbeClient(HttpClient httpClient, HeartbeatStore? h
 
         using var request = new HttpRequestMessage(HttpMethod.Get, target.Url);
         request.Headers.UserAgent.ParseAdd("MSG-Sentinel/0.1");
+        if (target.Kind == "runtime_healthz")
+            request.Headers.CacheControl = new CacheControlHeaderValue { NoCache = true, NoStore = true };
         if (target.Kind != "http")
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         if (!string.IsNullOrEmpty(target.AuthTokenEnv))
@@ -80,11 +84,11 @@ public sealed class PlatformProbeClient(HttpClient httpClient, HeartbeatStore? h
                 return Measured("UNVERIFIED", "AUTH_REQUIRED", code);
             if (code == 404)
                 return Measured("UNVERIFIED", "ENDPOINT_NOT_FOUND", code);
-            if (target.Kind is not ("backend_healthz" or "auth_boundary") && code != 200)
+            if (target.Kind is not ("backend_healthz" or "runtime_healthz" or "auth_boundary") && code != 200)
                 return Measured(code >= 500 ? "DOWN" : "UNVERIFIED", "HTTP_ERROR", code);
             if (target.Kind == "auth_boundary" && code != 401)
                 return Measured(code >= 500 ? "DOWN" : "UNVERIFIED", "HTTP_ERROR", code);
-            if (target.Kind == "backend_healthz" && code is not (200 or 503))
+            if ((target.Kind is "backend_healthz" or "runtime_healthz") && code is not (200 or 503))
                 return Measured(code >= 500 ? "DOWN" : "UNVERIFIED", "HTTP_ERROR", code);
 
             var mediaType = response.Content.Headers.ContentType?.MediaType;
@@ -119,6 +123,11 @@ public sealed class PlatformProbeClient(HttpClient httpClient, HeartbeatStore? h
             var root = payload.RootElement;
             if (root.ValueKind != JsonValueKind.Object)
                 return Measured("UNVERIFIED", "INVALID_HEALTH_CONTRACT", code);
+            if (target.Kind == "runtime_healthz")
+            {
+                var result = RuntimeReadinessContract.Check(root, code, Now);
+                return Measured(result.Status, result.Reason, code, result.Components, result.CheckedAt);
+            }
             if (target.Kind == "auth_boundary")
             {
                 if (root.TryGetProperty("code", out var error) && error.ValueKind == JsonValueKind.String
@@ -129,7 +138,7 @@ public sealed class PlatformProbeClient(HttpClient httpClient, HeartbeatStore? h
             }
             if (target.Kind is "runtime_status" or "runtime_node" or "runtime_operation")
             {
-                var result = RuntimeProbeContract.Check(root, target, DateTimeOffset.UtcNow);
+                var result = RuntimeProbeContract.Check(root, target, Now);
                 return Measured(result.Status, result.Reason, code, result.Components);
             }
             if (target.Kind == "broker_inventory")
@@ -141,7 +150,7 @@ public sealed class PlatformProbeClient(HttpClient httpClient, HeartbeatStore? h
                     || items.EnumerateArray().Any(item => item.ValueKind != JsonValueKind.Object)
                     || !root.TryGetProperty("generated_at", out var generatedAt) || generatedAt.ValueKind != JsonValueKind.String
                     || !generatedAt.TryGetDateTimeOffset(out var generatedTime)
-                    || Math.Abs((DateTimeOffset.UtcNow - generatedTime).TotalSeconds) > 120)
+                    || Math.Abs((Now - generatedTime).TotalSeconds) > 120)
                     return Measured("UNVERIFIED", "INVALID_INVENTORY_CONTRACT", code);
                 return Measured("HEALTHY", "BROKER_QUERY_READY", code, new Dictionary<string, string>
                 {
@@ -184,13 +193,13 @@ public sealed class PlatformProbeClient(HttpClient httpClient, HeartbeatStore? h
         catch (IOException) { return Measured("DOWN", "RESPONSE_READ_FAILED", null); }
 
         ProbeObservation Measured(string status, string reason, int? code,
-            IReadOnlyDictionary<string, string>? components = null)
+            IReadOnlyDictionary<string, string>? components = null, DateTimeOffset? checkedAt = null)
         {
             // A 503 remains unavailable even when a proxy supplies HTML or broken JSON.
             // Without a valid health contract, no database/cache state can be inferred.
-            if (target.Kind == "backend_healthz" && code >= 500 && status == "UNVERIFIED")
+            if ((target.Kind is "backend_healthz" or "runtime_healthz") && code >= 500 && status == "UNVERIFIED")
             { status = "DOWN"; reason = "HTTP_UNAVAILABLE"; components = null; }
-            return Result(target, status, reason, DateTimeOffset.UtcNow, code,
+            return Result(target, status, reason, checkedAt ?? Now, code,
                 Math.Round(clock.Elapsed.TotalMilliseconds, 1), components);
         }
     }

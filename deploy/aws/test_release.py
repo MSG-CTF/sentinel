@@ -17,6 +17,20 @@ def profile():
 
 
 class ConfigurationTests(unittest.TestCase):
+    def test_runtime_readiness_requires_its_exact_https_endpoint_and_a_credential(self):
+        config = profile()
+        target = {'target_id': 'runtime-api', 'kind': 'runtime_healthz',
+                  'url': 'https://runtime.example.test/internal/v1/healthz', 'auth_token_env': 'RUNTIME_API_TOKEN'}
+        config['platform_monitor']['targets'] = [target]
+        credentials = {'RUNTIME_API_TOKEN': 'test-only-runtime-token'}
+        self.assertEqual(release.validate_configuration(config, credentials), 'RUNTIME_API_TOKEN=test-only-runtime-token\n')
+        for url, name in [('http://runtime.example.test/internal/v1/healthz', 'RUNTIME_API_TOKEN'),
+                          ('https://runtime.example.test/healthz', 'RUNTIME_API_TOKEN'),
+                          ('https://runtime.example.test/internal/v1/healthz', '')]:
+            with self.subTest(url=url, name=name), self.assertRaises(ValueError):
+                release.validate_configuration({**config, 'platform_monitor': {**config['platform_monitor'],
+                    'targets': [{**target, 'url': url, 'auth_token_env': name}]}}, credentials if name else {})
+
     def test_cluster_heartbeat_requires_its_own_credential_and_explicit_identity(self):
         config = profile()
         target = {'target_id': 'runtime-cluster', 'kind': 'cluster_heartbeat', 'auth_token_env': 'CLUSTER_TOKEN',

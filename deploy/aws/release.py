@@ -145,6 +145,9 @@ def validate_configuration(profile, credentials):
                     raise ValueError("Cluster heartbeat requires an explicit cluster binding")
                 continue
             name = target.get("auth_token_env")
+            if target.get("kind") == "runtime_healthz" and (
+                    not name or remote_endpoint(target.get("url"), https=True).path != "/internal/v1/healthz"):
+                raise ValueError("Runtime readiness requires authenticated HTTPS and its exact endpoint")
             remote_endpoint(target.get("url"), https=bool(name))
             if name:
                 names.add(token_name(name))
