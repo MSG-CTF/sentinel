@@ -42,7 +42,6 @@ public sealed class BackendAlertPipelineTests : IDisposable
     [InlineData("bad-gateway", "CRITICAL", "HTTP_ERROR", 502)]
     [InlineData("offline", "CRITICAL", "CONNECTION_FAILED", null)]
     [InlineData("timeout", "CRITICAL", "TIMEOUT", null)]
-    [InlineData("slow", "WARNING", "BACKEND_READY", 200)]
     public async Task BackendFailureProducesADirectWebhookWithoutTheBot(string mode, string level, string reason, int? code)
     {
         var backend = new BackendHandler { Mode = mode };
@@ -54,7 +53,7 @@ public sealed class BackendAlertPipelineTests : IDisposable
         var observation = snapshot.Targets.Single();
         Assert.Equal(level, observation.Risk!.Level);
         Assert.Equal(reason, observation.ReasonCode);
-        if (mode != "slow") Assert.Empty(observation.Components);
+        Assert.Empty(observation.Components);
         alerts.Observe(snapshot);
         await alerts.DeliverAsync();
         // Polling the same measurement cannot create duplicate incident messages.
@@ -70,6 +69,23 @@ public sealed class BackendAlertPipelineTests : IDisposable
         if (code is not null) Assert.Contains("HTTP " + code, fields["감지 근거"]);
         Assert.DoesNotContain("backend-private-body", message.GetRawText());
         Assert.Empty(message.GetProperty("allowed_mentions").GetProperty("parse").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task ShortHealthyBackendLatencySpikeDoesNotSendWarningOrRecovery()
+    {
+        var backend = new BackendHandler { Mode = "slow" };
+        var webhook = new WebhookHandler();
+        var (monitor, alerts) = Create(backend, webhook);
+        await monitor.RefreshAsync();
+        Assert.Equal("WARNING", monitor.Snapshot().Targets.Single().Risk!.Level);
+        alerts.Observe(monitor.Snapshot()); await alerts.DeliverAsync();
+        backend.Mode = "healthy";
+        for (var index = 0; index < 4; index++)
+        {
+            await monitor.RefreshAsync(); alerts.Observe(monitor.Snapshot()); await alerts.DeliverAsync();
+        }
+        Assert.Empty(webhook.Messages);
     }
 
     [Fact]
