@@ -211,14 +211,14 @@ def operations_environment(profile, environment):
             raise ValueError('Invalid operations collection')
         seen = set()
         key_names = set()
-        allowed_keys = {'SENTINEL_SSH_DISCORD_B64', 'SENTINEL_SSH_SCHEDULER_B64', 'SENTINEL_SSH_RUNTIME_B64'}
+        allowed_keys = {'SENTINEL_SSH_DISCORD_B64', 'SENTINEL_SSH_SCHEDULER_B64', 'SENTINEL_SSH_RUNTIME_B64', 'SENTINEL_SSH_BACKEND_B64'}
         for asset in assets:
             if (not isinstance(asset, dict) or set(asset) != {'asset_id', 'host', 'port', 'username', 'host_key_sha256', 'service', 'private_key_env'}
                     or not re.fullmatch(r'[a-z][a-z0-9_-]{0,63}', asset['asset_id']) or asset['asset_id'] in seen
                     or not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9.-]{0,252}', asset['host'])
                     or not isinstance(asset['port'], int) or not 1 <= asset['port'] <= 65535
                     or not re.fullmatch(r'[a-z_][a-z0-9_-]{0,31}', asset['username'])
-                    or not re.fullmatch(r'[a-zA-Z0-9_.@-]{1,100}\.service', asset['service'])
+                    or not re.fullmatch(r'(?:[a-zA-Z0-9_.@-]{1,100}\.service|docker:[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127})', asset['service'])
                     or asset['private_key_env'] not in allowed_keys):
                 raise ValueError('Invalid SSH operations binding')
             if len(base64.b64decode(asset['host_key_sha256'], validate=True)) != 32:

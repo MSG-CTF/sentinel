@@ -73,7 +73,7 @@ public sealed class AssetOperations
         if (!Regex.IsMatch(asset.AssetId, "^[a-z][a-z0-9_-]{0,63}$") ||
             !Regex.IsMatch(asset.Host, "^[a-zA-Z0-9][a-zA-Z0-9.-]{0,252}$") || asset.Port is < 1 or > 65535 ||
             !Regex.IsMatch(asset.Username, "^[a-z_][a-z0-9_-]{0,31}$") ||
-            !Regex.IsMatch(asset.Service, "^[a-zA-Z0-9_.@-]{1,100}\\.service$") ||
+            !Regex.IsMatch(asset.Service, "^(?:[a-zA-Z0-9_.@-]{1,100}\\.service|docker:[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127})$") ||
             !Regex.IsMatch(asset.PrivateKeyEnv, "^SENTINEL_SSH_[A-Z0-9_]+_B64$")) return false;
         try { return Convert.FromBase64String(asset.HostKeySha256).Length == 32; }
         catch (FormatException) { return false; }

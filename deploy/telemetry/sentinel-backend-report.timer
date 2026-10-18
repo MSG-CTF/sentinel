@@ -1,0 +1,12 @@
+[Unit]
+Description=Send backend resource heartbeat once per minute
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=60s
+RandomizedDelaySec=5s
+AccuracySec=1s
+Unit=sentinel-backend-report.service
+
+[Install]
+WantedBy=timers.target

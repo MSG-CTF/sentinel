@@ -85,6 +85,7 @@ jobs:
           SENTINEL_SSH_DISCORD_B64: ${{ secrets.SENTINEL_SSH_DISCORD_B64 }}
           SENTINEL_SSH_SCHEDULER_B64: ${{ secrets.SENTINEL_SSH_SCHEDULER_B64 }}
           SENTINEL_SSH_RUNTIME_B64: ${{ secrets.SENTINEL_SSH_RUNTIME_B64 }}
+          SENTINEL_SSH_BACKEND_B64: ${{ secrets.SENTINEL_SSH_BACKEND_B64 }}
         run: python3 release/release.py deploy
       - name: Verify public HTTPS and administrator access
         if: vars.SENTINEL_PUBLIC_HTTPS_ENABLED == 'true'

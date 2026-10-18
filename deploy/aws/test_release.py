@@ -45,7 +45,7 @@ class ConfigurationTests(unittest.TestCase):
     def test_each_managed_host_keeps_its_own_key_and_unused_keys_are_not_packaged(self):
         assets = []
         environment = {}
-        for index, name in enumerate(('DISCORD', 'SCHEDULER', 'RUNTIME')):
+        for index, name in enumerate(('DISCORD', 'SCHEDULER', 'RUNTIME', 'BACKEND')):
             key_name = 'SENTINEL_SSH_' + name + '_B64'
             assets.append({'asset_id': name.lower(), 'host': name.lower() + '.example.com', 'port': 22,
                            'username': 'sentinel-ops', 'service': name.lower() + '.service',
@@ -56,11 +56,24 @@ class ConfigurationTests(unittest.TestCase):
         packed = dict(line.split('=', 1) for line in release.operations_environment(profile(), environment).splitlines())
         self.assertEqual(json.loads(packed.pop('SENTINEL_OPERATIONS_JSON')), assets)
         self.assertEqual(packed, {key: environment[key] for key in packed})
-        self.assertEqual(len(packed), 3)
+        self.assertEqual(len(packed), 4)
         environment['SENTINEL_OPERATIONS_JSON'] = json.dumps(assets[:1])
         single = release.operations_environment(profile(), environment)
         self.assertNotIn('SENTINEL_SSH_SCHEDULER_B64', single)
         self.assertNotIn('SENTINEL_SSH_RUNTIME_B64', single)
+        self.assertNotIn('SENTINEL_SSH_BACKEND_B64', single)
+
+    def test_backend_container_binding_rejects_command_or_path_injection(self):
+        asset = {'asset_id': 'backend-host', 'host': 'backend.example.com', 'port': 22,
+                 'username': 'sentinel-ops', 'service': 'docker:msg-dev-backend-1',
+                 'host_key_sha256': base64.b64encode(bytes(32)).decode(),
+                 'private_key_env': 'SENTINEL_SSH_BACKEND_B64'}
+        key = base64.b64encode(b'-----BEGIN OPENSSH PRIVATE KEY-----\n' + b'a' * 120).decode()
+        environment = {'SENTINEL_OPERATIONS_JSON': json.dumps([asset]), 'SENTINEL_SSH_BACKEND_B64': key}
+        self.assertIn('SENTINEL_SSH_BACKEND_B64=', release.operations_environment(profile(), environment))
+        for service in ('docker:', 'docker:--privileged', 'docker:../backend', 'docker:backend; id'):
+            with self.subTest(service=service), self.assertRaises(ValueError):
+                release.operations_environment(profile(), {**environment, 'SENTINEL_OPERATIONS_JSON': json.dumps([{**asset, 'service': service}])})
 
     def test_missing_or_malformed_key_on_a_second_host_blocks_the_release(self):
         assets = [{'asset_id': name.lower(), 'host': name.lower() + '.example.com', 'port': 22,
@@ -84,7 +97,7 @@ class ConfigurationTests(unittest.TestCase):
 
     def test_probe_credentials_cannot_overwrite_any_operations_key(self):
         config = profile()
-        for name in ('SENTINEL_SSH_DISCORD_B64', 'SENTINEL_SSH_SCHEDULER_B64', 'SENTINEL_SSH_RUNTIME_B64'):
+        for name in ('SENTINEL_SSH_DISCORD_B64', 'SENTINEL_SSH_SCHEDULER_B64', 'SENTINEL_SSH_RUNTIME_B64', 'SENTINEL_SSH_BACKEND_B64'):
             config['platform_monitor']['targets'][0]['auth_token_env'] = name
             with self.subTest(name=name), self.assertRaises(ValueError):
                 release.validate_configuration(config, {name: 'probe-must-not-overwrite-ssh-key'})
