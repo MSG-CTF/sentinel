@@ -28,6 +28,8 @@ public sealed class AlertTargetState
     public string Level { get; set; } = "NORMAL";
     public DateTimeOffset? LastAt { get; set; }
     public int NormalSamples { get; set; }
+    public DateTimeOffset? LatencyWarningSince { get; set; }
+    public int LatencyWarningSamples { get; set; }
 }
 public sealed class AlertJournal
 {
@@ -43,6 +45,8 @@ public sealed class AlertJournal
 
 public sealed class DiscordAlerts
 {
+    public const int LatencyWarningSeconds = 60;
+    public const int LatencyWarningSamples = 3;
     private readonly DiscordAlertOptions _options;
     private readonly TimeProvider _clock;
     private readonly HttpClient _http;
@@ -70,7 +74,11 @@ public sealed class DiscordAlerts
             if (_journal.Targets.Count > 32 || _journal.Pending.Count > 200 || _journal.Delivered.Count > 50 ||
                 _journal.Targets.Values.Any(s => s.Level is not ("NORMAL" or "WARNING" or "CRITICAL")) ||
                 _journal.Pending.Any(n => !Guid.TryParse(n.EventId, out _) || n.Level is not ("NORMAL" or "WARNING" or "CRITICAL"))) throw new JsonException();
-            foreach (var state in _journal.Targets.Values) state.NormalSamples = 0;
+            foreach (var state in _journal.Targets.Values)
+            {
+                state.NormalSamples = 0;
+                ResetLatencyWarning(state);
+            }
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException)
         { _storageHealthy = false; }
@@ -81,6 +89,7 @@ public sealed class DiscordAlerts
         lock (_gate) return new { enabled = Enabled, storage_healthy = _storageHealthy,
             pending_count = _journal.Pending.Count, last_sent_at = _journal.LastSentAt,
             retry_at = _journal.RetryAt, failure_code = _journal.FailureCode,
+            latency_warning_seconds = LatencyWarningSeconds, latency_warning_samples = LatencyWarningSamples,
             recent = _journal.Delivered.AsEnumerable().Reverse().Take(10).ToArray() };
     }
 
@@ -90,18 +99,26 @@ public sealed class DiscordAlerts
         {
             if (!Enabled || !_storageHealthy || snapshot.UpdatedAt is null) return;
             var changed = false;
-            foreach (var item in snapshot.Targets.Where(t => t.Enabled))
+            foreach (var item in snapshot.Targets)
             {
                 var level = item.Risk?.Level ?? RiskEvaluator.BaseLevel(item.Status);
                 var state = _journal.Targets.GetValueOrDefault(item.TargetId);
                 // Unknown evidence neither resolves an incident nor counts as a healthy sample.
-                if (level is not ("NORMAL" or "WARNING" or "CRITICAL"))
-                { if (state is { NormalSamples: > 0 }) { state.NormalSamples = 0; changed = true; } continue; }
-                if (item.CheckedAt is null || item.CheckedAt > _clock.GetUtcNow().AddSeconds(30) ||
-                    _clock.GetUtcNow() - item.CheckedAt > TimeSpan.FromSeconds(item.Kind == "service_heartbeat" ? 150 : snapshot.StaleAfterSeconds)) continue;
+                if (!item.Enabled || level is not ("NORMAL" or "WARNING" or "CRITICAL") ||
+                    item.CheckedAt is null || item.CheckedAt > _clock.GetUtcNow().AddSeconds(30) ||
+                    _clock.GetUtcNow() - item.CheckedAt > TimeSpan.FromSeconds(item.Kind == "service_heartbeat" ? 150 : snapshot.StaleAfterSeconds))
+                {
+                    if (state is not null && (state.NormalSamples > 0 || state.LatencyWarningSince is not null))
+                    { state.NormalSamples = 0; ResetLatencyWarning(state); changed = true; }
+                    continue;
+                }
                 if (state is null) _journal.Targets[item.TargetId] = state = new();
                 if (state.LastAt >= item.CheckedAt) continue;
+                var previousAt = state.LastAt;
                 state.LastAt = item.CheckedAt; changed = true;
+                if (level == "WARNING" && DeferLatencyWarning(item, state, previousAt, snapshot.StaleAfterSeconds))
+                { state.NormalSamples = 0; continue; }
+                ResetLatencyWarning(state);
                 // Collector hysteresis resets at restart; an open alert still needs clear margins.
                 if (level == "NORMAL" && state.Level != "NORMAL" && item.Risk?.Signals.Any(s => s.Value >= s.ClearBelow) == true)
                 { state.NormalSamples = 0; continue; }
@@ -114,6 +131,33 @@ public sealed class DiscordAlerts
             }
             if (changed) Persist();
         }
+    }
+
+    private static void ResetLatencyWarning(AlertTargetState state)
+    {
+        state.LatencyWarningSince = null;
+        state.LatencyWarningSamples = 0;
+    }
+
+    private static bool DeferLatencyWarning(ProbeObservation item, AlertTargetState state,
+        DateTimeOffset? previousAt, int staleAfterSeconds)
+    {
+        // Only a new, latency-only warning on a healthy service is delayed.
+        // Errors, resource pressure and escalation/relief of an open incident stay immediate.
+        if (state.Level != "NORMAL" || item.Status != "HEALTHY" || item.Risk is null ||
+            item.Risk.Signals.Any(s => s.Metric != "latency_ms" && s.Level != "NORMAL")) return false;
+        var latency = item.Risk.Signals.FirstOrDefault(s => s.Metric == "latency_ms" && s.Level == "WARNING");
+        if (latency is null) return false;
+        // Collector recovery hysteresis can retain yellow after the actual latency fell.
+        if (latency.Recovering || latency.Value < latency.Warning)
+        { ResetLatencyWarning(state); return true; }
+        var at = item.CheckedAt!.Value;
+        if (state.LatencyWarningSince is null || previousAt is null ||
+            at - previousAt.Value > TimeSpan.FromSeconds(staleAfterSeconds))
+        { state.LatencyWarningSince = at; state.LatencyWarningSamples = 0; }
+        state.LatencyWarningSamples = Math.Min(LatencyWarningSamples, state.LatencyWarningSamples + 1);
+        return state.LatencyWarningSamples < LatencyWarningSamples ||
+            at - state.LatencyWarningSince.Value < TimeSpan.FromSeconds(LatencyWarningSeconds);
     }
 
     public bool QueueTest()
