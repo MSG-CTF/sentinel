@@ -1,0 +1,23 @@
+{
+  "cpu_used_percent": {
+    "warning": 90, "critical": 98, "clear_margin": 5,
+    "warning_seconds": 180, "warning_samples": 3,
+    "critical_seconds": 300, "critical_samples": 5
+  },
+  "latency_ms": {
+    "warning": 2000, "critical": 3500, "clear_margin": 500,
+    "warning_seconds": 90, "warning_samples": 3,
+    "critical_seconds": 30, "critical_samples": 2
+  },
+  "memory_used_percent": {
+    "warning": 90, "critical": 95, "clear_margin": 3,
+    "warning_seconds": 180, "warning_samples": 3,
+    "critical_seconds": 0, "critical_samples": 1
+  },
+  "disk_used_percent": {
+    "warning": 90, "critical": 95, "clear_margin": 3,
+    "warning_seconds": 120, "warning_samples": 3,
+    "critical_seconds": 0, "critical_samples": 1
+  },
+  "clear_samples": 2
+}

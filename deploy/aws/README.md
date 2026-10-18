@@ -229,33 +229,48 @@ SENTINEL_PROFILE_JSON의 platform_monitor.poll_interval_seconds로 HTTP 점검 �
 Discord 보고는 기존 60초 주기와 150초 유효 시간을 사용한다
 브라우저 연결 실패 또는 수집 주기 만료 시 이전 수치로 정상·경고 판정을 유지하지 않는다
 
-platform_monitor.risk_policy는 아래 초기값을 사용하며 같은 환경 Secret으로 재정의할 수 있다
+작업 중 순간 부하를 경고로 올리지 않으려면 risk-policy.json을 SENTINEL_PROFILE_JSON의 platform_monitor.risk_policy에 적용한다
+아래 운영 설정은 수치 기준과 지속 시간·새 측정 횟수를 함께 확인한다
 
 ```json
 {
-  "latency_ms": { "warning": 1000, "critical": 3000, "clear_margin": 200 },
-  "memory_used_percent": { "warning": 80, "critical": 90, "clear_margin": 5 },
-  "disk_used_percent": { "warning": 80, "critical": 90, "clear_margin": 5 },
+  "cpu_used_percent": { "warning": 90, "critical": 98, "clear_margin": 5,
+    "warning_seconds": 180, "warning_samples": 3, "critical_seconds": 300, "critical_samples": 5 },
+  "latency_ms": { "warning": 2000, "critical": 3500, "clear_margin": 500,
+    "warning_seconds": 90, "warning_samples": 3, "critical_seconds": 30, "critical_samples": 2 },
+  "memory_used_percent": { "warning": 90, "critical": 95, "clear_margin": 3,
+    "warning_seconds": 180, "warning_samples": 3, "critical_seconds": 0, "critical_samples": 1 },
+  "disk_used_percent": { "warning": 90, "critical": 95, "clear_margin": 3,
+    "warning_seconds": 120, "warning_samples": 3, "critical_seconds": 0, "critical_samples": 1 },
   "clear_samples": 2
 }
 ```
 
-기준 이상이면 즉시 주의(노랑)·위험(빨강)을 표시한다
+CPU 90% 이상은 3분, 98% 이상은 5분 동안 새 보고가 이어져야 주의·위험으로 올린다
+메모리 주의는 3분, 디스크 주의는 2분 확인하며 메모리·디스크 95% 이상은 즉시 위험으로 처리한다
+응답 지연은 2초 이상 90초 확인 시 주의, 3.5초 이상 30초 확인 시 위험으로 처리한다
+확인 중인 높은 값은 pending_level과 함께 그대로 제공하며 화면은 부하 관찰 중으로 표시한다
+관찰 중인 값만으로 코어 색상이나 Discord 경고 단계를 올리지 않는다
+동일 시각·이전 시각 보고는 수치나 확인 횟수를 바꾸지 않으며 누락·미확인·수집 공백은 지속 확인을 끊는다
+HTTP 점검은 수집 만료 시간, 60초 주기 heartbeat는 150초를 넘는 공백을 연속 보고로 보지 않는다
 현재 단계 기준에서 clear_margin을 뺀 값 미만을 새 측정 2회 연속 확인해야 단계를 낮춘다
 같은 heartbeat를 재조회해도 해제 횟수는 증가하지 않는다
-예를 들어 메모리 위험은 85% 미만, 주의는 75% 미만에서 해제 확인을 시작한다
+예를 들어 메모리 위험은 92% 미만, 주의는 87% 미만에서 해제 확인을 시작한다
 서비스 중지·연결 실패는 수치와 별개로 위험이며 미연결·미확인은 각각 별도 상태다
-이 수치는 초기 운영 경고 기준이며 SLA 가용성 목표나 자동 복구 승인 조건은 아니다
+이 수치는 운영 경고 기준이며 SLA 가용성 목표나 자동 복구 승인 조건은 아니다
+기존 설정과의 호환을 위해 지속 시간을 생략하면 0초, 횟수를 생략하면 1회로 즉시 판정한다
+코드 기본 수치인 CPU 80/95%, 메모리·디스크 80/90%, 지연 1000/3000ms는 기존 배포용이며 운영 설정은 환경 Secret에서 명시한다
 
 /api/status의 risk_policy와 targets[].risk는 같은 서버 판정을 제공한다
 자산·실제 배치·코어 내부 광원이 이를 공유하며 기존 healthz 계약과 복구 판정은 유지한다
 Prometheus의 sentinel_target_risk_level은 정상 0, 주의 1, 위험 2, 미확인·미연결 -1을 제공한다
 수치 경고는 현재 상태 표시이며 기존 /api/events는 서비스 상태 변경 이력을 유지한다
 
-Discord에서 정상 서비스의 응답 지연만으로 발생한 새 주의 알림은 최소 60초 동안 서로 다른 새 측정 3회 이상을 확인한 뒤 전송한다
-대시보드의 실시간 수치와 노란색 표시는 유지하며 한 번의 지연으로 주의·복구 알림이 반복되지 않도록 한다
+위 운영 설정은 대시보드·Prometheus·Discord가 같은 확인 결과를 사용한다
+지연 주의가 수집기에서 이미 60초·3회 이상 확인됐다면 Discord에서 다시 대기하지 않는다
+지속 확인을 설정하지 않은 기존 프로필은 정상 서비스의 지연 주의 알림만 60초·새 측정 3회 이상 확인하는 기존 보호 조건을 유지한다
 같은 측정 재조회, 오래된 값, 미확인·비활성 상태, 수집 공백은 지속 시간 확인에 포함하지 않는다
 짧은 지연을 알리지 않은 경우 정상으로 돌아왔다는 복구 알림도 보내지 않는다
-위험 단계, HTTP 오류, CPU·메모리·디스크 주의, 이미 열린 위험의 완화는 즉시 알림 경로를 유지한다
+HTTP 오류와 이미 확인된 단계의 변경은 추가 대기 없이 알림 경로로 전달한다
 실제로 알린 경고의 정상 복구는 기존처럼 새 정상 측정 2회로 확인한다
 알림 상태 API의 latency_warning_seconds와 latency_warning_samples에서 지연 주의 알림 조건을 확인할 수 있다

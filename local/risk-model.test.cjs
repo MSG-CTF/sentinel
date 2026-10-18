@@ -43,3 +43,18 @@ test("recovering measurement explains a deliberately retained warning",()=>{
   const [asset]=buildAssets({...snapshot,targets:[{...target,risk:{level:"CRITICAL",signals:[{...signal,value:84,recovering:true}]}}]},{now});
   assert.equal(riskText(asset),"메모리 84% · 회복 확인 중");
 });
+
+test("a brief CPU spike stays visible without a yellow core",()=>{
+  const pending={...signal,metric:"cpu_used_percent",value:99,level:"NORMAL",pending_level:"CRITICAL",warning:90,critical:98};
+  const [asset]=buildAssets({...snapshot,targets:[{...target,risk:{level:"NORMAL",signals:[pending]}}]},{now});
+  assert.equal(asset.risk.level,"NORMAL"); assert.equal(riskCounts([asset]).WARNING,0); assert.equal(riskCounts([asset]).CRITICAL,0);
+  assert.equal(riskText(asset),"CPU 99% · 높은 부하 관찰 중");
+});
+
+test("an actual warning remains visible while another metric is being observed",()=>{
+  const [asset]=buildAssets({...snapshot,targets:[{...target,risk:{level:"WARNING",signals:[
+    {...signal,metric:"cpu_used_percent",value:99,level:"NORMAL",pending_level:"CRITICAL"},
+    {...signal,metric:"disk_used_percent",value:92,level:"WARNING",warning:90,critical:95}
+  ]}}]},{now});
+  assert.equal(riskText(asset),"디스크 92% · 주의 ≥90%");
+});

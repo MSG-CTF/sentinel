@@ -116,7 +116,10 @@ public sealed class DiscordAlerts
                 if (state.LastAt >= item.CheckedAt) continue;
                 var previousAt = state.LastAt;
                 state.LastAt = item.CheckedAt; changed = true;
-                if (level == "WARNING" && DeferLatencyWarning(item, state, previousAt, snapshot.StaleAfterSeconds))
+                // A sustained collector policy already confirmed latency for the dashboard and alerts together.
+                var latencyConfirmed = snapshot.RiskPolicy?.LatencyMs is { WarningSeconds: >= LatencyWarningSeconds,
+                    WarningSamples: >= LatencyWarningSamples };
+                if (level == "WARNING" && !latencyConfirmed && DeferLatencyWarning(item, state, previousAt, snapshot.StaleAfterSeconds))
                 { state.NormalSamples = 0; continue; }
                 ResetLatencyWarning(state);
                 // Collector hysteresis resets at restart; an open alert still needs clear margins.

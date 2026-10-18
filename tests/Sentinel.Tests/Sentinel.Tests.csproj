@@ -16,4 +16,7 @@
     <ProjectReference Include="..\..\src\Sentinel.Infrastructure\Sentinel.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Sentinel.Monitor\Sentinel.Monitor.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="../../deploy/aws/risk-policy.json" Link="aws-risk-policy.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

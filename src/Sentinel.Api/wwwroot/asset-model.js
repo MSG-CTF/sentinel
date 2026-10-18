@@ -90,7 +90,10 @@
   function riskText(asset) {
     const signals = asset.risk?.signals || [];
     const signal = signals.filter(s => s.level !== "NORMAL").sort((a,b) => (b.level === "CRITICAL") - (a.level === "CRITICAL"))[0];
-    if (!signal) return "";
+    if (!signal) {
+      const pending = signals.find(s => ["WARNING","CRITICAL"].includes(s.pending_level));
+      return pending ? `${metricNames[pending.metric]} ${Number(pending.value.toFixed(1))}${pending.unit} · 높은 부하 관찰 중` : "";
+    }
     return `${metricNames[signal.metric]} ${Number(signal.value.toFixed(1))}${signal.unit} · ${signal.recovering ? "회복 확인 중" : `${signal.level === "CRITICAL" ? "위험" : "주의"} ≥${signal.level === "CRITICAL" ? signal.critical : signal.warning}${signal.unit}`}`;
   }
   const api = {buildAssets, summarize, trustedComponents, resolveRisk, riskCounts, riskNames, metricNames, riskText};

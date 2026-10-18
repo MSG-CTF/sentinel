@@ -27,7 +27,7 @@ public sealed class PlatformMonitor
         TimeProvider? timeProvider = null)
     {
         _options = options.Value;
-        _risk = new RiskEvaluator(_options.RiskPolicy);
+        _risk = new RiskEvaluator(_options.RiskPolicy, 2 * _options.PollIntervalSeconds + _options.TimeoutSeconds + 5);
         _probe = probe;
         _logger = logger;
         _clock = timeProvider ?? TimeProvider.System;
