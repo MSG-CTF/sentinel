@@ -353,7 +353,7 @@ function renderInspector() {
     detailFields.get("checked").textContent = time(asset.checked_at); detailFields.get("http").textContent = asset.http_status_code != null ? asset.http_status_code : "해당 없음";
     detailFields.get("latency").textContent = asset.latency_ms != null ? `${Math.round(asset.latency_ms)} ms` : "해당 없음";
     detailFields.get("method").textContent = asset.evidence_type === "HEALTHZ_COMPONENT" ? "백엔드 healthz" : asset.kind === "service_heartbeat" ? "서버 상태 보고" : "직접 HTTP 점검";
-    byId("detail-source-note").textContent = asset.evidence_type === "HEALTHZ_COMPONENT" ? "백엔드의 연결 결과 · 이 DB나 Redis를 따로 직접 점검한 것은 아님" : asset.kind === "service_heartbeat" ? "프로세스 실행과 서버 자원 보고 · Discord gateway·티켓 기능은 별도 확인" : "API 응답 점검 · VM 전원이나 문제 풀이 기능 전체 판정은 아님";
+    byId("detail-source-note").textContent = asset.evidence_type === "HEALTHZ_COMPONENT" ? "백엔드의 연결 결과 · 이 DB나 Redis를 따로 직접 점검한 것은 아님" : asset.kind === "service_heartbeat" ? asset.evidence_scope || "프로세스 실행과 서버 자원 보고 · 애플리케이션 기능은 별도 점검" : "API 응답 점검 · VM 전원이나 문제 풀이 기능 전체 판정은 아님";
     byId("detail-events-section").hidden = false; byId("detail-events-title").textContent = asset.parent_target_id ? "백엔드 상태 변경 (간접 점검)" : "이 자산의 상태 변경";
     const events = eventData.filter(event=>event.target_id === (asset.parent_target_id || asset.asset_id)).slice(0,8), signature = JSON.stringify(events);
     if (signature !== detailEventSignature) {const feed = byId("detail-events"); feed.replaceChildren(); events.forEach(event=>feed.append(eventRow(event))); if (!events.length) feed.append(node("li", ["UNCONFIGURED", "PENDING"].includes(asset.status) ? "점검 미연결 · 변경 기록 없음" : "기록된 상태 변경 없음", "empty-message")); detailEventSignature = signature;}

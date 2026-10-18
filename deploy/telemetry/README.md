@@ -28,6 +28,15 @@ service_heartbeat는 관리 프로세스와 호스트 자원을 확인하며 문
 서비스 HTTP 점검과 스케줄러 전체 목록 조회는 별도의 HTTPS 대상에 연결한다
 런타임 클러스터가 등록되지 않았으면 인스턴스 실행 상태를 정상으로 추정하지 않는다
 
+백엔드 VM은 backend_command.py로 Docker 컨테이너 msg-dev-backend-1의 실제 상태를 확인한다
+Docker 데몬이 실행 중이어도 백엔드 컨테이너가 정지했으면 정상으로 보고하지 않는다
+백엔드 바인딩은 docker:msg-dev-backend-1이며 전용 키는 SENTINEL_SSH_BACKEND_B64를 사용한다
+report_backend.py는 60초 주기의 sentinel-backend-report.timer에서 실행하며 backend-host로 자원을 보고한다
+보고 서비스는 root로 실행하는 고정된 Docker 조회 도우미이며 Docker 소켓 권한을 별도 사용자에게 부여하지 않는다
+DB·Redis는 공개 HTTPS /healthz가 반환하는 실제 연결 점검으로 확인하고 호스트 자원과 분리해 표시한다
+start 작업은 created·exited 상태의 백엔드 컨테이너 하나만 기동하며 실행 중·일시 정지·재기동 중인 컨테이너에는 실행하지 않는다
+백엔드 컨테이너의 healthcheck 실패를 Docker 재시작으로 자동 처리하지 않는다
+
 이 콘솔은 임의 셸 명령, PTY, 포트 전달, 파일 업로드를 제공하지 않는다
 상태 조회는 선택한 서비스의 공개 상태 필드만 반환하고 환경 변수·봇 토큰·서비스 로그 원문은 읽지 않는다
 자원 조회는 보고기와 같은 자원 수치를 반환한다

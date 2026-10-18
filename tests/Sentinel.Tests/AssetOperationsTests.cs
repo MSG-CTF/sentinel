@@ -60,6 +60,14 @@ public sealed class AssetOperationsTests : IDisposable
         Assert.True(AssetOperations.Valid(Bot)); Assert.False(AssetOperations.Valid(Bot with {HostKeySha256=""}));
         Assert.False(AssetOperations.Valid(Bot with {Host="host; command"})); Assert.False(AssetOperations.Valid(Bot with {Service="unit; command.service"}));
     }
+    [Theory]
+    [InlineData("docker:msg-dev-backend-1", true)]
+    [InlineData("docker:--privileged", false)]
+    [InlineData("docker:backend; id", false)]
+    [InlineData("docker:../backend", false)]
+    [InlineData("docker:", false)]
+    public void ContainerReferencesRemainFixedDescriptors(string service, bool valid) =>
+        Assert.Equal(valid, AssetOperations.Valid(Bot with { Service = service }));
     private sealed class FakeSsh:IAssetSshClient
     { public int Calls;public bool Fail;public Task<SshActionOutput> RunAsync(ManagedAsset asset,string action,CancellationToken token){Calls++;if(Fail)throw new IOException("private error");return Task.FromResult(new SshActionOutput(0,"{\"state\":\"active\"}"));} }
     public void Dispose(){if(File.Exists(_file))File.Delete(_file);}
