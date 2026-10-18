@@ -26,6 +26,37 @@ def cpu_percent(before, after):
     return round(100 * (total - idle) / total, 1)
 
 
+def effective_service_state(service, state):
+    """Count the fixed, routed runtime API bridge during a bounded handoff.
+
+    This is process availability only. The independent authenticated HTTP probe
+    still detects API/DB failures. A retained bridge cannot hide a failed worker
+    indefinitely: after 120 seconds report the actual primary state again.
+    """
+    if service != 'secure-provisioner.service' or state == 'active':
+        return state
+    try:
+        upstream = Path('/etc/nginx/snippets/msgctf-runtime-upstream.conf')
+        metadata = upstream.lstat()
+        if (not upstream.is_file() or upstream.is_symlink() or metadata.st_uid != 0
+                or metadata.st_mode & 0o022
+                or upstream.read_bytes() != b'proxy_pass http://127.0.0.1:18080;\n'):
+            return state
+        result = subprocess.run(['systemctl', 'show', 'secure-provisioner-bridge.service',
+            '--property=ActiveState', '--property=SubState', '--property=MainPID',
+            '--property=User', '--property=Group', '--property=ActiveEnterTimestampMonotonic'],
+            capture_output=True, text=True, check=True, timeout=2)
+        values = dict(line.split('=', 1) for line in result.stdout.splitlines() if '=' in line)
+        age = time.monotonic() - int(values['ActiveEnterTimestampMonotonic']) / 1_000_000
+        if (values.get('ActiveState') == 'active' and values.get('SubState') == 'running'
+                and values.get('User') == values.get('Group') == 'provisioner'
+                and int(values.get('MainPID', '0')) > 1 and 0 <= age <= 120):
+            return 'active'
+    except (OSError, ValueError, KeyError, subprocess.SubprocessError):
+        pass
+    return state
+
+
 def collect(service):
     if not re.fullmatch(r"[A-Za-z0-9_.@-]{1,100}\.service", service):
         raise ValueError("Invalid service name")
@@ -35,6 +66,7 @@ def collect(service):
     state = properties.get("ActiveState")
     if state not in {"active", "inactive", "failed", "activating", "deactivating"}:
         raise ValueError("Service state is unavailable")
+    state = effective_service_state(service, state)
     memory = {}
     for line in Path("/proc/meminfo").read_text().splitlines():
         key, value = line.split(":", 1)
