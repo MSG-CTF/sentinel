@@ -31,6 +31,24 @@ public sealed class AssetOperationsTests : IDisposable
         Assert.Equal("REJECTED",result.Status); Assert.Equal(0,_ssh.Calls);
     }
     [Fact]
+    public async Task RuntimeDatabaseFailureCannotStartOrRestartAnActiveService()
+    {
+        var runtime = Bot with { AssetId = "runtime", Service = "secure-provisioner.service" };
+        var ops = new AssetOperations([runtime], _ssh, _file);
+        var sample = Sample("HEALTHY", "active") with { Targets = [
+            new("runtime", "Runtime", "RUNTIME", "RUNTIME", "service_heartbeat", null, true, "HEALTHY", "SERVICE_ACTIVE",
+                DateTimeOffset.UtcNow, null, null, new Dictionary<string,string> { ["service_state"] = "active" }),
+            new("runtime-api", "Runtime API", "RUNTIME", "RUNTIME", "runtime_healthz", "https://runtime.invalid/internal/v1/healthz", true,
+                "DOWN", "RUNTIME_DATABASE_DOWN", DateTimeOffset.UtcNow, 503, 10,
+                new Dictionary<string,string> { ["database"] = "down" })] };
+        var result = await ops.ExecuteAsync("runtime", new("start", Guid.NewGuid().ToString(), "runtime"), "admin", sample);
+        Assert.Equal("FRESH_STOPPED_SERVICE_REQUIRED", result.Code);
+        Assert.Equal(0, _ssh.Calls);
+        result = await ops.ExecuteAsync("runtime-api", new("start", Guid.NewGuid().ToString(), "runtime-api"), "admin", sample);
+        Assert.Equal("SSH_NOT_CONFIGURED", result.Code);
+        Assert.Equal(0, _ssh.Calls);
+    }
+    [Fact]
     public async Task DuplicateRecoveryAcrossRestartCannotExecuteAgain()
     {
         var request=new AssetActionRequest("start",Guid.NewGuid().ToString(),"bot");

@@ -55,8 +55,11 @@ public sealed class PlatformMonitor
             {
                 foreach (var result in results)
                 {
+                    var previous = _observations[result.TargetId];
                     _observations[result.TargetId] = result with { Risk = _risk.Evaluate(result) };
-                    ObserveTransition(result);
+                    // A cached readiness response is one measurement, including in event history.
+                    if (result.Kind != "runtime_healthz" || previous.CheckedAt is null || result.CheckedAt > previous.CheckedAt)
+                        ObserveTransition(result);
                 }
                 _updatedAt = _clock.GetUtcNow();
                 _history.Enqueue(new MonitorSample(_updatedAt.Value, results.Select(result => new TargetSample(

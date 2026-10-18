@@ -13,6 +13,7 @@ const reasonNames = {
   CLUSTER_NOT_CONFIGURED:"실제 K3s 클러스터와 런타임 연결 정보 필요", EXECUTION_TARGET_NOT_CONFIGURED:"실행 중인 문제 서버와 관리 주소 필요", PROVIDER_NOT_CONFIGURED:"클라우드 계정과 VM 연결 필요", SCORING_NOT_CONFIGURED:"채점 서비스와 점수 수집 연결 필요", DELIVERY_NOT_CONNECTED:"배포할 문제·실행 기록·산출물 연결 필요", INGESTION_NOT_IMPLEMENTED:"현재 실행본에 새 산출물 수집 경로 없음",
   BACKEND_READY:"API 응답과 DB·Redis 연결 정상", HTTP_REACHABLE:"사이트 응답 확인 · 내부 기능은 별도 점검", HEALTH_CONTRACT_MATCHED:"설정한 상태 계약과 일치",
   DATABASE_DOWN:"API는 응답하지만 PostgreSQL 연결 실패", CACHE_DOWN:"API는 응답하지만 Redis 연결 실패", DATABASE_AND_CACHE_DOWN:"API는 응답하지만 DB·Redis 연결 실패",
+  RUNTIME_API_READY:"런타임 API와 PostgreSQL 작업·바인딩 조회 정상", RUNTIME_DATABASE_DOWN:"런타임 API는 응답하지만 PostgreSQL 조회 실패 또는 기한 초과", RUNTIME_STORE_NOT_DURABLE:"영속 저장소가 없는 런타임 설정", INVALID_RUNTIME_READINESS:"런타임 준비 상태 응답이 계약과 다름", INCONSISTENT_RUNTIME_READINESS:"런타임 HTTP 코드와 준비 상태가 일치하지 않음", STALE_RUNTIME_READINESS:"런타임 준비 상태의 측정 시각이 오래됐거나 미래 시각임",
   POSTGRESQL_READY:"백엔드 healthz에서 DB 연결 정상 확인", POSTGRESQL_DOWN:"백엔드 healthz에서 DB 연결 실패 확인", REDIS_READY:"백엔드 healthz에서 Redis 연결 정상 확인", REDIS_DOWN:"백엔드 healthz에서 Redis 연결 실패 확인",
   PARENT_HEALTH_UNVERIFIED:"백엔드 응답으로 구성 요소 상태를 확인하지 못함 · DB·Redis 장애로 단정할 수 없음", EXPECTED_JSON_RECEIVED_OTHER:"healthz JSON이 아닌 응답 · 백엔드 상태 확인 불가", INVALID_HEALTH_CONTRACT:"응답 필드나 상태 값이 백엔드 계약과 다름", INCONSISTENT_HEALTH_CONTRACT:"HTTP 상태와 DB·Redis 판정이 일치하지 않음",
   AUTH_REQUIRED:"점검 API 인증 필요", AUTH_TOKEN_NOT_CONFIGURED:"점검용 인증 토큰 미설정", ENDPOINT_NOT_FOUND:"점검 API 경로 없음", REDIRECT_BLOCKED:"다른 주소로 이동하는 응답 · 점검 주소 확인 필요",

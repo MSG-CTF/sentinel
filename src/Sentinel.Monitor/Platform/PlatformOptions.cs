@@ -61,7 +61,7 @@ public sealed class PlatformTarget
     {
         if (!Regex.IsMatch(TargetId, "^[a-z][a-z0-9_-]{0,63}$")
             || Name.Length is 0 or > 100 || Role.Length is 0 or > 32 || Track.Length is 0 or > 32
-            || Kind is not ("backend_healthz" or "http" or "json_fields" or "scheduler_inventory" or "broker_inventory" or "runtime_status" or "runtime_node" or "runtime_operation" or "service_heartbeat" or "cluster_heartbeat" or "auth_boundary")
+            || Kind is not ("backend_healthz" or "runtime_healthz" or "http" or "json_fields" or "scheduler_inventory" or "broker_inventory" or "runtime_status" or "runtime_node" or "runtime_operation" or "service_heartbeat" or "cluster_heartbeat" or "auth_boundary")
             || EvidenceScope?.Length > 300
             || !Regex.IsMatch(UnconfiguredReason, "^[A-Z][A-Z0-9_]{0,63}$"))
             return false;
@@ -69,8 +69,12 @@ public sealed class PlatformTarget
             !Regex.IsMatch(ExpectedFields.GetValueOrDefault("cluster_target_id") ?? "", "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$")) return false;
         if (Kind is "service_heartbeat" or "cluster_heartbeat") return !Enabled ||
             (string.IsNullOrEmpty(Url) && AuthTokenEnv is not null && Regex.IsMatch(AuthTokenEnv, "^[A-Z][A-Z0-9_]{0,63}$"));
-        if (Enabled && (Kind is "scheduler_inventory" or "broker_inventory" or "runtime_status" or "runtime_node" or "runtime_operation") && string.IsNullOrWhiteSpace(AuthTokenEnv))
+        if (Enabled && (Kind is "scheduler_inventory" or "broker_inventory" or "runtime_healthz" or "runtime_status" or "runtime_node" or "runtime_operation") && string.IsNullOrWhiteSpace(AuthTokenEnv))
             return false;
+        if (Enabled && Kind == "runtime_healthz" &&
+            (!Uri.TryCreate(Url, UriKind.Absolute, out var readinessUri) || readinessUri.Scheme != "https"
+             || readinessUri.AbsolutePath != "/internal/v1/healthz"
+             || !Regex.IsMatch(AuthTokenEnv ?? "", "^[A-Z][A-Z0-9_]{0,63}$"))) return false;
         if (Enabled && (Kind is "runtime_status" or "runtime_node")
             && (!Guid.TryParse(ExpectedFields.GetValueOrDefault("instance_id"), out _)
                 || string.IsNullOrWhiteSpace(ExpectedFields.GetValueOrDefault("target_id"))))
