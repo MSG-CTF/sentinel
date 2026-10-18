@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Owned challenge functional observation",
+  "description": "One operator-run functional check of a disposable administrator deployment test, separate from production challenge monitoring",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["profile", "scope", "status", "reason_code", "source_revision", "checked_at", "elapsed_ms"],
+  "properties": {
+    "profile": {"enum": ["web-grade-tampering", "web-notebook", "pwn-random6", "pwn-note", "pwn-ghost-file", "pwn-price-tag", "unknown"]},
+    "scope": {"const": "owned_deployment_test"},
+    "status": {"enum": ["UP", "DOWN", "CHECKER_ERROR"]},
+    "reason_code": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,95}$"},
+    "source_revision": {"const": "1dea73b652f9eeb98204c1fda7f66b9afb89505d"},
+    "checked_at": {"type": "string", "format": "date-time"},
+    "elapsed_ms": {"type": "integer", "minimum": 0}
+  },
+  "allOf": [
+    {"if": {"properties": {"profile": {"const": "unknown"}}}, "then": {"properties": {"status": {"const": "CHECKER_ERROR"}}}}
+  ]
+}

@@ -104,3 +104,35 @@ CPU·메모리는 같은 노드 식별자와 60초 이내의 Kubernetes metrics 
 개별 실행 상태는 instance_monitor.runtime_targets의 명시된 HTTPS 런타임 주소와 인스턴스 식별자 계약으로 따로 조회한다
 
 [Kubernetes resource metrics 계약](https://kubernetes.io/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/)과 [NodeMetrics 명세](https://kubernetes.io/docs/reference/external-api/metrics.v1/)를 기준으로 수집한다
+## 관리자 시험 문제 기능 점검
+
+`challenge_probes.py`는 직접 소유한 일회성 관리자 배포 시험에 쓰는 점검기다
+운영 인스턴스 목록의 준비 상태와 별도로 애플리케이션의 정상 입력·출력을 검증한다
+현재 `instance_monitor.functional_checks`는 로컬 시험 서비스 전용이며 이 모듈을 추가해도 운영 상시 감시나 Discord 알림은 활성화되지 않는다
+
+| 점검 프로필 | 확인하는 기능 |
+| --- | --- |
+| web-grade-tampering | healthz, DB를 읽는 공지 조회, 없는 공지의 404 응답 |
+| web-notebook | 로그인 폼, 임의의 일반 계정에 대한 실제 DB 로그인 조회와 401, 미인증 노트 접근의 403 |
+| pwn-random6 | 매번 새 숫자에 7을 더하는 정상 VM 명령의 EMIT 결과와 EXIT |
+| pwn-note | 짧은 이름의 정확한 왕복 응답, 버퍼 크기 이내 메시지 저장, 정상 종료 |
+| pwn-ghost-file | 새 메모 1개의 전체 내용 기록, 유효 범위의 수정·읽기·삭제 |
+| pwn-price-tag | 유효한 상품 번호의 가격 변경과 관리자 접근 거절 |
+
+호출자는 다음 조건을 모두 확인한 후 `check(profile, service_url, expected_host)`를 호출한다
+
+1. 시험 요청을 보낸 관리자와 해당 시험의 ID·문제·릴리스·팀을 확인한다
+2. 인증된 Scheduler와 Runtime에서 동일한 instance_id·target_id·runtime_workload_id를 확인한다
+3. 60초 이내의 READY 관측, 실제 Pod Ready, 릴리스의 고정 digest와 실행 이미지 일치 여부를 확인한다
+4. 등록된 클러스터의 공개 IPv4와 실제 Service의 NodePort를 대조한다
+5. 시험이 끝나거나 점검에 실패하면 해당 시험만 종료하고 Namespace 제거와 Broker 예약 반납을 확인한다
+
+점검기는 별도의 HTTP·TCP 연결을 사용하며 제어 서비스의 인증·쿠키를 전송하지 않는다
+HTTP 요청과 경로, TCP 명령은 프로필에 고정돼 있으며 리다이렉트·호스트 불일치·사설 주소·멀티캐스트·NodePort 범위 밖 주소를 거부한다
+연결과 개별 읽기에는 최대 4초 제한을 적용하고 전체 응답은 32 KiB 이내로 제한한다
+프로필 전체에는 20초 제한을 적용하며 HTTP 헤더나 본문이 조금씩 계속 도착하는 경우에도 남은 시간이 끝나면 연결을 종료한다
+결과에는 원문 응답·접속 주소·토큰·플래그를 포함하지 않으며 형식은 `challenge-functional-observation.schema.json`에 고정한다
+
+검증 입력은 [고정된 문제 소스](https://github.com/MSG-CTF/2026_MSG_CTF/tree/1dea73b652f9eeb98204c1fda7f66b9afb89505d)에 있는 정상 기능에서 가져왔다
+공식 풀이·플래그 획득·채점·부하 시험을 검증한 결과로 사용하지 않는다
+정식 상시 감시로 전환하려면 승인된 문제 ID·릴리스·점검 규약 연결과 결과 수집·알림 정책이 추가로 필요하다
