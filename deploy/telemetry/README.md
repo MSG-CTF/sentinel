@@ -81,3 +81,26 @@ HTTP 지연은 risk_policy 기준으로 주의·위험을 판정하고 연결 �
 현재 인증 API 진입 점검은 DB 작업·실제 사용자 요청 성공을 보장하지 않는다
 SLA 자체가 정지하면 내부 알림도 멈추므로 별도 호스트나 외부 서비스의 감시가 추가로 필요하다
 Discord 전체 장애에는 저장 후 재시도만 가능하며 별도 수신 채널은 아직 연결하지 않았다
+
+## 실행 클러스터 노드 보고
+
+report_clusters.py는 런타임 서비스 계정으로 기존 registry의 명시된 클러스터만 읽는다
+kubectl get nodes와 GET metrics API만 호출하며 인스턴스 생성·삭제·재시작이나 노드 설정 변경을 실행하지 않는다
+registry와 kubeconfig는 기존 서버에 유지하고 SLA로 전달하지 않는다
+sentinel-cluster-report.service와 timer는 60초마다 실행하며 각 클러스터의 전용 토큰으로 /ingest/cluster/{target_id}에 보고한다
+
+보고 설정 파일은 root 전용 /etc/sentinel-telemetry/clusters.json이며 systemd LoadCredential로 읽는다
+bindings 항목마다 endpoint, cluster_target_id, token을 등록하고 플랫폼 대상에도 같은 cluster_target_id를 expected_fields로 고정한다
+클러스터마다 별도 token을 사용하며 대상·클러스터 식별자가 다르거나 재전송·오래된 보고이면 수신을 거절한다
+
+단일 노드 실행 계약에 따라 노드 수·Ready·스케줄 가능 여부와 MemoryPressure·DiskPressure·PIDPressure를 별도로 판정한다
+필수 condition의 Unknown·누락, 조회 실패·클러스터 등록 해제는 미확인으로 표시하고 정상 복구에 포함하지 않는다
+수신이 150초 넘게 끊기면 오래된 측정값과 위험 수치를 현재 값으로 표시하지 않는다
+
+CPU·메모리는 같은 노드 식별자와 60초 이내의 Kubernetes metrics 응답이 있을 때만 보고한다
+메모리는 working set이며 Linux MemAvailable 기반 호스트 수치와 수집 기준이 다르다
+디스크 사용률은 수집하지 않으며 지표가 없거나 오래됐을 때 0으로 채우지 않는다
+노드 정상은 개별 문제 컨테이너 준비나 문제 기능 성공을 뜻하지 않는다
+개별 실행 상태는 instance_monitor.runtime_targets의 명시된 HTTPS 런타임 주소와 인스턴스 식별자 계약으로 따로 조회한다
+
+[Kubernetes resource metrics 계약](https://kubernetes.io/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/)과 [NodeMetrics 명세](https://kubernetes.io/docs/reference/external-api/metrics.v1/)를 기준으로 수집한다

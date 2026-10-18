@@ -9,6 +9,16 @@ const target = overrides => ({target_id:"internal-backend", name:"내부 백엔�
   http_status_code:200, latency_ms:12, url:"http://backend-internal:8080/healthz", components:{status:"ok", database:"ok", cache:"ok"}, ...overrides});
 const build = (item, options = {}) => buildAssets({targets:[target(item)], poll_interval_seconds:15}, {now, ...options});
 
+test("cluster reports survive minute polling and stop showing resources after report expiry", () => {
+  const item = {kind:"cluster_heartbeat", role:"K3S", components:{cpu_used_percent:"12.5"}, checked_at:new Date(now - 80000).toISOString()};
+  const live = build(item)[0];
+  assert.equal(live.status, "HEALTHY");
+  assert.equal(live.components.cpu_used_percent, "12.5");
+  const stale = build({...item, checked_at:new Date(now - 151000).toISOString()})[0];
+  assert.equal(stale.status, "STALE");
+  assert.equal(stale.risk.level, "UNKNOWN");
+});
+
 test("backend healthz creates two evidence-backed dependency assets", () => {
   const assets = build();
   assert.deepEqual(assets.map(asset => asset.status), ["HEALTHY", "HEALTHY", "HEALTHY"]);

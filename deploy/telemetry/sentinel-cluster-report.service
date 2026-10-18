@@ -1,0 +1,27 @@
+[Unit]
+Description=Sentinel read-only cluster node report
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=provisioner
+Group=provisioner
+LoadCredential=clusters.json:/etc/sentinel-telemetry/clusters.json
+ExecStart=/usr/bin/python3 /opt/sentinel-telemetry/report_clusters.py
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RuntimeDirectory=sentinel-cluster-report
+ReadWritePaths=/run/sentinel-cluster-report
+Environment=HOME=/run/sentinel-cluster-report
+UMask=0077
+MemoryMax=192M
+CPUQuota=15%
+TimeoutStartSec=50

@@ -15,6 +15,27 @@ public sealed class DiscordAlertsTests : IDisposable
     private readonly string? _old = Environment.GetEnvironmentVariable("SENTINEL_DISCORD_WEBHOOK_URL");
     public DiscordAlertsTests() => Environment.SetEnvironmentVariable("SENTINEL_DISCORD_WEBHOOK_URL", "https://discord.com/api/webhooks/12345678901234567/" + new string('a', 40));
     private DiscordAlerts Create() => new(Options.Create(new DiscordAlertOptions { Enabled = true, StateFile = _file }), new HttpClient(_handler), _clock);
+    [Theory]
+    [InlineData("service_heartbeat")]
+    [InlineData("cluster_heartbeat")]
+    public async Task MinuteHeartbeatsRecoverOnceAfterDistinctFreshReports(string kind)
+    {
+        var alerts = Create(); var started = _clock.Now;
+        void Report(string level, int checkedSecond, int pollSecond)
+        {
+            _clock.Now = started.AddSeconds(pollSecond);
+            var sample = new ProbeObservation("minute-target", "Node", "K3S", "RUNTIME", kind, null, true,
+                level == "CRITICAL" ? "DOWN" : "HEALTHY", "K3S_NODE_READY", started.AddSeconds(checkedSecond), null, null,
+                new Dictionary<string, string>(), Risk: new(level, []));
+            alerts.Observe(new("test", "observe_only", _clock.Now, _clock.Now, 15, 3, true, [sample], StaleAfterSeconds: 41));
+        }
+        Report("CRITICAL", 0, 0); await alerts.DeliverAsync();
+        Report("CRITICAL", 0, 80); await alerts.DeliverAsync(); Assert.Single(_handler.Bodies);
+        Report("NORMAL", 5, 80); Report("NORMAL", 5, 95); await alerts.DeliverAsync(); Assert.Single(_handler.Bodies);
+        Report("NORMAL", 65, 125); await alerts.DeliverAsync(); Assert.Equal(2, _handler.Bodies.Count);
+        Report("NORMAL", 65, 140); await alerts.DeliverAsync(); Assert.Equal(2, _handler.Bodies.Count);
+        Assert.Contains("복구 확인", _handler.Bodies.Last());
+    }
     private void Observe(DiscordAlerts alerts, string level, int tick)
     {
         _clock.Now = DateTimeOffset.Parse("2026-10-14T12:00:00Z").AddSeconds(tick);

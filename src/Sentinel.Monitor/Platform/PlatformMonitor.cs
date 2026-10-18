@@ -79,7 +79,7 @@ public sealed class PlatformMonitor
     {
         var result = _observations[targetId];
         var collectorDeadline = 2 * _options.PollIntervalSeconds + _options.TimeoutSeconds + 5;
-        var staleAfter = result.Kind == "service_heartbeat" ? 150 : collectorDeadline;
+        var staleAfter = result.Kind is "service_heartbeat" or "cluster_heartbeat" ? 150 : collectorDeadline;
         var collectorStale = _updatedAt is { } updated && (_clock.GetUtcNow() - updated).TotalSeconds > collectorDeadline;
         return result.CheckedAt is { } at && (collectorStale || (_clock.GetUtcNow() - at).TotalSeconds > staleAfter)
             ? result with { Status = "STALE", ReasonCode = "MONITOR_REFRESH_STALE", Risk = RiskEvaluator.Unmeasured("STALE") }
@@ -115,7 +115,7 @@ public sealed class PlatformMonitor
             { "NORMAL" => 0, "WARNING" => 1, "CRITICAL" => 2, _ => -1 };
             text.AppendLine($"sentinel_target_risk_level{{{labels}}} {riskLevel}");
             text.AppendLine($"sentinel_target_health{{{labels}}} {(target.Status == "HEALTHY" ? 1 : target.Status == "DOWN" ? 0 : -1)}");
-            if (target.Kind == "service_heartbeat" && target.Status is "HEALTHY" or "DOWN")
+            if ((target.Kind is "service_heartbeat" or "cluster_heartbeat") && target.Status is "HEALTHY" or "DOWN" or "DEGRADED")
                 foreach (var metric in new[] { "cpu_used_percent", "memory_used_percent", "disk_used_percent" })
                     if (double.TryParse(target.Components.GetValueOrDefault(metric), NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
                         && double.IsFinite(value) && value is >= 0 and <= 100)
