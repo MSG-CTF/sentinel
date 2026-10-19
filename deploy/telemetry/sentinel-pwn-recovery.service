@@ -1,0 +1,31 @@
+[Unit]
+Description=Explicitly leased PWN functional monitoring and bounded recovery
+After=network-online.target secure-provisioner.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=provisioner
+Group=provisioner
+EnvironmentFile=/etc/sentinel-telemetry/pwn-recovery.env
+ExecStart=/usr/bin/python3 -u /opt/sentinel-telemetry/pwn-recovery/owned_pwn_recovery.py --directory /etc/sentinel-telemetry/pwn-recovery.d --state /var/lib/sentinel-pwn-recovery/state.sqlite
+Restart=on-failure
+RestartSec=15
+StateDirectory=sentinel-pwn-recovery
+StateDirectoryMode=0700
+RuntimeDirectory=sentinel-pwn-recovery
+RuntimeDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryMax=192M
+TasksMax=32
+
+[Install]
+WantedBy=multi-user.target

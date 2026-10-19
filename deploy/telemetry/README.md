@@ -128,6 +128,39 @@ CPU·메모리는 같은 노드 식별자와 60초 이내의 Kubernetes metrics 
 - 실습 엔드포인트는 고정된 공개 IPv4의 NodePort만 허용하고 관리 토큰·쿠키·리디렉션을 전달하지 않는다
 - 결과는 `POST /ingest/challenge/{target_id}`로 보내며 엄격한 snake_case 형식, 소유 정보와 출처, 단조 증가하는 관측 시각을 검증한다
 - 실제 기능 실패는 위험, 새 성공 결과 두 번은 정상 복구로 기존 Discord 알림에 연결한다
+
+## 명시 등록 PWN 자동 복구
+
+owned_pwn_recovery.py는 운영자가 등록한 만료 기한이 있는 PWN 관리자 실습만 점검하고 복구한다
+운영 참가자나 새 인스턴스를 자동으로 등록하지 않는다
+설정은 기존 reporter 설정과 workload 바인딩을 포함하며 namespace·Deployment·Service의 실제 UID, Deployment spec의 SHA-256, 승인된 이미지 digest와 Service spec을 고정한다
+설정·코드는 root가 소유하고 Runtime의 기존 provisioner 계정으로 실행한다
+관리 토큰과 전용 보고 토큰은 보호된 systemd EnvironmentFile로 전달하며 로그나 문제 서버에 보내지 않는다
+
+- 새 프로세스에서 실제 기능 정상 두 번으로 기준을 세우고, 서로 다른 새 기능 실패 두 번으로 복구를 검토한다
+- SLA 수신 성공 뒤 Kubernetes 대상·소유 팀·이미지·노드 상태를 확인하고 실제 기능 실패와 관리 정보를 다시 확인한다
+- 승인된 Service targetPort만 달라졌으면 UID·resourceVersion·현재 spec을 검사하는 JSON Patch로 해당 값만 원복한다
+- 연결 설정이 같으면 Deployment의 자식 ReplicaSet이 소유한 Pod 하나에 UID·resourceVersion 사전 조건을 넣어 삭제하고 기존 Deployment가 같은 사양으로 다시 만들도록 한다
+- Deployment 템플릿, Secret, 노드, 다른 인스턴스는 수정하지 않는다
+- 실행 직전에 SQLite에 1회 실행 권한을 먼저 확정한다
+- 응답 유실·시간 초과·프로세스 재시작 뒤 같은 인스턴스의 복구를 재실행하지 않는다
+- 동시에 한 복구만 진행하고, 실행 후 180초 안에 실제 기능 정상 두 번으로 복구를 확인한다
+- 수집 실패·보고 거절·소유권 변경·오래된 측정·60초 이하의 남은 기한은 복구 실행 근거로 쓰지 않는다
+- 실제 기능 결과는 기존 challenge_heartbeat로 보내므로 Discord 위험·정상 복구 알림과 중복 억제를 그대로 적용한다
+
+Runtime 호스트 설치 경로
+
+- owned_pwn_recovery.py, owned_challenge_reporter.py, challenge_probes.py → /opt/sentinel-telemetry/pwn-recovery/
+- sentinel-pwn-recovery.service → /etc/systemd/system/sentinel-pwn-recovery.service
+- 비밀값 환경 파일 → /etc/sentinel-telemetry/pwn-recovery.env, root 소유 0600
+- 등록 설정 → /etc/sentinel-telemetry/pwn-recovery.d/*.json, root:provisioner 소유 0640
+- 실행 기록 → /var/lib/sentinel-pwn-recovery/state.sqlite, provisioner 소유 0600
+
+검증을 끝낸 실습은 Backend 삭제 후 실제 namespace 제거와 예약 반환을 확인하고 등록 설정·전용 보고 토큰을 제거한다
+등록이 비어 있으면 이 서비스는 인스턴스를 탐색하거나 복구 명령을 실행하지 않는다
+Pod 재생성은 해당 실습의 메모리와 임시 파일을 초기화할 수 있으므로 운영자가 허가한 일회성 실습에만 등록한다
+
+[Kubernetes DeleteOptions](https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/delete-options/)와 [kubectl delete](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#delete)의 UID 사전 조건을 사용한다
 - 90초 넘게 보고가 없거나 관리 조회 실패·점검 기한 만료가 발생하면 미확인으로 남기며 복구 알림을 만들지 않는다
 - 실습 종료 후 인스턴스와 Broker 예약, 비공개 문제·릴리스·임시 계정, 대상 설정과 보고 토큰을 정리한다
 
