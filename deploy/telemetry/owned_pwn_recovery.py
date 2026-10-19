@@ -45,6 +45,22 @@ def name(value):
     require(isinstance(value, str) and re.fullmatch(r"[a-z0-9][a-z0-9.-]{0,252}", value))
 
 
+def observe_owned(config, read=reporter.control, probe=reporter.probes.check, clock=now):
+    # A verified DEGRADED workload may be probed to establish a real failure.
+    # It can never contribute a healthy/recovery reading until Runtime is READY.
+    phases = []
+    def capture(base, path, token):
+        value = read(base, path, token)
+        if base == config["runtime_origin"]:
+            phases.append(value.get("phase"))
+        return value
+    result = reporter.observe(config, capture, probe, clock,
+        binding_check=lambda c, r, at: reporter.bound(c, r, at, allow_degraded=True))
+    if result["status"] == "UP" and any(phase != "READY" for phase in phases):
+        result.update(status="CHECKER_ERROR", reason_code="RUNTIME_NOT_READY")
+    return result
+
+
 def validate(config):
     require(set(config) == {"reporter", "workload"})
     r, w = config["reporter"], config["workload"]
@@ -113,6 +129,7 @@ class Journal:
             if previous and measured - previous > timedelta(seconds=45):
                 s.update(successes=0, failures=0, armed=False)
             s["last_at"] = measured.isoformat()
+            s.update(last_status=observation["status"], last_reason_code=observation["reason_code"])
             fresh_lease = reporter.timestamp(b["expires_at"]) - at > timedelta(seconds=60)
             status, reason = observation["status"], observation["reason_code"]
             if not fresh_lease or status == "CHECKER_ERROR":
@@ -250,7 +267,7 @@ class Kubernetes:
             self.run(["delete", "--raw", "/api/v1/namespaces/" + self.namespace + "/pods/" + pod["name"], "-f", "-"], options)
 
 
-def _tick(config, journal, *, observe=reporter.observe, publish=reporter.control, adapter=Kubernetes, clock=now, read=reporter.control):
+def _tick(config, journal, *, observe=observe_owned, publish=reporter.control, adapter=Kubernetes, clock=now, read=reporter.control):
     validate(config)
     r = config["reporter"]
     observation = observe(r)
@@ -265,13 +282,14 @@ def _tick(config, journal, *, observe=reporter.observe, publish=reporter.control
         confirmed = journal.observe(config, confirmation, clock())
         if confirmed and journal.claim(config, clock(), plan["action"]):
             try:
-                kube.execute(plan, lambda: reporter.bound(r, read, clock()))
+                kube.execute(plan, lambda: reporter.bound(r, read, clock(), allow_degraded=True))
                 journal.result(config, "VERIFYING")
             except Exception:
                 # A timeout can occur after mutation: consume the attempt and never retry it.
                 journal.result(config, "INDETERMINATE")
     state = journal.snapshot(config)
     return {"target_id": r["target_id"], "instance_id": r["binding"]["instance_id"],
+            "checked_at": observation["checked_at"],
             "functional_status": observation["status"], "reason_code": observation["reason_code"],
             "recovery_status": state["status"], "attempts": state["attempts"], "action": state.get("action")}
 

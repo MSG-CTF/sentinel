@@ -139,6 +139,7 @@ owned_pwn_recovery.py는 운영자가 등록한 만료 기한이 있는 PWN 관�
 
 - 새 프로세스에서 실제 기능 정상 두 번으로 기준을 세우고, 서로 다른 새 기능 실패 두 번으로 복구를 검토한다
 - SLA 수신 성공 뒤 Kubernetes 대상·소유 팀·이미지·노드 상태를 확인하고 실제 기능 실패와 관리 정보를 다시 확인한다
+- Runtime의 식별 정보와 관측 시각이 검증된 DEGRADED 상태는 실제 기능 실패를 확인할 수 있지만 정상·복구 근거로 쓰지 않는다
 - 승인된 Service targetPort만 달라졌으면 UID·resourceVersion·현재 spec을 검사하는 JSON Patch로 해당 값만 원복한다
 - 연결 설정이 같으면 Deployment의 자식 ReplicaSet이 소유한 Pod 하나에 UID·resourceVersion 사전 조건을 넣어 삭제하고 기존 Deployment가 같은 사양으로 다시 만들도록 한다
 - Deployment 템플릿, Secret, 노드, 다른 인스턴스는 수정하지 않는다

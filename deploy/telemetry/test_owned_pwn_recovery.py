@@ -223,4 +223,29 @@ class KubernetesTests(unittest.TestCase):
             with self.assertRaises(ValueError):recovery.validate(invalid)
 
 
+class DegradedTests(unittest.TestCase):
+    def setUp(self):
+        self.source=reporter_fixture.ReporterTests();self.source.setUp()
+        self.source.config['binding']['profile']='pwn-random6'
+        self.source.config['service_url']='tcp://8.8.8.8:30080'
+
+    def test_verified_degraded_can_establish_real_failure_but_never_recovery(self):
+        s=self.source;s.runtime['phase']='DEGRADED'
+        s.probe.return_value={'status':'DOWN','reason_code':'FUNCTION_TIMEOUT','elapsed_ms':1}
+        self.assertEqual(recovery.observe_owned(s.config,s.read,s.probe,lambda:s.now)['status'],'DOWN')
+        s.probe.return_value={'status':'UP','reason_code':'VM_NONCE_ARITHMETIC_CONFIRMED','elapsed_ms':1}
+        self.assertEqual(recovery.observe_owned(s.config,s.read,s.probe,lambda:s.now)['status'],'CHECKER_ERROR')
+        self.assertEqual(recovery.reporter.observe(s.config,s.read,s.probe,lambda:s.now)['status'],'CHECKER_ERROR')
+
+    def test_unknown_provisioning_deleting_and_stale_degraded_cannot_probe(self):
+        s=self.source
+        for phase in ['UNKNOWN','PROVISIONING','TERMINATING','TERMINATED']:
+            s.runtime['phase']=phase;s.probe.reset_mock()
+            self.assertEqual(recovery.observe_owned(s.config,s.read,s.probe,lambda:s.now)['status'],'CHECKER_ERROR')
+            s.probe.assert_not_called()
+        s.runtime['phase']='DEGRADED';s.runtime['observed_at']=(s.now-timedelta(seconds=61)).isoformat()
+        self.assertEqual(recovery.observe_owned(s.config,s.read,s.probe,lambda:s.now)['status'],'CHECKER_ERROR')
+        s.probe.assert_not_called()
+
+
 if __name__=='__main__':unittest.main()
