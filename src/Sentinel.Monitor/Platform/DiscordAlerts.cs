@@ -192,6 +192,7 @@ public sealed class DiscordAlerts
         var reason = item.ReasonCode switch
         {
             "FUNCTION_RESPONSE_MISMATCH" => "실습 문제의 실제 기능 응답이 정상 조건과 다름",
+            "FUNCTION_UNAVAILABLE" => "실습 문제 기능이 HTTP 5xx 오류를 반환함",
             "FUNCTION_TIMEOUT" => "실습 문제의 실제 기능 점검 시간 초과",
             "FUNCTION_UNREACHABLE" => "실습 문제의 실제 기능에 연결할 수 없음",
             "DATABASE_LOGIN_AND_ACCESS_RULES_CONFIRMED" => "실습 문제의 DB 로그인 조회와 접근 제한 정상 확인",

@@ -7,6 +7,7 @@ const groupNames = {PUBLIC:"배포 사이트", INTERNAL:"내부 트랙", EXTERNA
 const assetLabels = {"internal-backend":["내부 백엔드","백엔드 API"], "external-backend":["외부 백엔드","백엔드 API"], scheduler:["인스턴스 스케줄러","스케줄러"], broker:["리소스 브로커","리소스 브로커"], runtime:["문제 런타임","런타임 API"], koth:["KoTH 서버","KoTH"], windows:["Windows 문제 서버","Windows"]};
 const roleNotes = {SCHEDULER:"생성·만료 관리", BROKER:"자원 후보·예약", RUNTIME:"문제 생성·삭제", KOTH:"전용 문제 서버", WINDOWS:"전용 문제 서버"};
 const reasonNames = {
+  FUNCTION_UNAVAILABLE:"실습 문제 기능에서 HTTP 5xx 오류 발생",
   DATABASE_LOGIN_AND_ACCESS_RULES_CONFIRMED:"실습 문제의 DB 로그인 조회·접근 제한 정상 확인", NOTICE_DATABASE_READ_CONFIRMED:"실습 문제의 DB 조회 정상 확인",
   FUNCTION_RESPONSE_MISMATCH:"실습 문제 기능의 실제 응답 불일치", FUNCTION_UNREACHABLE:"실습 문제 기능 연결 실패", FUNCTION_TIMEOUT:"실습 문제 기능 응답 시간 초과",
   FUNCTIONAL_REPORT_STALE:"실습 기능 보고 지연 · 정상 복구 미확인", FUNCTIONAL_REPORT_PENDING:"첫 실습 기능 점검 보고 대기", FUNCTIONAL_LEASE_EXPIRED:"실습 기능 점검 기한 만료",

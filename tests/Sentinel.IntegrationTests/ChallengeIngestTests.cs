@@ -15,8 +15,11 @@ namespace Sentinel.IntegrationTests;
 
 public sealed class ChallengeIngestTests
 {
-    [Fact]
-    public async Task OwnedReporterRequiresItsDedicatedTokenExactSnakeCaseBodyAndCannotReadAdminData()
+    [Theory]
+    [InlineData("UP", "DATABASE_LOGIN_AND_ACCESS_RULES_CONFIRMED")]
+    [InlineData("DOWN", "FUNCTION_UNAVAILABLE")]
+    [InlineData("CHECKER_ERROR", "REDIRECT_BLOCKED")]
+    public async Task OwnedReporterRequiresItsDedicatedTokenExactSnakeCaseBodyAndCannotReadAdminData(string status, string reason)
     {
         const string tokenName = "TEST_OWNED_INGEST";
         var root = Path.Combine(Path.GetTempPath(), "sentinel-owned-ingest-" + Guid.NewGuid()); Directory.CreateDirectory(root);
@@ -46,7 +49,7 @@ public sealed class ChallengeIngestTests
         var f = target.ExpectedFields;
         var payload = new ChallengeHeartbeat(now, f["instance_id"], f["challenge_id"], f["release_id"], f["owner_team_id"],
             f["runtime_target_id"], f["runtime_workload_id"], f["profile"], f["source_revision"], "owned_deployment_test",
-            "UP", "DATABASE_LOGIN_AND_ACCESS_RULES_CONFIRMED", 25);
+            status, reason, 25);
         var snake = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
         try
         {

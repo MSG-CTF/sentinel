@@ -36,11 +36,11 @@ public sealed class ChallengeHeartbeatStore(IOptions<PlatformOptions> options, T
         ["pwn-ghost-file"] = "OWNED_NOTE_CREATE_EDIT_READ_DELETE_CONFIRMED",
         ["pwn-price-tag"] = "VALID_PRODUCT_UPDATE_AND_ACCESS_RULE_CONFIRMED",
     };
-    private static readonly HashSet<string> DownReasons = ["FUNCTION_RESPONSE_MISMATCH", "FUNCTION_TIMEOUT",
+    private static readonly HashSet<string> DownReasons = ["FUNCTION_RESPONSE_MISMATCH", "FUNCTION_UNAVAILABLE", "FUNCTION_TIMEOUT",
         "FUNCTION_UNREACHABLE", "CONNECTION_CLOSED_BEFORE_RESPONSE"];
     private static readonly HashSet<string> ErrorReasons = ["ENDPOINT_BINDING_REJECTED", "SENSITIVE_RESPONSE_DISCARDED",
         "RESPONSE_TOO_LARGE", "INVALID_FUNCTION_RESPONSE", "CONTROL_PLANE_UNVERIFIED", "OWNERSHIP_BINDING_REJECTED",
-        "RUNTIME_NOT_READY"];
+        "RUNTIME_NOT_READY", "REDIRECT_BLOCKED", "RESPONSE_SIZE_INVALID", "TRUNCATED_RESPONSE"];
     private static readonly string[] BindingFields = ["instance_id", "challenge_id", "release_id", "owner_team_id",
         "runtime_target_id", "runtime_workload_id", "profile", "source_revision", "expires_at"];
 
