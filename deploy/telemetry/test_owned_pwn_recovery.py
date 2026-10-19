@@ -228,6 +228,7 @@ class DegradedTests(unittest.TestCase):
         self.source=reporter_fixture.ReporterTests();self.source.setUp()
         self.source.config['binding']['profile']='pwn-random6'
         self.source.config['service_url']='tcp://8.8.8.8:30080'
+        self.source.row['endpoints']=[{'service_url':self.source.config['service_url']}]
 
     def test_verified_degraded_can_establish_real_failure_but_never_recovery(self):
         s=self.source;s.runtime['phase']='DEGRADED'
