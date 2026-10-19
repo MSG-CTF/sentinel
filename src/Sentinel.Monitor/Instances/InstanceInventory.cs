@@ -1,4 +1,7 @@
+using System.Collections.Concurrent;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using Sentinel.Monitor.Platform;
@@ -9,7 +12,8 @@ namespace Sentinel.Monitor.Instances;
 public sealed record InstanceObservation(string InstanceId, string SchedulerStatus, string Track,
     string Status, string ReasonCode, string RuntimePhase, DateTimeOffset? RuntimeObservedAt,
     DateTimeOffset? ExpiresAt, bool TtlExpired, string ChallengeHealth, string RecoveryAction,
-    FunctionalObservation? FunctionalCheck = null);
+    FunctionalObservation? FunctionalCheck = null,
+    DateTimeOffset? DeletionVerifiedAt = null, DateTimeOffset? DeletionRecheckAt = null);
 
 public sealed record InstanceInventorySnapshot(string Status, string ReasonCode, string Coverage,
     bool CompleteInventory, DateTimeOffset? CheckedAt, IReadOnlyList<InstanceObservation> Instances);
@@ -21,6 +25,10 @@ public sealed class InstanceInventory(HttpClient http, IOptions<InstanceInventor
     private readonly InstanceInventoryOptions _options = options.Value;
     private readonly TimeProvider _clock = timeProvider ?? TimeProvider.System;
     private readonly SemaphoreSlim _refresh = new(1, 1);
+    private const int DeletionRecheckSeconds = 300;
+    private sealed record DeletionBinding(SchedulerRow Row, string BaseUrl, string TokenEnv, string CredentialDigest);
+    private sealed record ConfirmedDeletion(DeletionBinding Binding, InstanceObservation Observation);
+    private readonly ConcurrentDictionary<Guid, ConfirmedDeletion> _deletions = new();
     private InstanceInventorySnapshot _snapshot = new("PENDING", "NOT_CHECKED_YET", "all_pages", false, null, []);
     private static readonly HashSet<string> TerminalStates = ["STOPPED", "FAILED", "EXPIRED", "CLEANED"];
 
@@ -36,7 +44,9 @@ public sealed class InstanceInventory(HttpClient http, IOptions<InstanceInventor
             return snapshot with { Status = "STALE", ReasonCode = "INVENTORY_REFRESH_STALE", CompleteInventory = false,
                 Instances = snapshot.Instances.Select(row => Stale(row, "INVENTORY_REFRESH_STALE")).ToArray() };
         return snapshot with { Instances = snapshot.Instances.Select(row =>
-            row.RuntimeObservedAt is { } observed && Math.Abs((_clock.GetUtcNow() - observed).TotalSeconds) > 60
+            row.Status == "REMOVED" && row.DeletionVerifiedAt is not null
+                ? DeletionFresh(row) ? row : Stale(row, "DELETION_RECHECK_STALE")
+                : row.RuntimeObservedAt is { } observed && Math.Abs((_clock.GetUtcNow() - observed).TotalSeconds) > 60
                 ? Stale(row, "STALE_RUNTIME_OBSERVATION")
                 : row).ToArray() };
     }
@@ -46,19 +56,26 @@ public sealed class InstanceInventory(HttpClient http, IOptions<InstanceInventor
         Status = "STALE", ReasonCode = reason, RecoveryAction = "manual_review",
         ChallengeHealth = row.FunctionalCheck is null ? "UNVERIFIED" : "STALE",
         FunctionalCheck = row.FunctionalCheck is { } check ? check with { Status = "STALE", ReasonCode = reason } : null,
+        DeletionVerifiedAt = null, DeletionRecheckAt = null,
     };
+
+    private bool DeletionFresh(InstanceObservation row) => row.DeletionVerifiedAt is { } at
+        && (_clock.GetUtcNow() - at).TotalSeconds is >= -5 and < DeletionRecheckSeconds;
 
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
-        if (!_options.Enabled) return;
+        if (!_options.Enabled) { _deletions.Clear(); return; }
         await _refresh.WaitAsync(cancellationToken);
         try
         {
-            if (!_options.IsValid()) { Publish("UNAVAILABLE", "INVALID_CONFIGURATION", []); return; }
+            if (!_options.IsValid()) { _deletions.Clear(); Publish("UNAVAILABLE", "INVALID_CONFIGURATION", []); return; }
             var result = await SchedulerInventoryClient.ReadAsync(http, _options.SchedulerUrl,
                 _options.SchedulerTokenEnv, _options.TimeoutSeconds, cancellationToken);
-            if (!result.Success) { Publish("UNAVAILABLE", result.Reason, []); return; }
+            if (!result.Success) { _deletions.Clear(); Publish("UNAVAILABLE", result.Reason, []); return; }
             var rows = result.Rows;
+            var currentIds = rows.Select(row => row.InstanceId).ToHashSet();
+            foreach (var id in _deletions.Keys)
+                if (!currentIds.Contains(id)) _deletions.TryRemove(id, out _);
             var observations = new InstanceObservation[rows.Count];
             await Parallel.ForEachAsync(Enumerable.Range(0, rows.Count),
                 new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = cancellationToken },
@@ -80,7 +97,16 @@ public sealed class InstanceInventory(HttpClient http, IOptions<InstanceInventor
             "UNVERIFIED", "RUNTIME_TARGET_NOT_CONFIGURED", "UNKNOWN", null, row.ExpiresAt,
             expired, "UNVERIFIED", "manual_review");
         var target = _options.RuntimeTargets.SingleOrDefault(t => t.TargetId == row.TargetId);
-        if (target is null || row.RuntimeType != "KUBERNETES") return observation;
+        if (target is null || row.RuntimeType != "KUBERNETES")
+        { _deletions.TryRemove(row.InstanceId, out _); return observation; }
+        var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+            Environment.GetEnvironmentVariable(target.AuthTokenEnv) ?? "")));
+        var binding = new DeletionBinding(row, target.BaseUrl, target.AuthTokenEnv, digest);
+        if (!active && _deletions.TryGetValue(row.InstanceId, out var deleted)
+            && deleted.Binding == binding && DeletionFresh(deleted.Observation))
+            return deleted.Observation;
+        // Failed rechecks must not fall back to a previous deletion confirmation.
+        _deletions.TryRemove(row.InstanceId, out _);
         var url = target.BaseUrl.TrimEnd('/') + "/internal/v1/instances/" + row.InstanceId + "/runtime-status";
         var payload = await GetJson(url, target.AuthTokenEnv, token);
         using var document = payload.Document;
@@ -99,9 +125,15 @@ public sealed class InstanceInventory(HttpClient http, IOptions<InstanceInventor
             return observation with { ReasonCode = "INVALID_RUNTIME_PHASE" };
         observation = observation with { RuntimeObservedAt = at, RuntimePhase = phase };
         if (phase == "TERMINATED")
-            return observation with { Status = active ? "DOWN" : "REMOVED",
+        {
+            var removed = observation with { Status = active ? "DOWN" : "REMOVED",
                 ReasonCode = active ? "ACTIVE_WORKLOAD_TERMINATED" : "RUNTIME_DELETION_CONFIRMED",
-                RecoveryAction = active ? "manual_review" : "none" };
+                RecoveryAction = active ? "manual_review" : "none",
+                DeletionVerifiedAt = active ? null : at,
+                DeletionRecheckAt = active ? null : at.Value.AddSeconds(DeletionRecheckSeconds) };
+            if (!active && DeletionFresh(removed)) _deletions[row.InstanceId] = new(binding, removed);
+            return removed;
+        }
         var result = RuntimeProbeContract.Check(root, new PlatformTarget { Kind = "runtime_status" }, _clock.GetUtcNow());
         if (result.Status != "HEALTHY") return observation with { Status = result.Status, ReasonCode = result.Reason };
         if (!active) return observation with { Status = "DOWN", ReasonCode = "TERMINAL_RESOURCE_PRESENT" };
