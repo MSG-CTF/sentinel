@@ -113,7 +113,26 @@ CPU·메모리는 같은 노드 식별자와 60초 이내의 Kubernetes metrics 
 
 `challenge_probes.py`는 직접 소유한 일회성 관리자 배포 시험에 쓰는 점검기다
 운영 인스턴스 목록의 준비 상태와 별도로 애플리케이션의 정상 입력·출력을 검증한다
-현재 `instance_monitor.functional_checks`는 로컬 시험 서비스 전용이며 이 모듈을 추가해도 운영 상시 감시나 Discord 알림은 활성화되지 않는다
+`instance_monitor.functional_checks`는 로컬 시험 서비스 전용이며 이 모듈만 실행하면 운영 상시 감시나 Discord 알림은 활성화되지 않는다
+
+허가된 비공개 관리자 배포 시험은 별도 `challenge_heartbeat` 대상으로 연결할 수 있다
+운영 참가자의 인스턴스를 자동으로 발견하거나 기능 점검 대상으로 삼지 않는다
+
+- 대상 설정의 `expected_fields`에는 instance_id, challenge_id, release_id, owner_team_id, runtime_target_id, runtime_workload_id, profile, source_revision, expires_at을 모두 고정한다
+- expires_at은 Scheduler의 실제 만료 시각 이내이며 최대 24시간으로 제한한다
+- 대상마다 다른 `auth_token_env`와 32자 이상의 전용 보고 토큰을 사용한다
+- `owned_challenge_reporter.py --config /보호된/설정.json`을 운영자가 정한 주기로 한 번씩 실행한다
+- 설정에는 target_id, binding, scheduler_origin, runtime_origin, sentinel_origin, service_url, expected_host와 scheduler_token_env, runtime_token_env, reporter_token_env가 필요하다
+- 세 관리 주소는 인증서를 검증하는 HTTPS 원점으로 고정하고 비밀값은 환경 변수로 전달한다
+- 매 점검 전후에 인증된 Scheduler와 Runtime에서 소유 팀, 문제, 릴리스, 실행 자원, 기한과 관측 시각을 확인한다
+- 실습 엔드포인트는 고정된 공개 IPv4의 NodePort만 허용하고 관리 토큰·쿠키·리디렉션을 전달하지 않는다
+- 결과는 `POST /ingest/challenge/{target_id}`로 보내며 엄격한 snake_case 형식, 소유 정보와 출처, 단조 증가하는 관측 시각을 검증한다
+- 실제 기능 실패는 위험, 새 성공 결과 두 번은 정상 복구로 기존 Discord 알림에 연결한다
+- 90초 넘게 보고가 없거나 관리 조회 실패·점검 기한 만료가 발생하면 미확인으로 남기며 복구 알림을 만들지 않는다
+- 실습 종료 후 인스턴스와 Broker 예약, 비공개 문제·릴리스·임시 계정, 대상 설정과 보고 토큰을 정리한다
+
+이는 명시적으로 등록한 실습 문제의 기능 감시다
+전체 참가자 인스턴스 감시나 자동 복구 권한을 의미하지 않는다
 
 | 점검 프로필 | 확인하는 기능 |
 | --- | --- |

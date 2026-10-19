@@ -110,7 +110,7 @@ https://%s {
                 }
             }
         }
-        @heartbeat path /ingest/heartbeat/* /ingest/cluster/*
+        @heartbeat path /ingest/heartbeat/* /ingest/cluster/* /ingest/challenge/*
         reverse_proxy @heartbeat 127.0.0.1:8080 {
             header_up -Proxy-Authorization
         }

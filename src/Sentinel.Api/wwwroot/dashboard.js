@@ -3,10 +3,14 @@ const byId = id => document.getElementById(id);
 const catalog = SentinelArchitecture.catalog;
 const statusNames = {HEALTHY:"정상", DOWN:"장애", DEGRADED:"연결 저하", UNVERIFIED:"확인 불가", UNCONFIGURED:"미연결", PENDING:"점검 대기", STALE:"확인 불가"};
 const stageNames = {VERIFIED:"실측", FAILED:"연결 실패", UNKNOWN:"확인 불가", PENDING:"미연결", CODE:"소스 확인", DESIGN:"설계", BLOCKED:"불일치"};
-const groupNames = {PUBLIC:"배포 사이트", INTERNAL:"내부 트랙", EXTERNAL:"외부 트랙", CONTROL:"공통 제어", RUNTIME:"문제 실행", ACCESS:"대회 진입", SCORING:"KoTH 채점", DELIVERY:"문제 발행"};
+const groupNames = {PUBLIC:"배포 사이트", INTERNAL:"내부 트랙", EXTERNAL:"외부 트랙", CONTROL:"공통 제어", RUNTIME:"문제 실행", ACCESS:"대회 진입", SCORING:"KoTH 채점", DELIVERY:"문제 발행", TEST:"실습 기능 점검"};
 const assetLabels = {"internal-backend":["내부 백엔드","백엔드 API"], "external-backend":["외부 백엔드","백엔드 API"], scheduler:["인스턴스 스케줄러","스케줄러"], broker:["리소스 브로커","리소스 브로커"], runtime:["문제 런타임","런타임 API"], koth:["KoTH 서버","KoTH"], windows:["Windows 문제 서버","Windows"]};
 const roleNotes = {SCHEDULER:"생성·만료 관리", BROKER:"자원 후보·예약", RUNTIME:"문제 생성·삭제", KOTH:"전용 문제 서버", WINDOWS:"전용 문제 서버"};
 const reasonNames = {
+  DATABASE_LOGIN_AND_ACCESS_RULES_CONFIRMED:"실습 문제의 DB 로그인 조회·접근 제한 정상 확인", NOTICE_DATABASE_READ_CONFIRMED:"실습 문제의 DB 조회 정상 확인",
+  FUNCTION_RESPONSE_MISMATCH:"실습 문제 기능의 실제 응답 불일치", FUNCTION_UNREACHABLE:"실습 문제 기능 연결 실패", FUNCTION_TIMEOUT:"실습 문제 기능 응답 시간 초과",
+  FUNCTIONAL_REPORT_STALE:"실습 기능 보고 지연 · 정상 복구 미확인", FUNCTIONAL_REPORT_PENDING:"첫 실습 기능 점검 보고 대기", FUNCTIONAL_LEASE_EXPIRED:"실습 기능 점검 기한 만료",
+  CONTROL_PLANE_UNVERIFIED:"실습 문제 관리 정보 조회 실패 · 기능 상태 미확인", OWNERSHIP_BINDING_REJECTED:"실습 문제 소유·배포 정보 불일치", RUNTIME_NOT_READY:"실습 실행 자원 준비 상태 미확인",
   AUTH_BOUNDARY_READY:"백엔드 인증 API 응답 확인 · DB·Redis는 별도 점검", SERVICE_ACTIVE:"서버의 서비스 실행 확인 · 내부 기능은 별도 확인", SERVICE_INACTIVE:"서비스 실행 중단", HEARTBEAT_PENDING:"서버의 첫 상태 보고 대기", HEARTBEAT_STALE:"서버 상태 보고 수신 지연", NOT_DEPLOYED:"아직 배포되지 않은 자산",
   RUNTIME_WORKLOAD_READY:"문제 컨테이너와 접속 endpoint 준비 완료", RUNTIME_WORKLOAD_NOT_READY:"문제 컨테이너 또는 endpoint 준비 안 됨", RUNTIME_STORE_QUERY_READY:"Runtime의 저장된 작업 기록 조회 정상", K3S_NODE_READY:"K3s 노드 Ready · pressure 없음", K3S_NODE_NOT_READY:"K3s 노드 Ready 확인 실패", K3S_NODE_PRESSURE:"K3s 노드의 메모리·디스크·프로세스 자원 부족", K3S_NODE_UNSCHEDULABLE:"노드의 신규 문제 배치가 차단된 상태", K3S_QUERY_UNVERIFIED:"클러스터 조회 실패 또는 등록 해제 · 노드 상태 확인 불가", K3S_CONDITIONS_UNVERIFIED:"노드의 필수 상태가 누락되거나 Unknown", K3S_TOPOLOGY_INVALID:"노드 수가 단일 노드 실행 계약과 다름", RUNTIME_IDENTITY_MISMATCH:"등록한 인스턴스·작업과 응답 식별자가 다름", STALE_RUNTIME_OBSERVATION:"Runtime 관측 시각이 유효 범위를 벗어남", INVALID_RUNTIME_STATUS:"Runtime 상태 응답이 계약과 다름", INVALID_RUNTIME_OPERATION:"완료된 작업 기록 확인 실패",
   SCHEDULER_QUERY_READY:"인증된 최근 인스턴스 목록 조회 정상", BROKER_QUERY_READY:"인증된 자산 목록 조회 정상", INVALID_INVENTORY_CONTRACT:"목록 응답 필드·범위·시간이 실제 API 계약과 다름",
@@ -180,7 +184,7 @@ function render(snapshot, events, offline) {
   for (const asset of assets) {
     const item = assetRows.get(asset.asset_id); item.button.className = `asset-row status-${statusClass(asset.status)}`; item.button.dataset.level = asset.risk.level;
     item.state.textContent = SentinelAssets.riskNames[asset.risk.level];
-    const note = asset.evidence_type === "HEALTHZ_COMPONENT" ? "healthz 간접 점검" : asset.status === "STALE" ? "수집 지연" : ["UNCONFIGURED", "PENDING"].includes(asset.status) ? "연결 대기" : ["service_heartbeat", "cluster_heartbeat"].includes(asset.kind) && asset.checked_at ? `보고 ${time(asset.checked_at)}` : asset.http_status_code != null ? `HTTP ${asset.http_status_code}${asset.latency_ms != null ? ` · ${Math.round(asset.latency_ms)} ms` : ""}` : "응답 없음";
+    const note = asset.evidence_type === "HEALTHZ_COMPONENT" ? "healthz 간접 점검" : asset.status === "STALE" ? "수집 지연" : ["UNCONFIGURED", "PENDING"].includes(asset.status) ? "연결 대기" : ["service_heartbeat", "cluster_heartbeat", "challenge_heartbeat"].includes(asset.kind) && asset.checked_at ? `보고 ${time(asset.checked_at)}` : asset.http_status_code != null ? `HTTP ${asset.http_status_code}${asset.latency_ms != null ? ` · ${Math.round(asset.latency_ms)} ms` : ""}` : "응답 없음";
     item.reading.textContent = SentinelAssets.riskText(asset) || `${trackLabel(asset.track)} · ${note}`;
     item.button.setAttribute("aria-label", `${trackLabel(asset.track)} ${label(asset)} · ${SentinelAssets.riskNames[asset.risk.level]}`);
     item.button.title = `${label(asset)} · ${SentinelAssets.riskText(asset) || reasonNames[asset.reason_code] || asset.reason_code}`;
@@ -350,11 +354,11 @@ function renderInspector() {
     byId("detail-status").dataset.level = asset.risk.level;
     byId("detail-title").textContent = label(asset); byId("detail-group").textContent = trackLabel(asset.track);
     byId("detail-reason").textContent = [reasonNames[asset.reason_code] || "점검 결과 확인 필요", asset.evidence_scope].filter(Boolean).join(" / ");
-    byId("detail-source").textContent = asset.kind === "cluster_heartbeat" ? `노드 보고 수신 · /ingest/cluster/${asset.asset_id}` : asset.kind === "service_heartbeat" ? `서버 보고 수신 · /ingest/heartbeat/${asset.asset_id}` : asset.source_url || "점검 주소 미설정";
+    byId("detail-source").textContent = asset.kind === "challenge_heartbeat" ? `실습 기능 보고 수신 · /ingest/challenge/${asset.asset_id}` : asset.kind === "cluster_heartbeat" ? `노드 보고 수신 · /ingest/cluster/${asset.asset_id}` : asset.kind === "service_heartbeat" ? `서버 보고 수신 · /ingest/heartbeat/${asset.asset_id}` : asset.source_url || "점검 주소 미설정";
     detailFields.get("checked").textContent = time(asset.checked_at); detailFields.get("http").textContent = asset.http_status_code != null ? asset.http_status_code : "해당 없음";
     detailFields.get("latency").textContent = asset.latency_ms != null ? `${Math.round(asset.latency_ms)} ms` : "해당 없음";
-    detailFields.get("method").textContent = asset.evidence_type === "HEALTHZ_COMPONENT" ? "백엔드 healthz" : asset.kind === "cluster_heartbeat" ? "Kubernetes 노드 보고" : asset.kind === "service_heartbeat" ? "서버 상태 보고" : "직접 HTTP 점검";
-    byId("detail-source-note").textContent = asset.evidence_type === "HEALTHZ_COMPONENT" ? "백엔드의 연결 결과 · 이 DB나 Redis를 따로 직접 점검한 것은 아님" : ["service_heartbeat", "cluster_heartbeat"].includes(asset.kind) ? asset.evidence_scope || "프로세스 실행과 서버 자원 보고 · 애플리케이션 기능은 별도 점검" : "API 응답 점검 · VM 전원이나 문제 풀이 기능 전체 판정은 아님";
+    detailFields.get("method").textContent = asset.evidence_type === "HEALTHZ_COMPONENT" ? "백엔드 healthz" : asset.kind === "challenge_heartbeat" ? "소유·배포 확인 후 실제 문제 기능 점검" : asset.kind === "cluster_heartbeat" ? "Kubernetes 노드 보고" : asset.kind === "service_heartbeat" ? "서버 상태 보고" : "직접 HTTP 점검";
+    byId("detail-source-note").textContent = asset.kind === "challenge_heartbeat" ? asset.evidence_scope || "허가된 실습 문제의 기능 결과 · 전체 참가자 문제의 상태를 뜻하지 않음" : asset.evidence_type === "HEALTHZ_COMPONENT" ? "백엔드의 연결 결과 · 이 DB나 Redis를 따로 직접 점검한 것은 아님" : ["service_heartbeat", "cluster_heartbeat"].includes(asset.kind) ? asset.evidence_scope || "프로세스 실행과 서버 자원 보고 · 애플리케이션 기능은 별도 점검" : "API 응답 점검 · VM 전원이나 문제 풀이 기능 전체 판정은 아님";
     byId("detail-events-section").hidden = false; byId("detail-events-title").textContent = asset.parent_target_id ? "백엔드 상태 변경 (간접 점검)" : "이 자산의 상태 변경";
     const events = eventData.filter(event=>event.target_id === (asset.parent_target_id || asset.asset_id)).slice(0,8), signature = JSON.stringify(events);
     if (signature !== detailEventSignature) {const feed = byId("detail-events"); feed.replaceChildren(); events.forEach(event=>feed.append(eventRow(event))); if (!events.length) feed.append(node("li", ["UNCONFIGURED", "PENDING"].includes(asset.status) ? "점검 미연결 · 변경 기록 없음" : "기록된 상태 변경 없음", "empty-message")); detailEventSignature = signature;}

@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Sentinel.Monitor.Platform;
 
 namespace Sentinel.Monitor.Instances;
 
@@ -18,7 +19,8 @@ public static class InstanceInventoryRegistration
                 PooledConnectionLifetime = TimeSpan.FromMinutes(2) });
         services.AddSingleton(serviceProvider => new InstanceInventory(
             serviceProvider.GetRequiredService<IHttpClientFactory>().CreateClient("instance_inventory"),
-            serviceProvider.GetRequiredService<IOptions<InstanceInventoryOptions>>()));
+            serviceProvider.GetRequiredService<IOptions<InstanceInventoryOptions>>(),
+            challengeHeartbeats: serviceProvider.GetRequiredService<ChallengeHeartbeatStore>()));
         services.AddHostedService<InstanceInventoryWorker>();
         return services;
     }

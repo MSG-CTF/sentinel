@@ -17,6 +17,25 @@ def profile():
 
 
 class ConfigurationTests(unittest.TestCase):
+    def test_owned_reporter_requires_a_complete_expiring_identity_and_a_dedicated_credential(self):
+        from datetime import datetime, timezone, timedelta
+        target = {'target_id': 'owned-notebook', 'kind': 'challenge_heartbeat', 'auth_token_env': 'OWNED_REPORTER',
+                  'expected_fields': {'instance_id': '11111111-1111-4111-8111-111111111111',
+                    'challenge_id': '22222222-2222-4222-8222-222222222222', 'release_id': '33333333-3333-4333-8333-333333333333',
+                    'owner_team_id': '44444444-4444-4444-8444-444444444444', 'runtime_target_id': 'owned-cluster',
+                    'runtime_workload_id': 'owned-cluster/namespace', 'profile': 'web-notebook',
+                    'source_revision': '1dea73b652f9eeb98204c1fda7f66b9afb89505d',
+                    'expires_at': (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat()}}
+        config = profile(); config['platform_monitor']['targets'] = [target]
+        self.assertIn('OWNED_REPORTER=', release.validate_configuration(config, {'OWNED_REPORTER': 'o' * 48}))
+        for field in list(target['expected_fields']):
+            invalid = json.loads(json.dumps(config)); del invalid['platform_monitor']['targets'][0]['expected_fields'][field]
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                release.validate_configuration(invalid, {'OWNED_REPORTER': 'o' * 48})
+        for delta in [timedelta(minutes=-1), timedelta(hours=25)]:
+            target['expected_fields']['expires_at'] = (datetime.now(timezone.utc) + delta).isoformat()
+            with self.assertRaises(ValueError): release.validate_configuration(config, {'OWNED_REPORTER': 'o' * 48})
+
     def test_runtime_readiness_requires_its_exact_https_endpoint_and_a_credential(self):
         config = profile()
         target = {'target_id': 'runtime-api', 'kind': 'runtime_healthz',

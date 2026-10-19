@@ -15,6 +15,18 @@ test("complete inventory does not claim challenge health", () => {
   assert.match(model.rows[0].title,/문제 기능 미확인/);
   assert.match(model.caption,/문제 기능 점검 미확인/);
 });
+
+test("only an explicitly owned challenge report is labelled as real practice functionality", () => {
+  const value = snapshot();
+  Object.assign(value.instances[0], {challenge_health:"UP",reason_code:"OWNED_CHALLENGE_FUNCTION_CONFIRMED",
+    functional_check:{check_id:"owned-notebook",scope:"owned_deployment_test",status:"UP",
+      reason_code:"DATABASE_LOGIN_AND_ACCESS_RULES_CONFIRMED",checked_at:value.checked_at}});
+  const model = present(value);
+  assert.match(model.caption,/허가된 실습 문제만 실제 기능 점검/);
+  assert.match(model.rows[0].note,/실습 문제 기능 UP/);
+  value.instances[0].functional_check.scope = "participant";
+  assert.equal(present(value).rows.length,0);
+});
 test("empty complete inventory is displayed clearly", () => {
   const value = snapshot(); value.instances = [];
   assert.match(present(value).caption,/등록된 인스턴스 없음/);

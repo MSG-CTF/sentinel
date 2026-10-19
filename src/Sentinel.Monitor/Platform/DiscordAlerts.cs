@@ -106,7 +106,8 @@ public sealed class DiscordAlerts
                 // Unknown evidence neither resolves an incident nor counts as a healthy sample.
                 if (!item.Enabled || level is not ("NORMAL" or "WARNING" or "CRITICAL") ||
                     item.CheckedAt is null || item.CheckedAt > _clock.GetUtcNow().AddSeconds(30) ||
-                    _clock.GetUtcNow() - item.CheckedAt > TimeSpan.FromSeconds(item.Kind is "service_heartbeat" or "cluster_heartbeat" ? 150 : snapshot.StaleAfterSeconds))
+                    _clock.GetUtcNow() - item.CheckedAt > TimeSpan.FromSeconds(item.Kind == "challenge_heartbeat" ? ChallengeHeartbeatStore.FreshSeconds
+                        : item.Kind is "service_heartbeat" or "cluster_heartbeat" ? 150 : snapshot.StaleAfterSeconds))
                 {
                     if (state is not null && (state.NormalSamples > 0 || state.LatencyWarningSince is not null))
                     { state.NormalSamples = 0; ResetLatencyWarning(state); changed = true; }
@@ -190,6 +191,10 @@ public sealed class DiscordAlerts
                 "위험 단계는 해제됐지만 주의 기준이 남아 있습니다." : "자산 상태나 수치가 경고 기준에 도달했습니다.";
         var reason = item.ReasonCode switch
         {
+            "FUNCTION_RESPONSE_MISMATCH" => "실습 문제의 실제 기능 응답이 정상 조건과 다름",
+            "FUNCTION_TIMEOUT" => "실습 문제의 실제 기능 점검 시간 초과",
+            "FUNCTION_UNREACHABLE" => "실습 문제의 실제 기능에 연결할 수 없음",
+            "DATABASE_LOGIN_AND_ACCESS_RULES_CONFIRMED" => "실습 문제의 DB 로그인 조회와 접근 제한 정상 확인",
             "HTTP_RATE_LIMITED" => "요청 제한 응답 · 서버 과부하 여부는 추가 확인 필요",
             "HTTP_UNAVAILABLE" => "서비스 이용 불가 응답 · DB·Redis 상태는 확인되지 않음",
             "HTTP_ERROR" => "예상한 HTTP 상태와 다른 응답",

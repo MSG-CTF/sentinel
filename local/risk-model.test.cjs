@@ -7,6 +7,14 @@ const signal = {metric:"memory_used_percent",value:91,unit:"%",level:"CRITICAL",
 const target = {target_id:"discord-bot",name:"Bot",role:"DISCORD",track:"CONTROL",kind:"service_heartbeat",enabled:true,status:"HEALTHY",checked_at:new Date(now-60000).toISOString(),components:{memory_used_percent:"91"},risk:{level:"CRITICAL",signals:[signal]}};
 const snapshot = {updated_at:new Date(now).toISOString(),poll_interval_seconds:15,stale_after_seconds:39,targets:[target]};
 
+test("owned challenge reports retain 90 second freshness without inventing resource metrics",()=>{
+  const owned={...target,target_id:"owned-notebook",kind:"challenge_heartbeat",components:{profile:"web-notebook"},risk:{level:"NORMAL",signals:[]}};
+  const [fresh]=buildAssets({...snapshot,targets:[owned]},{now});
+  assert.equal(fresh.status,"HEALTHY"); assert.equal(fresh.components.cpu_used_percent,undefined);
+  const [stale]=buildAssets({...snapshot,targets:[{...owned,checked_at:new Date(now-91000).toISOString()}]},{now});
+  assert.equal(stale.status,"STALE"); assert.equal(stale.risk.level,"UNKNOWN");
+});
+
 test("CPU risk remains visible and never replaces missing host facts with zeros",()=>{
   const [asset]=buildAssets({...snapshot,targets:[{...target,components:{cpu_used_percent:"98",os_name:"Debian 13"},risk:{level:"CRITICAL",signals:[{...signal,metric:"cpu_used_percent",value:98,critical:95}]}}]},{now});
   assert.equal(riskText(asset),"CPU 98% · 위험 ≥95%");

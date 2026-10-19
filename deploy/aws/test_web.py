@@ -160,7 +160,7 @@ class WebProxyIntegrationTests(unittest.TestCase):
                         'X-Panel-Title':'Django · DB · Redis','X-Dashboard-Title':'Sentinel · Operations'})
                     self.assertEqual(status,200)
                     self.assertEqual(body,b'grafana:admin||||')
-                for path in ("/ingest/heartbeat/discord-bot", "/ingest/cluster/runtime-cluster"):
+                for path in ("/ingest/heartbeat/discord-bot", "/ingest/cluster/runtime-cluster", "/ingest/challenge/owned-notebook"):
                     status, headers, body = request(path, "admin", "fixture-token")
                     self.assertEqual(status, 200)
                     self.assertIn(b"upstream:Basic ", body)

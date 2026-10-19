@@ -58,7 +58,7 @@ public sealed class PlatformMonitor
                     var previous = _observations[result.TargetId];
                     _observations[result.TargetId] = result with { Risk = _risk.Evaluate(result) };
                     // A cached readiness response is one measurement, including in event history.
-                    if (result.Kind != "runtime_healthz" || previous.CheckedAt is null || result.CheckedAt > previous.CheckedAt)
+                    if (result.Kind is not ("runtime_healthz" or "challenge_heartbeat") || previous.CheckedAt is null || result.CheckedAt > previous.CheckedAt)
                         ObserveTransition(result);
                 }
                 _updatedAt = _clock.GetUtcNow();
@@ -82,7 +82,8 @@ public sealed class PlatformMonitor
     {
         var result = _observations[targetId];
         var collectorDeadline = 2 * _options.PollIntervalSeconds + _options.TimeoutSeconds + 5;
-        var staleAfter = result.Kind is "service_heartbeat" or "cluster_heartbeat" ? 150 : collectorDeadline;
+        var staleAfter = result.Kind == "challenge_heartbeat" ? ChallengeHeartbeatStore.FreshSeconds
+            : result.Kind is "service_heartbeat" or "cluster_heartbeat" ? 150 : collectorDeadline;
         var collectorStale = _updatedAt is { } updated && (_clock.GetUtcNow() - updated).TotalSeconds > collectorDeadline;
         return result.CheckedAt is { } at && (collectorStale || (_clock.GetUtcNow() - at).TotalSeconds > staleAfter)
             ? result with { Status = "STALE", ReasonCode = "MONITOR_REFRESH_STALE", Risk = RiskEvaluator.Unmeasured("STALE") }

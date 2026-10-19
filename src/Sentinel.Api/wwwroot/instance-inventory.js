@@ -6,6 +6,14 @@ const SentinelInstances = globalThis.SentinelInstances = (() => {
     FUNCTIONAL_CHECK_FAILED:"로컬 시험 서비스 기능 실패",
     FUNCTIONAL_CHECKER_ERROR:"기능 점검 응답 판정 불가",
     FUNCTIONAL_BINDING_MISMATCH:"기능 점검 대상과 실행 자원 정보 불일치",
+    OWNED_CHALLENGE_FUNCTION_CONFIRMED:"실습 문제의 실제 기능 확인",
+    FUNCTION_RESPONSE_MISMATCH:"실습 문제 기능의 응답 불일치",
+    FUNCTION_TIMEOUT:"실습 문제 기능 응답 시간 초과",
+    FUNCTION_UNREACHABLE:"실습 문제 기능 연결 실패",
+    FUNCTIONAL_REPORT_STALE:"실습 문제 기능 보고 갱신 지연",
+    FUNCTIONAL_REPORT_PENDING:"실습 문제의 첫 기능 보고 대기",
+    FUNCTIONAL_LEASE_EXPIRED:"실습 문제의 점검 기한 만료",
+    OWNERSHIP_BINDING_REJECTED:"실습 문제 소유·배포 정보 불일치",
     TTL_EXPIRED_RESOURCE_PRESENT:"사용 기한이 지났지만 실행 자원 존재",
     TERMINAL_RESOURCE_PRESENT:"종료 처리된 인스턴스의 실행 자원 존재",
     ACTIVE_WORKLOAD_TERMINATED:"사용 중인 인스턴스의 실행 자원이 삭제됨",
@@ -40,7 +48,7 @@ const SentinelInstances = globalThis.SentinelInstances = (() => {
   function validCheck(row) {
     const check = row.functional_check;
     if (check == null) return row.challenge_health === "UNVERIFIED";
-    return check.scope === "local_functional_fixture" && /^[a-z][a-z0-9_]{0,63}$/.test(check.check_id)
+    return ["local_functional_fixture","owned_deployment_test"].includes(check.scope) && /^[a-z][a-z0-9_-]{0,63}$/.test(check.check_id)
       && ["UP","DOWN","CHECKER_ERROR","STALE"].includes(check.status) && row.challenge_health === check.status
       && time(check.checked_at) && (check.status !== "UP" || row.status === "READY")
       && (check.status !== "STALE" || row.status === "STALE")
@@ -67,14 +75,18 @@ const SentinelInstances = globalThis.SentinelInstances = (() => {
     const captions = {DISABLED:"이 프로필에는 인스턴스 감시가 연결되지 않음", PENDING:"첫 상태 조회를 기다리는 중",
       UNAVAILABLE:"목록 조회 실패 · 정상 여부 미확인", STALE:"목록 갱신 지연 · 이전 결과로 표시",
       COMPLETE:value.instances.length ? (value.instances.some(row => row.functional_check)
-        ? "전체 목록의 실행 상태 · 등록된 로컬 시험 서비스만 기능 점검" : "전체 목록의 실행 상태 · 문제 기능 점검 미확인")
+        ? value.instances.some(row => row.functional_check?.scope === "owned_deployment_test")
+          ? "전체 목록의 실행 상태 · 허가된 실습 문제만 실제 기능 점검"
+          : "전체 목록의 실행 상태 · 등록된 로컬 시험 서비스만 기능 점검" : "전체 목록의 실행 상태 · 문제 기능 점검 미확인")
         : "전체 목록 조회 완료 · 등록된 인스턴스 없음"};
     return {state:labels[value.status],caption:captions[value.status],rows:value.instances.map(row => ({
       id:row.instance_id, status:row.status, title:`${states[row.status]} · ${reasons[row.reason_code] || "상태 확인 필요"}`,
       detail:`Scheduler ${row.scheduler_status} · ${row.ttl_expired ? "사용 기한 초과" : "기한 " + new Date(row.expires_at).toLocaleString("ko-KR", {timeZone:"Asia/Seoul",hour12:false})}`,
       note:(row.deletion_verified_at
         ? `삭제 확인 ${clockTime(row.deletion_verified_at)} · 재점검 ${clockTime(row.deletion_recheck_at)}`
-        : row.functional_check ? `로컬 기능 ${row.functional_check.status} · 대회 문제 기능과 별도` : "문제 기능 점검 미확인")
+        : row.functional_check ? row.functional_check.scope === "owned_deployment_test"
+          ? `실습 문제 기능 ${row.functional_check.status} · 소유·배포 정보 확인`
+          : `로컬 기능 ${row.functional_check.status} · 대회 문제 기능과 별도` : "문제 기능 점검 미확인")
         + (row.recovery_action === "manual_review" ? " · 관리자 확인 필요 · 자동 조치 없음" : ""),
     }))};
   }

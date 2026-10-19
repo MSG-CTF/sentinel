@@ -28,7 +28,7 @@
         target.status = "UNCONFIGURED"; target.checked_at = null; target.http_status_code = null; target.latency_ms = null;
       } else if (!["UNCONFIGURED", "PENDING"].includes(target.status)) {
         const checked = Date.parse(target.checked_at);
-        if (settings.offline || frozen || !Number.isFinite(checked) || now - checked > (["service_heartbeat", "cluster_heartbeat"].includes(target.kind) ? 150000 : maxAge) || checked - now > 30000) {
+        if (settings.offline || frozen || !Number.isFinite(checked) || now - checked > (target.kind === "challenge_heartbeat" ? 90000 : ["service_heartbeat", "cluster_heartbeat"].includes(target.kind) ? 150000 : maxAge) || checked - now > 30000) {
           target.status = "STALE"; target.reason_code = "MONITOR_REFRESH_STALE";
         }
       }
