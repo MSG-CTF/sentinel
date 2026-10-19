@@ -20,6 +20,32 @@ test("empty complete inventory is displayed clearly", () => {
   assert.match(present(value).caption,/등록된 인스턴스 없음/);
 });
 
+test("a confirmed deletion shows its original verification and scheduled recheck", () => {
+  const value = snapshot();
+  Object.assign(value.instances[0], {scheduler_status:"CLEANED", status:"REMOVED", runtime_phase:"TERMINATED",
+    reason_code:"RUNTIME_DELETION_CONFIRMED", deletion_verified_at:value.instances[0].runtime_observed_at,
+    deletion_recheck_at:"2026-10-13T04:05:00Z"});
+  const model = present(value);
+  assert.match(model.rows[0].note,/삭제 확인 13:00:00 · 재점검 13:05:00/);
+  assert.doesNotMatch(model.rows[0].note,/문제 기능 점검/);
+  assert.equal(model.rows[0].status,"REMOVED");
+});
+
+test("malformed deletion evidence cannot masquerade as a fresh runtime check", () => {
+  for (const fault of ["status","phase","reason","time","observed","deadline"]) {
+    const value = snapshot();
+    Object.assign(value.instances[0], {scheduler_status:"CLEANED", status:"REMOVED", runtime_phase:"TERMINATED",
+      reason_code:"RUNTIME_DELETION_CONFIRMED", deletion_verified_at:"2026-10-13T04:00:00Z", deletion_recheck_at:"2026-10-13T04:05:00Z"});
+    if (fault === "status") value.instances[0].status = "READY";
+    if (fault === "phase") value.instances[0].runtime_phase = "READY";
+    if (fault === "reason") value.instances[0].reason_code = "RUNTIME_READY_HEALTHCHECK_UNVERIFIED";
+    if (fault === "time") value.instances[0].deletion_verified_at = "unknown";
+    if (fault === "observed") value.instances[0].runtime_observed_at = "2026-10-13T04:01:00Z";
+    if (fault === "deadline") value.instances[0].deletion_recheck_at = "2026-10-13T05:00:00Z";
+    assert.equal(present(value).rows.length,0,fault);
+  }
+});
+
 test("all 437 rows are visible, including the oldest cleanup request", () => {
   const value = snapshot(), row = value.instances[0];
   value.instances = Array.from({length:437}, (_, index) => ({...row,

@@ -14,6 +14,7 @@ const SentinelInstances = globalThis.SentinelInstances = (() => {
     RUNTIME_IDENTITY_MISMATCH:"인스턴스와 실행 환경 정보 불일치",
     STALE_RUNTIME_OBSERVATION:"Runtime 관측 시각이 오래되거나 올바르지 않음",
     INVENTORY_REFRESH_STALE:"목록 갱신 지연 · 이전 결과",
+    DELETION_RECHECK_STALE:"삭제 확인의 재점검 기한 초과",
     K3S_NODE_NOT_READY:"실행 노드 준비 안 됨", K3S_NODE_PRESSURE:"실행 노드 자원 부족",
     RUNTIME_WORKLOAD_NOT_READY:"실행 자원 준비 안 됨",
     AUTH_TOKEN_NOT_CONFIGURED:"서비스 인증 설정 없음", AUTH_REQUIRED:"서비스 인증 실패",
@@ -27,6 +28,15 @@ const SentinelInstances = globalThis.SentinelInstances = (() => {
   const schedulerStates = new Set(["REQUESTED","SCHEDULING","PROVISIONING","RUNNING","RESTARTING","RESETTING","STOPPING","STOPPED","FAILED","EXPIRED","CLEANUP_PENDING","CLEANED"]);
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const time = value => typeof value === "string" && Number.isFinite(Date.parse(value));
+  const clockTime = value => new Intl.DateTimeFormat("en-GB", {timeZone:"Asia/Seoul",hour12:false,
+    hour:"2-digit",minute:"2-digit",second:"2-digit"}).format(new Date(value));
+  function validDeletion(row) {
+    if (row.deletion_verified_at == null && row.deletion_recheck_at == null) return true;
+    return row.status === "REMOVED" && row.runtime_phase === "TERMINATED"
+      && row.reason_code === "RUNTIME_DELETION_CONFIRMED" && time(row.deletion_verified_at)
+      && row.runtime_observed_at === row.deletion_verified_at && time(row.deletion_recheck_at)
+      && Date.parse(row.deletion_recheck_at) - Date.parse(row.deletion_verified_at) === 300000;
+  }
   function validCheck(row) {
     const check = row.functional_check;
     if (check == null) return row.challenge_health === "UNVERIFIED";
@@ -46,7 +56,7 @@ const SentinelInstances = globalThis.SentinelInstances = (() => {
     if (["COMPLETE","STALE"].includes(value.status) && !time(value.checked_at)) return false;
     return new Set(value.instances.map(row => row?.instance_id)).size === value.instances.length && value.instances.every(row =>
       row && uuid.test(row.instance_id) && schedulerStates.has(row.scheduler_status) && Object.hasOwn(states,row.status)
-      && row.track === "UNMAPPED" && validCheck(row) && typeof row.ttl_expired === "boolean"
+      && row.track === "UNMAPPED" && validCheck(row) && validDeletion(row) && typeof row.ttl_expired === "boolean"
       && time(row.expires_at) && ["none","manual_review"].includes(row.recovery_action)
       && (row.runtime_observed_at === null || time(row.runtime_observed_at))
       && (value.status !== "STALE" || row.status === "STALE"));
@@ -62,7 +72,9 @@ const SentinelInstances = globalThis.SentinelInstances = (() => {
     return {state:labels[value.status],caption:captions[value.status],rows:value.instances.map(row => ({
       id:row.instance_id, status:row.status, title:`${states[row.status]} · ${reasons[row.reason_code] || "상태 확인 필요"}`,
       detail:`Scheduler ${row.scheduler_status} · ${row.ttl_expired ? "사용 기한 초과" : "기한 " + new Date(row.expires_at).toLocaleString("ko-KR", {timeZone:"Asia/Seoul",hour12:false})}`,
-      note:(row.functional_check ? `로컬 기능 ${row.functional_check.status} · 대회 문제 기능과 별도` : "문제 기능 점검 미확인")
+      note:(row.deletion_verified_at
+        ? `삭제 확인 ${clockTime(row.deletion_verified_at)} · 재점검 ${clockTime(row.deletion_recheck_at)}`
+        : row.functional_check ? `로컬 기능 ${row.functional_check.status} · 대회 문제 기능과 별도` : "문제 기능 점검 미확인")
         + (row.recovery_action === "manual_review" ? " · 관리자 확인 필요 · 자동 조치 없음" : ""),
     }))};
   }
