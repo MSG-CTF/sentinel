@@ -111,6 +111,14 @@ class StateTests(unittest.TestCase):
                           publish=Mock(side_effect=ValueError()),adapter=adapter,clock=lambda:self.now)
         adapter.assert_not_called();self.assertFalse(self.journal.snapshot(self.config)['armed'])
 
+    def test_read_only_journal_cannot_start_a_mutation(self):
+        self.eligible();adapter=Mock();self.now+=timedelta(seconds=1)
+        self.journal.db.execute('PRAGMA query_only=ON')
+        with self.assertRaises(Exception):
+            recovery.tick(self.config,self.journal,observe=lambda r:self.observation('DOWN'),
+                publish=lambda *a,**kw:{'accepted':True},adapter=adapter,clock=lambda:self.now)
+        adapter.assert_not_called()
+
     def test_execution_timeout_is_not_retried(self):
         self.eligible()
         def observe(r):
@@ -175,6 +183,7 @@ class KubernetesTests(unittest.TestCase):
         self.calls=[]
         def run(args,body=None):
             self.calls.append((args,body))
+            if args[:2]==['get','pod']:return copy.deepcopy(self.objects['pods']['items'][0])
             return copy.deepcopy(self.objects[args[1]]) if args[0]=='get' else {'kind':'Status'}
         self.kube=recovery.Kubernetes(self.config,registry={'clusters':[{'target_id':'owned-cluster','enabled':True,
             'kubeconfig_path':'/etc/secure-provisioner/kubeconfigs/owned.yaml'}]},run=run)
@@ -214,6 +223,11 @@ class KubernetesTests(unittest.TestCase):
         plan=self.kube.plan();count=len(self.calls)
         with self.assertRaises(ValueError):self.kube.execute(plan,lambda:'OWNERSHIP_BINDING_REJECTED')
         self.assertEqual(len(self.calls),count)
+
+    def test_replaced_pod_after_confirmation_cannot_be_deleted(self):
+        plan=self.kube.plan();self.objects['pods']['items'][0]['metadata']['uid']=str(uuid.uuid4())
+        with self.assertRaises(ValueError):self.kube.execute(plan,lambda:None)
+        self.assertFalse(any(args[0]!='get' for args,body in self.calls))
 
     def test_web_tag_images_and_ambiguous_service_are_rejected(self):
         for mutate in [lambda c:c['reporter']['binding'].update(profile='web-notebook'),

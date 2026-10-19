@@ -252,8 +252,11 @@ class Kubernetes:
     def execute(self, plan, guard):
         require(guard() is None)
         w = self.workload
+        self.owned(self.get("namespace", self.namespace, global_resource=True), w["namespace_uid"])
         if plan["action"] == "RESTORE_SERVICE_PORT":
-            service = plan["service"]
+            service = self.get("service", w["service_name"])
+            self.owned(service, w["service_uid"])
+            require(service["spec"] == plan["service"]["spec"])
             patch = [{"op": "test", "path": "/metadata/uid", "value": w["service_uid"]},
                      {"op": "test", "path": "/metadata/resourceVersion", "value": service["metadata"]["resourceVersion"]},
                      {"op": "test", "path": "/spec", "value": service["spec"]},
@@ -261,7 +264,11 @@ class Kubernetes:
             self.run(["patch", "service", w["service_name"], "-n", self.namespace, "--type=json", "-p", json.dumps(patch), "-o", "json"])
         else:
             require(plan["action"] == "RECREATE_OWNED_POD")
-            pod = plan["pod"]["metadata"]
+            fresh = self.get("pod", plan["pod"]["metadata"]["name"])
+            self.owned(fresh, plan["pod"]["metadata"]["uid"])
+            require(fresh["spec"] == plan["pod"]["spec"]
+                    and fresh["metadata"].get("ownerReferences") == plan["pod"]["metadata"].get("ownerReferences"))
+            pod = fresh["metadata"]
             options = {"apiVersion": "v1", "kind": "DeleteOptions", "gracePeriodSeconds": 10,
                        "preconditions": {"uid": pod["uid"], "resourceVersion": pod["resourceVersion"]}}
             self.run(["delete", "--raw", "/api/v1/namespaces/" + self.namespace + "/pods/" + pod["name"], "-f", "-"], options)
