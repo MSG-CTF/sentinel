@@ -28,6 +28,8 @@ const SentinelInstances = globalThis.SentinelInstances = (() => {
   const schedulerStates = new Set(["REQUESTED","SCHEDULING","PROVISIONING","RUNNING","RESTARTING","RESETTING","STOPPING","STOPPED","FAILED","EXPIRED","CLEANUP_PENDING","CLEANED"]);
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const time = value => typeof value === "string" && Number.isFinite(Date.parse(value));
+  const clockTime = value => new Intl.DateTimeFormat("en-GB", {timeZone:"Asia/Seoul",hour12:false,
+    hour:"2-digit",minute:"2-digit",second:"2-digit"}).format(new Date(value));
   function validDeletion(row) {
     if (row.deletion_verified_at == null && row.deletion_recheck_at == null) return true;
     return row.status === "REMOVED" && row.runtime_phase === "TERMINATED"
@@ -71,7 +73,7 @@ const SentinelInstances = globalThis.SentinelInstances = (() => {
       id:row.instance_id, status:row.status, title:`${states[row.status]} · ${reasons[row.reason_code] || "상태 확인 필요"}`,
       detail:`Scheduler ${row.scheduler_status} · ${row.ttl_expired ? "사용 기한 초과" : "기한 " + new Date(row.expires_at).toLocaleString("ko-KR", {timeZone:"Asia/Seoul",hour12:false})}`,
       note:(row.deletion_verified_at
-        ? `삭제 확인 ${new Date(row.deletion_verified_at).toLocaleTimeString("ko-KR", {timeZone:"Asia/Seoul",hour12:false})} · 재점검 ${new Date(row.deletion_recheck_at).toLocaleTimeString("ko-KR", {timeZone:"Asia/Seoul",hour12:false})}`
+        ? `삭제 확인 ${clockTime(row.deletion_verified_at)} · 재점검 ${clockTime(row.deletion_recheck_at)}`
         : row.functional_check ? `로컬 기능 ${row.functional_check.status} · 대회 문제 기능과 별도` : "문제 기능 점검 미확인")
         + (row.recovery_action === "manual_review" ? " · 관리자 확인 필요 · 자동 조치 없음" : ""),
     }))};
