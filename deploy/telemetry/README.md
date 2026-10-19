@@ -155,6 +155,7 @@ Runtime 호스트 설치 경로
 - sentinel-pwn-recovery.service → /etc/systemd/system/sentinel-pwn-recovery.service
 - 비밀값 환경 파일 → /etc/sentinel-telemetry/pwn-recovery.env, root 소유 0600
 - 등록 설정 → /etc/sentinel-telemetry/pwn-recovery.d/*.json, root:provisioner 소유 0640
+- 서비스는 해당 하위 폴더만 /run/sentinel-pwn-recovery/config에 읽기 전용으로 연결하고 시작 전에 읽기·탐색 권한을 확인한다
 - 실행 기록 → /var/lib/sentinel-pwn-recovery/state.sqlite, provisioner 소유 0600
 
 검증을 끝낸 실습은 Backend 삭제 후 실제 namespace 제거와 예약 반환을 확인하고 등록 설정·전용 보고 토큰을 제거한다
