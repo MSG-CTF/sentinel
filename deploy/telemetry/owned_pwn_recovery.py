@@ -130,6 +130,8 @@ class Journal:
                 s.update(successes=0, failures=0, armed=False)
             s["last_at"] = measured.isoformat()
             s.update(last_status=observation["status"], last_reason_code=observation["reason_code"])
+            if s["attempts"] and s["status"] != "SUCCEEDED" and at > reporter.timestamp(s["claimed_at"]) + timedelta(seconds=180):
+                s["status"] = "FAILED"
             fresh_lease = reporter.timestamp(b["expires_at"]) - at > timedelta(seconds=60)
             status, reason = observation["status"], observation["reason_code"]
             if not fresh_lease or status == "CHECKER_ERROR":
@@ -178,9 +180,12 @@ class Journal:
     def snapshot(self, config):
         return self.transact(config, lambda s: dict(s))
 
-    def disarm(self, config):
+    def disarm(self, config, at=None):
         def update(s):
             s.update(successes=0, failures=0, armed=False)
+            if (at is not None and s["attempts"] and s["status"] != "SUCCEEDED"
+                    and at > reporter.timestamp(s["claimed_at"]) + timedelta(seconds=180)):
+                s["status"] = "FAILED"
         self.transact(config, update)
 
 
@@ -308,7 +313,7 @@ def tick(config, journal, **dependencies):
     except Exception:
         # Undelivered evidence, failed inspections and storage errors cannot leave
         # an old healthy baseline armed for a later mutation.
-        journal.disarm(config)
+        journal.disarm(config, dependencies.get("clock", now)())
         raise
 
 

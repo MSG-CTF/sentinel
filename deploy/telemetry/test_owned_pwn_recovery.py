@@ -101,6 +101,11 @@ class StateTests(unittest.TestCase):
         self.eligible(); self.journal.claim(self.config,self.now,'RECREATE_OWNED_POD')
         self.feed('DOWN',seconds=181)
         self.assertEqual(self.journal.snapshot(self.config)['status'],'FAILED')
+
+    def test_unknown_after_verification_deadline_marks_failure(self):
+        self.eligible();self.journal.claim(self.config,self.now,'RECREATE_OWNED_POD')
+        self.feed('CHECKER_ERROR',seconds=181)
+        self.assertEqual(self.journal.snapshot(self.config)['status'],'FAILED')
         self.feed('UP'); self.feed('UP')
         self.assertEqual(self.journal.snapshot(self.config)['status'],'FAILED')
 
