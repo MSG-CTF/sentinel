@@ -111,7 +111,8 @@ public sealed class ChallengeHeartbeatTests
             Send("UP", "DATABASE_LOGIN_AND_ACCESS_RULES_CONFIRMED"); await Poll(); Assert.Single(handler.Bodies);
             Send("UP", "DATABASE_LOGIN_AND_ACCESS_RULES_CONFIRMED"); await Poll(); Assert.Equal(2, handler.Bodies.Count);
             await Poll(); Send("UP", "DATABASE_LOGIN_AND_ACCESS_RULES_CONFIRMED"); await Poll(); Assert.Equal(2, handler.Bodies.Count);
-            Assert.Contains("복구 확인", handler.Bodies[1]);
+            using var delivered = JsonDocument.Parse(handler.Bodies[1]);
+            Assert.StartsWith("복구 확인", delivered.RootElement.GetProperty("embeds")[0].GetProperty("title").GetString());
             Assert.DoesNotContain("Authorization", JsonSerializer.Serialize(monitor.Snapshot(), PlatformJson.Options));
             Assert.Equal("PENDING", new ChallengeHeartbeatStore(options, clock).Read(target).Status);
         }
