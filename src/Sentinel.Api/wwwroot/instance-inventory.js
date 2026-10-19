@@ -8,6 +8,7 @@ const SentinelInstances = globalThis.SentinelInstances = (() => {
     FUNCTIONAL_BINDING_MISMATCH:"기능 점검 대상과 실행 자원 정보 불일치",
     OWNED_CHALLENGE_FUNCTION_CONFIRMED:"실습 문제의 실제 기능 확인",
     FUNCTION_RESPONSE_MISMATCH:"실습 문제 기능의 응답 불일치",
+    FUNCTION_UNAVAILABLE:"실습 문제 기능에서 HTTP 5xx 오류 발생",
     FUNCTION_TIMEOUT:"실습 문제 기능 응답 시간 초과",
     FUNCTION_UNREACHABLE:"실습 문제 기능 연결 실패",
     FUNCTIONAL_REPORT_STALE:"실습 문제 기능 보고 갱신 지연",

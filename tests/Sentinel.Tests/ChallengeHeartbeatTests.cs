@@ -80,6 +80,27 @@ public sealed class ChallengeHeartbeatTests
         finally { Environment.SetEnvironmentVariable(target.AuthTokenEnv!, old); }
     }
 
+    [Theory]
+    [InlineData("DOWN", "FUNCTION_UNAVAILABLE", "DOWN")]
+    [InlineData("DOWN", "FUNCTION_RESPONSE_MISMATCH", "DOWN")]
+    [InlineData("DOWN", "FUNCTION_TIMEOUT", "DOWN")]
+    [InlineData("DOWN", "FUNCTION_UNREACHABLE", "DOWN")]
+    [InlineData("DOWN", "CONNECTION_CLOSED_BEFORE_RESPONSE", "DOWN")]
+    [InlineData("CHECKER_ERROR", "REDIRECT_BLOCKED", "UNVERIFIED")]
+    [InlineData("CHECKER_ERROR", "RESPONSE_SIZE_INVALID", "UNVERIFIED")]
+    [InlineData("CHECKER_ERROR", "TRUNCATED_RESPONSE", "UNVERIFIED")]
+    [InlineData("CHECKER_ERROR", "RESPONSE_TOO_LARGE", "UNVERIFIED")]
+    [InlineData("CHECKER_ERROR", "ENDPOINT_BINDING_REJECTED", "UNVERIFIED")]
+    [InlineData("CHECKER_ERROR", "SENSITIVE_RESPONSE_DISCARDED", "UNVERIFIED")]
+    [InlineData("CHECKER_ERROR", "INVALID_FUNCTION_RESPONSE", "UNVERIFIED")]
+    public void RealProbeFailureCodesRemainDistinctFromCheckerErrors(string status, string reason, string expected)
+    {
+        var clock = new Clock(); var target = Target(clock.Now);
+        var store = new ChallengeHeartbeatStore(Options.Create(new PlatformOptions { Targets = [target] }), clock);
+        Assert.True(store.Accept(target.TargetId, Sample(target, clock.Now) with { Status = status, ReasonCode = reason }));
+        Assert.Equal(expected, store.Read(target).Status);
+    }
+
     [Fact]
     public async Task FunctionalFailureAlertsOnceAndUnknownCacheOrRestartCannotInventRecovery()
     {
