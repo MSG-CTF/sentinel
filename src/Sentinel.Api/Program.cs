@@ -80,6 +80,12 @@ app.MapPost("/ingest/cluster/{target_id}", (string target_id, ClusterHeartbeat b
         return Results.Unauthorized();
     return store.Accept(target_id, body) ? Results.Ok(new { accepted = true }) : Results.BadRequest();
 });
+app.MapPost("/ingest/challenge/{target_id}", (string target_id, ChallengeHeartbeat body, HttpContext context, ChallengeHeartbeatStore store) =>
+{
+    if (context.Request.Headers.Authorization.Count != 1 || !store.Authorize(target_id, context.Request.Headers.Authorization.ToString()))
+        return Results.Unauthorized();
+    return store.Accept(target_id, body) ? Results.Ok(new { accepted = true }) : Results.BadRequest();
+});
 app.MapGet("/health", (RecoveryCoordinator recovery) => Results.Ok(new
 {
     service = "sentinel", status = "ok", mode = recovery.Mode, checked_at = DateTimeOffset.UtcNow,

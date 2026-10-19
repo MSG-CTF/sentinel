@@ -26,6 +26,7 @@ public static class PlatformMonitorRegistration
         services.AddSingleton<PlatformMonitor>();
         services.AddSingleton<HeartbeatStore>();
         services.AddSingleton<ClusterHeartbeatStore>();
+        services.AddSingleton<ChallengeHeartbeatStore>();
         services.AddHostedService<PlatformMonitorWorker>();
         return services;
     }

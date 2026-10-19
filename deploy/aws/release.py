@@ -129,11 +129,12 @@ def validate_configuration(profile, credentials):
     targets = monitor.get("targets")
     if not isinstance(targets, list) or not 1 <= len(targets) <= 32:
         raise ValueError("Invalid target collection")
+    owned_instances = set()
     for target in targets:
         if not isinstance(target, dict):
             raise ValueError("Invalid target definition")
         if target.get("enabled", True):
-            if target.get("kind") in {"service_heartbeat", "cluster_heartbeat"}:
+            if target.get("kind") in {"service_heartbeat", "cluster_heartbeat", "challenge_heartbeat"}:
                 if target.get("url") or not target.get("auth_token_env"):
                     raise ValueError("Heartbeat requires a dedicated token and no probe URL")
                 name = token_name(target["auth_token_env"])
@@ -143,6 +144,16 @@ def validate_configuration(profile, credentials):
                 if target.get("kind") == "cluster_heartbeat" and not re.fullmatch(
                         r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", target.get("expected_fields", {}).get("cluster_target_id", "")):
                     raise ValueError("Cluster heartbeat requires an explicit cluster binding")
+                if target.get("kind") == "challenge_heartbeat":
+                    validate_challenge_binding(target.get("expected_fields"))
+                    if sum(t.get("auth_token_env") == name for t in targets if t.get("enabled", True)) != 1:
+                        raise ValueError("Owned challenge reporter requires a dedicated credential")
+                    if list(credentials.values()).count(credentials[name]) != 1:
+                        raise ValueError("Owned challenge reporter cannot reuse another probe credential")
+                    instance = target["expected_fields"]["instance_id"]
+                    if instance in owned_instances:
+                        raise ValueError("Owned challenge instance has duplicate reporter bindings")
+                    owned_instances.add(instance)
                 continue
             name = target.get("auth_token_env")
             if target.get("kind") == "runtime_healthz" and (
@@ -159,6 +170,27 @@ def validate_configuration(profile, credentials):
                 or any(ord(c) <= 32 or ord(c) >= 127 for c in value)):
             raise ValueError("Invalid probe credential entry")
     return "".join(name + "=" + value + "\n" for name, value in sorted(credentials.items()))
+
+
+def validate_challenge_binding(fields):
+    import uuid
+    from datetime import datetime, timezone, timedelta
+    required = {"instance_id", "challenge_id", "release_id", "owner_team_id", "runtime_target_id",
+                "runtime_workload_id", "profile", "source_revision", "expires_at"}
+    if not isinstance(fields, dict) or set(fields) != required or not all(isinstance(v, str) for v in fields.values()):
+        raise ValueError("Owned challenge requires its complete expiring identity")
+    for key in ("instance_id", "challenge_id", "release_id", "owner_team_id"):
+        if str(uuid.UUID(fields[key])) != fields[key] or uuid.UUID(fields[key]).int == 0:
+            raise ValueError("Invalid owned challenge identity")
+    profiles = {"web-grade-tampering", "web-notebook", "pwn-random6", "pwn-note", "pwn-ghost-file", "pwn-price-tag"}
+    if (fields["profile"] not in profiles or fields["source_revision"] != "1dea73b652f9eeb98204c1fda7f66b9afb89505d"
+            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", fields["runtime_target_id"])
+            or not 1 <= len(fields["runtime_workload_id"]) <= 256
+            or any(ord(c) < 32 or ord(c) == 127 for c in fields["runtime_workload_id"])):
+        raise ValueError("Invalid owned challenge binding")
+    expires = datetime.fromisoformat(fields["expires_at"].replace("Z", "+00:00"))
+    if expires.utcoffset() is None or not datetime.now(timezone.utc) < expires <= datetime.now(timezone.utc) + timedelta(hours=24):
+        raise ValueError("Owned challenge lease must expire within 24 hours")
 
 
 def build_manifest(directory, revision, run_id, attempt):

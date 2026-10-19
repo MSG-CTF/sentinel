@@ -108,7 +108,7 @@ internal static class SchedulerInventoryClient
     }
 
     internal sealed record SchedulerRow(Guid InstanceId, string Status, string? RuntimeType, string? TargetId,
-        string? WorkloadId, DateTimeOffset ExpiresAt, Guid? ChallengeId);
+        string? WorkloadId, DateTimeOffset ExpiresAt, Guid? ChallengeId, Guid? ReleaseId = null, Guid? TeamId = null);
     private static readonly HashSet<string> States = ["REQUESTED", "SCHEDULING", "PROVISIONING", "RUNNING",
         "RESTARTING", "RESETTING", "STOPPING", "STOPPED", "FAILED", "EXPIRED", "CLEANUP_PENDING", "CLEANED"];
     private static bool TryRow(JsonElement row, out SchedulerRow? parsed)
@@ -134,7 +134,9 @@ internal static class SchedulerInventoryClient
                 || parsedChallenge == Guid.Empty) return false;
             challengeId = parsedChallenge;
         }
-        parsed = new(id, Text(row, "status")!, type, Text(row, "runtime_target_id"), Text(row, "runtime_workload_id"), expiry, challengeId);
+        Guid? OptionalId(string field) => Guid.TryParse(Text(row, field), out var value) && value != Guid.Empty ? value : null;
+        parsed = new(id, Text(row, "status")!, type, Text(row, "runtime_target_id"), Text(row, "runtime_workload_id"), expiry,
+            challengeId, OptionalId("release_id"), OptionalId("team_id"));
         return true;
     }
     private static string? Text(JsonElement root, string field) => root.TryGetProperty(field, out var value)

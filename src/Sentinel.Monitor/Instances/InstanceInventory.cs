@@ -20,7 +20,7 @@ public sealed record InstanceInventorySnapshot(string Status, string ReasonCode,
 
 // Only configured control-plane URLs are queried; service_url from a workload is never followed
 public sealed class InstanceInventory(HttpClient http, IOptions<InstanceInventoryOptions> options,
-    TimeProvider? timeProvider = null)
+    TimeProvider? timeProvider = null, ChallengeHeartbeatStore? challengeHeartbeats = null)
 {
     private readonly InstanceInventoryOptions _options = options.Value;
     private readonly TimeProvider _clock = timeProvider ?? TimeProvider.System;
@@ -46,6 +46,9 @@ public sealed class InstanceInventory(HttpClient http, IOptions<InstanceInventor
         return snapshot with { Instances = snapshot.Instances.Select(row =>
             row.Status == "REMOVED" && row.DeletionVerifiedAt is not null
                 ? DeletionFresh(row) ? row : Stale(row, "DELETION_RECHECK_STALE")
+                : row.FunctionalCheck is { Scope: "owned_deployment_test" } functional
+                    && (_clock.GetUtcNow() - functional.CheckedAt).TotalSeconds > ChallengeHeartbeatStore.FreshSeconds
+                ? Stale(row, "FUNCTIONAL_REPORT_STALE")
                 : row.RuntimeObservedAt is { } observed && Math.Abs((_clock.GetUtcNow() - observed).TotalSeconds) > 60
                 ? Stale(row, "STALE_RUNTIME_OBSERVATION")
                 : row).ToArray() };
@@ -138,6 +141,15 @@ public sealed class InstanceInventory(HttpClient http, IOptions<InstanceInventor
         if (result.Status != "HEALTHY") return observation with { Status = result.Status, ReasonCode = result.Reason };
         if (!active) return observation with { Status = "DOWN", ReasonCode = "TERMINAL_RESOURCE_PRESENT" };
         if (expired) return observation with { Status = "DOWN", ReasonCode = "TTL_EXPIRED_RESOURCE_PRESENT" };
+        var owned = challengeHeartbeats?.ReadInstance(row.InstanceId, row.ChallengeId, row.ReleaseId, row.TeamId,
+            row.TargetId, row.WorkloadId, row.ExpiresAt);
+        if (owned is not null) return observation with
+        {
+            Status = owned.Status switch { "UP" => "READY", "DOWN" => "DOWN", "STALE" => "STALE", _ => "UNVERIFIED" },
+            ReasonCode = owned.Status == "UP" ? "OWNED_CHALLENGE_FUNCTION_CONFIRMED" : owned.ReasonCode,
+            ChallengeHealth = owned.Status, FunctionalCheck = owned,
+            RecoveryAction = owned.Status == "UP" ? "none" : "manual_review",
+        };
         var check = _options.FunctionalChecks.SingleOrDefault(c => c.InstanceId == row.InstanceId);
         if (check is not null)
         {

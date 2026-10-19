@@ -32,7 +32,12 @@ public sealed class PlatformOptions
             && !string.IsNullOrWhiteSpace(EventFile) && EventFile.Length <= 500
             && Targets.Count is > 0 and <= 32
             && Targets.Select(target => target.TargetId).Distinct().Count() == Targets.Count
-            && Targets.All(target => target.IsValid()) && RiskPolicy.IsValid();
+            && Targets.All(target => target.IsValid()) && RiskPolicy.IsValid()
+            && Targets.Where(t => t.Enabled && t.Kind == "challenge_heartbeat")
+                .Select(t => t.ExpectedFields["instance_id"]).Distinct().Count()
+                == Targets.Count(t => t.Enabled && t.Kind == "challenge_heartbeat")
+            && Targets.Where(t => t.Enabled && t.Kind == "challenge_heartbeat")
+                .All(t => Targets.Count(other => other.Enabled && other.AuthTokenEnv == t.AuthTokenEnv) == 1);
     }
 }
 
@@ -61,13 +66,14 @@ public sealed class PlatformTarget
     {
         if (!Regex.IsMatch(TargetId, "^[a-z][a-z0-9_-]{0,63}$")
             || Name.Length is 0 or > 100 || Role.Length is 0 or > 32 || Track.Length is 0 or > 32
-            || Kind is not ("backend_healthz" or "runtime_healthz" or "http" or "json_fields" or "scheduler_inventory" or "broker_inventory" or "runtime_status" or "runtime_node" or "runtime_operation" or "service_heartbeat" or "cluster_heartbeat" or "auth_boundary")
+            || Kind is not ("backend_healthz" or "runtime_healthz" or "http" or "json_fields" or "scheduler_inventory" or "broker_inventory" or "runtime_status" or "runtime_node" or "runtime_operation" or "service_heartbeat" or "cluster_heartbeat" or "challenge_heartbeat" or "auth_boundary")
             || EvidenceScope?.Length > 300
             || !Regex.IsMatch(UnconfiguredReason, "^[A-Z][A-Z0-9_]{0,63}$"))
             return false;
         if (Kind == "cluster_heartbeat" && Enabled &&
             !Regex.IsMatch(ExpectedFields.GetValueOrDefault("cluster_target_id") ?? "", "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$")) return false;
-        if (Kind is "service_heartbeat" or "cluster_heartbeat") return !Enabled ||
+        if (Kind == "challenge_heartbeat" && Enabled && !ChallengeHeartbeatStore.ValidBinding(ExpectedFields)) return false;
+        if (Kind is "service_heartbeat" or "cluster_heartbeat" or "challenge_heartbeat") return !Enabled ||
             (string.IsNullOrEmpty(Url) && AuthTokenEnv is not null && Regex.IsMatch(AuthTokenEnv, "^[A-Z][A-Z0-9_]{0,63}$"));
         if (Enabled && (Kind is "scheduler_inventory" or "broker_inventory" or "runtime_healthz" or "runtime_status" or "runtime_node" or "runtime_operation") && string.IsNullOrWhiteSpace(AuthTokenEnv))
             return false;

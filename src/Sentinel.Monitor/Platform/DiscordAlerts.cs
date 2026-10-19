@@ -106,7 +106,8 @@ public sealed class DiscordAlerts
                 // Unknown evidence neither resolves an incident nor counts as a healthy sample.
                 if (!item.Enabled || level is not ("NORMAL" or "WARNING" or "CRITICAL") ||
                     item.CheckedAt is null || item.CheckedAt > _clock.GetUtcNow().AddSeconds(30) ||
-                    _clock.GetUtcNow() - item.CheckedAt > TimeSpan.FromSeconds(item.Kind is "service_heartbeat" or "cluster_heartbeat" ? 150 : snapshot.StaleAfterSeconds))
+                    _clock.GetUtcNow() - item.CheckedAt > TimeSpan.FromSeconds(item.Kind == "challenge_heartbeat" ? ChallengeHeartbeatStore.FreshSeconds
+                        : item.Kind is "service_heartbeat" or "cluster_heartbeat" ? 150 : snapshot.StaleAfterSeconds))
                 {
                     if (state is not null && (state.NormalSamples > 0 || state.LatencyWarningSince is not null))
                     { state.NormalSamples = 0; ResetLatencyWarning(state); changed = true; }
