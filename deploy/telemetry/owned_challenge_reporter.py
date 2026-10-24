@@ -97,7 +97,7 @@ def control(base, path, token_env, *, body=None):
         connection.close()
 
 
-def bound(config, read, now):
+def bound(config, read, now, *, allow_degraded=False):
     b = config["binding"]
     if not now < timestamp(b["expires_at"]) <= now + timedelta(hours=24):
         return "OWNERSHIP_BINDING_REJECTED"
@@ -120,20 +120,20 @@ def bound(config, read, now):
     age = (now - timestamp(runtime["observed_at"])).total_seconds()
     if age < -5 or age > 60:
         return "CONTROL_PLANE_UNVERIFIED"
-    return None if runtime.get("phase") == "READY" else "RUNTIME_NOT_READY"
+    return None if runtime.get("phase") == "READY" or (allow_degraded and runtime.get("phase") == "DEGRADED") else "RUNTIME_NOT_READY"
 
 
-def observe(config, read=control, probe=probes.check, clock=lambda: datetime.now(timezone.utc)):
+def observe(config, read=control, probe=probes.check, clock=lambda: datetime.now(timezone.utc), *, binding_check=bound):
     validate(config)
     b = config["binding"]
     result = {key: b[key] for key in BINDING_FIELDS - {"expires_at"}}
     result.update(scope="owned_deployment_test", status="CHECKER_ERROR", reason_code="CONTROL_PLANE_UNVERIFIED", elapsed_ms=0)
     try:
-        failure = bound(config, read, clock())
+        failure = binding_check(config, read, clock())
         if failure is None:
             observation = probe(b["profile"], config["service_url"], config["expected_host"])
             # Do not attribute a response to an instance that disappeared or changed during the probe.
-            failure = bound(config, read, clock())
+            failure = binding_check(config, read, clock())
             if failure is None:
                 for key in ("status", "reason_code", "elapsed_ms"):
                     result[key] = observation[key]
