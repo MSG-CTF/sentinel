@@ -40,12 +40,13 @@ def http_json(method, url, body=None, timeout=5):
         with urllib.request.urlopen(request, timeout=timeout) as response:
             return response.status, json.loads(response.read() or b"{}")
     except urllib.error.HTTPError as error:
-        return error.code, json.loads(error.read() or b"{}")
+        with error:
+            return error.code, json.loads(error.read() or b"{}")
 
 
-def received(kind=None):
+def received(kind=None, after=0):
     _, body = http_json("GET", RECEIVER + "/received")
-    entries = body.get("entries", [])
+    entries = body.get("entries", [])[after:]
     if kind:
         entries = [entry for entry in entries if entry["kind"] == kind]
     return entries
@@ -131,24 +132,26 @@ def main():
     check("S1 정상 상태 무신호", len(received()) == baseline)
 
     # S2 백엔드 DB 장애 -> admin alert
+    phase_start = len(received())
     http_json("POST", CONTROL + "/toggle", {"target": "backend", "component": "database", "state": "down"})
     if options.self_test:
         self_test_watcher()
-    ok = wait_for(lambda: len(received("admin_alert")) > 0, wait)
-    alerts = received("admin_alert")
+    ok = wait_for(lambda: len(received("admin_alert", after=phase_start)) > 0, wait)
+    alerts = received("admin_alert", after=phase_start)
     clean = all(not entry["violations"] for entry in alerts)
     check("S2 백엔드 장애 알림 수신", ok and clean,
           "수신 " + str(len(alerts)) + "건, 위반 " + str(sum(len(entry["violations"]) for entry in alerts)))
     http_json("POST", CONTROL + "/toggle", {"target": "backend", "component": "database", "state": "ok"})
 
     # S3 KOTH down -> health signal
+    phase_start = len(received())
     http_json("POST", CONTROL + "/toggle", {"target": "koth", "state": "down"})
     if options.self_test:
         self_test_watcher()
     ok = wait_for(
         lambda: any(
             entry["payload"] and entry["payload"].get("target_type") == "KOTH"
-            for entry in received("health_signal")
+            for entry in received("health_signal", after=phase_start)
         ),
         wait,
     )
@@ -156,6 +159,7 @@ def main():
     http_json("POST", CONTROL + "/toggle", {"target": "koth", "state": "ok"})
 
     # S4 인스턴스 FAILED -> cleanup signal
+    phase_start = len(received())
     http_json("POST", CONTROL + "/toggle", {"target": "instance", "state": "FAILED"})
     if options.self_test:
         self_test_watcher()
@@ -164,7 +168,7 @@ def main():
             entry["payload"]
             and entry["payload"].get("target_type") == "INSTANCE"
             and entry["payload"].get("action") == "CLEANUP"
-            for entry in received("health_signal")
+            for entry in received("health_signal", after=phase_start)
         ),
         wait,
     )

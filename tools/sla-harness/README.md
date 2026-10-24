@@ -74,6 +74,11 @@ python tools/sla-harness/run_scenarios.py
 python tools/sla-harness/run_scenarios.py --self-test
 ```
 
+각 장애를 넣기 직전 수신 기록의 기준점을 잡고, 그 뒤 새로 들어온 신호만 판정한다
+이전 실행 기록만 남은 상태에서는 감시자를 꺼도 통과하지 않는다
+
+회귀 검사: python -m unittest discover -s tools/sla-harness -p "test_*.py" -v
+
 ## 시나리오
 
 1. S1 정상 상태에서는 어떤 신호도 없어야 한다
