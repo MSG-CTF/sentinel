@@ -22,6 +22,7 @@ jobs:
       - run: dotnet test -c Release --nologo
       - run: node --test local/*.test.cjs
       - run: python3 -m unittest discover -s deploy/telemetry -p 'test_*.py' -v
+      - run: python3 -m unittest discover -s tools/sla-harness -p 'test_*.py' -v
       # SSM runs as root; match ownership of its mode-0600 proxy configuration.
       - run: sudo --preserve-env=SENTINEL_DOCKER_TESTS python3 -m unittest discover -s deploy/aws -p 'test_*.py' -v
         env:
