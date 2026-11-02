@@ -22,17 +22,22 @@ internal static class SchedulerInventoryClient
         return true;
     }
 
-    internal sealed record Result(IReadOnlyList<SchedulerRow> Rows, int PageCount, string Reason, int? HttpStatus)
+    internal sealed record Result(IReadOnlyList<SchedulerRow> Rows, int PageCount, string Reason, int? HttpStatus,
+        double? MaxPageLatencyMs = null, double ScanDurationMs = 0)
     {
         internal bool Success => Reason == "OK";
     }
 
     internal static async Task<Result> ReadAsync(HttpClient http, string url, string tokenEnv,
-        int timeoutSeconds, CancellationToken token)
+        int timeoutSeconds, CancellationToken token, TimeProvider? timeProvider = null)
     {
         if (!TryEndpoint(url, out var endpoint)) return new([], 0, "INVALID_CONFIGURATION", null);
         var credential = Environment.GetEnvironmentVariable(tokenEnv);
         if (string.IsNullOrWhiteSpace(credential)) return new([], 0, "AUTH_TOKEN_NOT_CONFIGURED", null);
+        var clock = timeProvider ?? TimeProvider.System;
+        var scanStarted = clock.GetTimestamp();
+        long? pageStarted = null;
+        double? maxPageLatencyMs = null;
         using var scan = CancellationTokenSource.CreateLinkedTokenSource(token);
         scan.CancelAfter(TimeSpan.FromSeconds(ScanTimeoutSeconds));
         var rows = new List<SchedulerRow>();
@@ -55,6 +60,7 @@ internal static class SchedulerInventoryClient
                 request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
                 request.Headers.UserAgent.ParseAdd("MSG-Sentinel/0.1");
                 code = null;
+                pageStarted = clock.GetTimestamp();
                 using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, deadline.Token);
                 code = (int)response.StatusCode;
                 if (code != 200) return Fail(code switch
@@ -74,6 +80,7 @@ internal static class SchedulerInventoryClient
                     if (body.Length + count > MaxPageBytes) return Fail("RESPONSE_TOO_LARGE");
                     body.Write(buffer, 0, count);
                 }
+                ObservePage();
                 body.Position = 0;
                 using var document = await JsonDocument.ParseAsync(body, cancellationToken: deadline.Token);
                 var root = document.RootElement;
@@ -96,7 +103,7 @@ internal static class SchedulerInventoryClient
                 pages++;
             } while (cursor is not null);
             token.ThrowIfCancellationRequested();
-            return new(rows, pages, "OK", code);
+            return Finish("OK");
         }
         catch (OperationCanceledException) when (!token.IsCancellationRequested) { return Fail("UPSTREAM_TIMEOUT"); }
         catch (HttpRequestException) { return Fail("UPSTREAM_UNAVAILABLE"); }
@@ -104,7 +111,23 @@ internal static class SchedulerInventoryClient
         catch (JsonException) { return Fail("INVALID_JSON"); }
 
         // Never expose a successfully read prefix as a complete inventory
-        Result Fail(string reason) => new([], pages, reason, code);
+        Result Fail(string reason) => Finish(reason);
+
+        Result Finish(string reason)
+        {
+            // Also measure an unsuccessful page, including a body read timeout
+            ObservePage();
+            return new(reason == "OK" ? rows : [], pages, reason, code,
+                maxPageLatencyMs is { } latency ? Math.Round(latency, 1) : null,
+                Math.Round(clock.GetElapsedTime(scanStarted).TotalMilliseconds, 1));
+        }
+
+        void ObservePage()
+        {
+            if (pageStarted is not { } started) return;
+            maxPageLatencyMs = Math.Max(maxPageLatencyMs ?? 0, clock.GetElapsedTime(started).TotalMilliseconds);
+            pageStarted = null;
+        }
     }
 
     internal sealed record SchedulerRow(Guid InstanceId, string Status, string? RuntimeType, string? TargetId,
