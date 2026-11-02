@@ -65,6 +65,38 @@ public sealed class DiscordAlertsTests : IDisposable
         alerts=Create(); await alerts.DeliverAsync(); Assert.Equal(2,_handler.Bodies.Count);
     }
     [Fact]
+    public async Task RetiredTargetHistorySurvivesRestartAndOpenIncidentRecoversOnce()
+    {
+        var alerts=Create(); Observe(alerts,"CRITICAL",1); await alerts.DeliverAsync();
+        var journal=JsonSerializer.Deserialize<AlertJournal>(File.ReadAllText(_file),PlatformJson.Options)!;
+        for(var i=0;i<32;i++) journal.Targets["retired-"+i]=new();
+        File.WriteAllText(_file,JsonSerializer.Serialize(journal,PlatformJson.Options));
+        alerts=Create();
+        using(var snapshot=JsonDocument.Parse(JsonSerializer.Serialize(alerts.Snapshot(),PlatformJson.Options)))
+        {
+            Assert.True(snapshot.RootElement.GetProperty("storage_healthy").GetBoolean());
+            Assert.Equal(33,snapshot.RootElement.GetProperty("stored_target_count").GetInt32());
+        }
+        Observe(alerts,"NORMAL",2); await alerts.DeliverAsync(); Assert.Single(_handler.Bodies);
+        Observe(alerts,"NORMAL",3); await alerts.DeliverAsync(); Assert.Equal(2,_handler.Bodies.Count);
+        Assert.Contains("CRITICAL → NORMAL",_handler.Bodies.Last());
+        alerts=Create(); Observe(alerts,"NORMAL",4); await alerts.DeliverAsync(); Assert.Equal(2,_handler.Bodies.Count);
+        Assert.Equal(33,JsonSerializer.Deserialize<AlertJournal>(File.ReadAllText(_file),PlatformJson.Options)!.Targets.Count);
+    }
+    [Theory]
+    [InlineData(1024)]
+    [InlineData(1025)]
+    public async Task JournalHistoryRemainsBoundedAndCannotSendAfterCapacityFailure(int count)
+    {
+        var journal=new AlertJournal();
+        for(var i=0;i<count;i++) journal.Targets["retired-"+i]=new();
+        File.WriteAllText(_file,JsonSerializer.Serialize(journal,PlatformJson.Options));
+        var alerts=Create(); Observe(alerts,"CRITICAL",1);
+        Assert.False(alerts.QueueTest()); await alerts.DeliverAsync(); Assert.Empty(_handler.Bodies);
+        using var snapshot=JsonDocument.Parse(JsonSerializer.Serialize(alerts.Snapshot(),PlatformJson.Options));
+        Assert.False(snapshot.RootElement.GetProperty("storage_healthy").GetBoolean());
+    }
+    [Fact]
     public async Task RateLimitKeepsPendingNotificationUntilRetryDeadline()
     {
         _handler.Status=HttpStatusCode.TooManyRequests; var alerts=Create(); Observe(alerts,"CRITICAL",1);

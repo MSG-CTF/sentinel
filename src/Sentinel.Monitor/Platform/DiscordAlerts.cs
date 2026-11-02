@@ -47,6 +47,8 @@ public sealed class DiscordAlerts
 {
     public const int LatencyWarningSeconds = 60;
     public const int LatencyWarningSamples = 3;
+    // The journal retains retired targets across deployments, unlike the 32-target live profile
+    private const int MaxJournalTargets = 1024;
     private readonly DiscordAlertOptions _options;
     private readonly TimeProvider _clock;
     private readonly HttpClient _http;
@@ -71,7 +73,7 @@ public sealed class DiscordAlerts
             if (!File.Exists(_options.StateFile)) return;
             if (new FileInfo(_options.StateFile).Length > 2_000_000) throw new JsonException();
             _journal = JsonSerializer.Deserialize<AlertJournal>(File.ReadAllText(_options.StateFile), PlatformJson.Options) ?? throw new JsonException();
-            if (_journal.Targets.Count > 32 || _journal.Pending.Count > 200 || _journal.Delivered.Count > 50 ||
+            if (_journal.Targets.Count > MaxJournalTargets || _journal.Pending.Count > 200 || _journal.Delivered.Count > 50 ||
                 _journal.Targets.Values.Any(s => s.Level is not ("NORMAL" or "WARNING" or "CRITICAL")) ||
                 _journal.Pending.Any(n => !Guid.TryParse(n.EventId, out _) || n.Level is not ("NORMAL" or "WARNING" or "CRITICAL"))) throw new JsonException();
             foreach (var state in _journal.Targets.Values)
@@ -87,6 +89,7 @@ public sealed class DiscordAlerts
     public object Snapshot()
     {
         lock (_gate) return new { enabled = Enabled, storage_healthy = _storageHealthy,
+            stored_target_count = _journal.Targets.Count,
             pending_count = _journal.Pending.Count, last_sent_at = _journal.LastSentAt,
             retry_at = _journal.RetryAt, failure_code = _journal.FailureCode,
             latency_warning_seconds = LatencyWarningSeconds, latency_warning_samples = LatencyWarningSamples,
@@ -113,7 +116,11 @@ public sealed class DiscordAlerts
                     { state.NormalSamples = 0; ResetLatencyWarning(state); changed = true; }
                     continue;
                 }
-                if (state is null) _journal.Targets[item.TargetId] = state = new();
+                if (state is null)
+                {
+                    if (_journal.Targets.Count >= MaxJournalTargets) { _storageHealthy = false; return; }
+                    _journal.Targets[item.TargetId] = state = new();
+                }
                 if (state.LastAt >= item.CheckedAt) continue;
                 var previousAt = state.LastAt;
                 state.LastAt = item.CheckedAt; changed = true;
