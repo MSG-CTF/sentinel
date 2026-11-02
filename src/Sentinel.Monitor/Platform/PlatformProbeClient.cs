@@ -27,8 +27,7 @@ public sealed class PlatformProbeClient(HttpClient httpClient, HeartbeatStore? h
 
         if (target.Kind == "scheduler_inventory")
         {
-            var started = Stopwatch.StartNew();
-            var inventory = await SchedulerInventoryClient.ReadAsync(httpClient, target.Url!, target.AuthTokenEnv!, timeoutSeconds, cancellationToken);
+            var inventory = await SchedulerInventoryClient.ReadAsync(httpClient, target.Url!, target.AuthTokenEnv!, timeoutSeconds, cancellationToken, timeProvider);
             var status = "HEALTHY";
             var reason = "SCHEDULER_QUERY_READY";
             if (!inventory.Success)
@@ -47,10 +46,12 @@ public sealed class PlatformProbeClient(HttpClient httpClient, HeartbeatStore? h
                 };
             }
             return Result(target, status, reason, Now, inventory.HttpStatus,
-                Math.Round(started.Elapsed.TotalMilliseconds, 1), inventory.Success ? new Dictionary<string, string>
+                inventory.MaxPageLatencyMs, inventory.Success ? new Dictionary<string, string>
                 {
                     ["inventory_total"] = inventory.Rows.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     ["page_count"] = inventory.PageCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ["scan_duration_ms"] = inventory.ScanDurationMs.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ["latency_scope"] = "max_page_response",
                 } : null);
         }
 

@@ -9,6 +9,16 @@ const target = overrides => ({target_id:"internal-backend", name:"내부 백엔�
   http_status_code:200, latency_ms:12, url:"http://backend-internal:8080/healthz", components:{status:"ok", database:"ok", cache:"ok"}, ...overrides});
 const build = (item, options = {}) => buildAssets({targets:[target(item)], poll_interval_seconds:15}, {now, ...options});
 
+test("scheduler response and complete inventory duration have distinct visible meanings", () => {
+  const asset = build({kind:"scheduler_inventory", target_id:"scheduler-api", latency_ms:250,
+    components:{latency_scope:"max_page_response", inventory_total:"4829", page_count:"25", scan_duration_ms:"6250"}})[0];
+  assert.equal(globalThis.SentinelAssets.responseTimeText(asset), "250 ms · 페이지 최대");
+  assert.equal(globalThis.SentinelAssets.inventoryScanText(asset), "전체 4,829개 · 25페이지 · 수집 6,250 ms");
+  assert.equal(globalThis.SentinelAssets.responseTimeText({latency_ms:250}), "250 ms");
+  assert.equal(globalThis.SentinelAssets.inventoryScanText({kind:"http", components:asset.components}), "");
+  assert.equal(globalThis.SentinelAssets.inventoryScanText({...asset, components:{...asset.components, scan_duration_ms:"bad"}}), "");
+});
+
 test("cluster reports survive minute polling and stop showing resources after report expiry", () => {
   const item = {kind:"cluster_heartbeat", role:"K3S", components:{cpu_used_percent:"12.5"}, checked_at:new Date(now - 80000).toISOString()};
   const live = build(item)[0];

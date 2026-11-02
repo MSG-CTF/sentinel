@@ -96,7 +96,18 @@
     }
     return `${metricNames[signal.metric]} ${Number(signal.value.toFixed(1))}${signal.unit} · ${signal.recovering ? "회복 확인 중" : `${signal.level === "CRITICAL" ? "위험" : "주의"} ≥${signal.level === "CRITICAL" ? signal.critical : signal.warning}${signal.unit}`}`;
   }
-  const api = {buildAssets, summarize, trustedComponents, resolveRisk, riskCounts, riskNames, metricNames, riskText};
+  function responseTimeText(asset) {
+    if (!Number.isFinite(asset.latency_ms)) return "해당 없음";
+    const scope = asset.kind === "scheduler_inventory" && asset.components?.latency_scope === "max_page_response" ? " · 페이지 최대" : "";
+    return `${Math.round(asset.latency_ms)} ms${scope}`;
+  }
+  function inventoryScanText(asset) {
+    if (asset.kind !== "scheduler_inventory" || asset.components?.latency_scope !== "max_page_response") return "";
+    const parts = asset.components;
+    if (![parts.inventory_total, parts.page_count, parts.scan_duration_ms].every(value => typeof value === "string" && value.trim() && Number.isFinite(Number(value)) && Number(value) >= 0)) return "";
+    return `전체 ${Number(parts.inventory_total).toLocaleString("ko-KR")}개 · ${Number(parts.page_count)}페이지 · 수집 ${Math.round(Number(parts.scan_duration_ms)).toLocaleString("ko-KR")} ms`;
+  }
+  const api = {buildAssets, summarize, trustedComponents, resolveRisk, riskCounts, riskNames, metricNames, riskText, responseTimeText, inventoryScanText};
   root.SentinelAssets = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
