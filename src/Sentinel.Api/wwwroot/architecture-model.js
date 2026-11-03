@@ -86,15 +86,55 @@
     const alias = externalProbeIds[id];
     return alias && readings.get(alias)?.track === "EXTERNAL" ? alias : id;
   }
+  const groupSelectors = {
+    scheduler:a=>a.track === "CONTROL" && ["scheduler","scheduler-api"].includes(a.asset_id),
+    broker:a=>a.track === "CONTROL" && ["broker","broker-console","broker-fleet"].includes(a.asset_id),
+    runtime:a=>a.track === "RUNTIME" && ["runtime","runtime-api"].includes(a.asset_id),
+    "linux-pool":a=>a.track === "RUNTIME" && a.role === "K3S" && a.kind === "cluster_heartbeat",
+    koth:a=>a.track === "KOTH" && a.role === "KOTH" && ["service_heartbeat","challenge_heartbeat"].includes(a.kind),
+    windows:a=>a.track === "RUNTIME" && a.role === "WINDOWS" && a.kind === "service_heartbeat"
+  };
+  const rank = {CRITICAL:0,WARNING:1,UNKNOWN:2,PENDING:3,NORMAL:4};
+  function groupedNode(definition, assets) {
+    const select = groupSelectors[definition.id];
+    if (!select) return definition;
+    const members = assets.filter(select).sort((a,b)=>a.asset_id.localeCompare(b.asset_id));
+    // Keep explicit local probes and their typed connection evidence intact.
+    if ((!members.length && definition.reading) || (members.length === 1 && members[0].asset_id === definition.id)) return definition;
+    if (!members.length && !["linux-pool","koth","windows"].includes(definition.id)) return definition;
+    const worst = [...members].sort((a,b)=>(rank[a.risk?.level] ?? 2)-(rank[b.risk?.level] ?? 2))[0];
+    const counts = {NORMAL:0,WARNING:0,CRITICAL:0,UNKNOWN:0,PENDING:0};
+    for (const member of members) counts[Object.hasOwn(counts,member.risk?.level) ? member.risk.level : "UNKNOWN"]++;
+    const timestamps = members.map(a=>a.checked_at).filter(at=>Number.isFinite(Date.parse(at))).sort((a,b)=>Date.parse(a)-Date.parse(b));
+    const summary = definition.id === "koth" ? `서버 ${members.filter(a=>a.asset_id.startsWith("koth-host-")).length} · 준비 ${members.filter(a=>a.asset_id.startsWith("koth-app-")).length}`
+      : ["linux-pool","windows"].includes(definition.id) ? `${members.length}대` : `${members.length}개 감시`;
+    const reading = worst ? {asset_id:definition.id,name:definition.name,role:definition.role,track:definition.track,
+      kind:"monitor_group",evidence_type:"GROUP_SUMMARY",status:worst.status,risk:{level:worst.risk?.level || "UNKNOWN",signals:[]},
+      reason_code:"MONITOR_GROUP",checked_at:timestamps.length === members.length ? timestamps[0] : null,
+      components:{member_count:String(members.length)},enabled:true} : null;
+    return {...definition,grouped:true,members,counts,summary,reading,
+      note:"현재 감시 목록의 실제 관측을 집계 · 상자를 눌러 개별 자산 확인 · 자산 간 요청과 채점 성공은 각 연결 근거에서 확인"};
+  }
   function resolveNodes(assets) {
     const readings = new Map(assets.map(asset => [asset.asset_id, asset]));
     const result = nodes.map(definition => {
       const id = probeId(definition.probe_id || definition.id, readings);
-      return {...definition, probe_id:(definition.probe_id || readings.has(id)) ? id : undefined, reading:readings.get(id) || null};
+      return groupedNode({...definition, probe_id:(definition.probe_id || readings.has(id)) ? id : undefined, reading:readings.get(id) || null}, assets);
     });
     const mapped = new Set(result.map(definition => definition.probe_id || definition.id));
     for (const asset of assets) if (!mapped.has(asset.asset_id)) result.push({id:asset.asset_id, name:asset.name, role:asset.role, track:asset.track, probe_id:asset.asset_id, reading:asset, owner:"감시 대상 설정", note:"프로필에 추가한 실제 감시 대상 · 운영 트랙과 임의로 합치지 않음"});
     return result;
+  }
+  function monitoringLinks(assets) {
+    const definitions = resolveNodes(assets);
+    return ["linux-pool","koth","windows"].map(id=>{
+      const node = definitions.find(n=>n.id === id), members = node.members || (node.reading ? [node.reading] : []);
+      const level = node.reading?.risk?.level || "PENDING";
+      const state = level === "NORMAL" ? "VERIFIED" : level === "CRITICAL" ? "FAILED" : level === "PENDING" ? "PENDING" : "UNKNOWN";
+      return {id:`monitor-${id}`,kind:"monitoring",from:id,to:"observer",label:`${node.name} 감시`,state,
+        verified:state === "VERIFIED",checked_at:node.reading?.checked_at || null,members,
+        note:"각 감시 자산의 최신 보고 상태 · 실제 자산 추가·삭제를 자동 반영 · 서비스 간 RPC나 문제 실행 성공의 근거로 사용하지 않음"};
+    });
   }
   function resolveLink(link, assets) {
     if (link.stage !== "PROBE") return {...link, state:link.stage, verified:false};
@@ -126,7 +166,7 @@
     if (!source) return null;
     return {name:source.name, version:source.version || source.sha.slice(0,7), url:source.url || `https://github.com/${source.repo}/blob/${source.sha}/${path || "README.md"}`};
   }
-  const api = {catalog, resolveNodes, resolveLink, sourceLink};
+  const api = {catalog, resolveNodes, resolveLink, sourceLink, monitoringLinks};
   root.SentinelArchitecture = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
