@@ -7,6 +7,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import subprocess
+from uuid import UUID
 from urllib.parse import urlsplit
 
 from report_service import send
@@ -43,13 +44,18 @@ def empty(target, state):
 def observe(cluster, now):
     target = cluster['target_id']
     config_path = PurePosixPath(cluster['kubeconfig_path'])
-    if (not config_path.is_absolute() or config_path.parent != PurePosixPath('/etc/secure-provisioner/kubeconfigs')
+    if (not config_path.is_absolute() or config_path.parent not in {
+            PurePosixPath('/etc/secure-provisioner/kubeconfigs'), PurePosixPath('/etc/sentinel-telemetry/kubeconfigs')}
             or config_path.suffix not in {'.yaml', '.yml', '.json'}):
         raise ValueError('Kubeconfig is outside the fixed configuration directory')
     document = run_json(str(config_path), ['nodes', '-o', 'json'])
     nodes = document['items']
     if not isinstance(nodes, list) or len(nodes) > 100 or len({node['metadata']['name'] for node in nodes}) != len(nodes):
         raise ValueError('Invalid node inventory')
+    if 'expected_node_uid' in cluster:
+        expected = str(UUID(cluster['expected_node_uid']))
+        if len(nodes) != 1 or nodes[0]['metadata'].get('uid') != expected:
+            raise ValueError('Node UID differs from the explicit Broker binding')
     observation = empty(target, 'ok')
     observation['node_count'] = len(nodes)
     for node in nodes:
@@ -131,6 +137,20 @@ def collect_reports(bindings, registry, now=None):
     return reports
 
 
+def configuration(settings):
+    bindings = settings['bindings']
+    if not isinstance(bindings, list) or not 1 <= len(bindings) <= 16:
+        raise ValueError('Invalid cluster binding collection')
+    if 'clusters' in settings:
+        clusters = settings['clusters']
+        if not isinstance(clusters, list) or not 1 <= len(clusters) <= 16:
+            raise ValueError('Invalid explicit monitoring cluster collection')
+        registry = {'clusters': clusters}
+    else:
+        registry = json.loads(REGISTRY.read_text())
+    return bindings, registry
+
+
 def report(bindings, registry):
     failures = 0
     for binding, observation in collect_reports(bindings, registry):
@@ -145,10 +165,8 @@ def report(bindings, registry):
 if __name__ == '__main__':
     try:
         path = Path(os.environ['CREDENTIALS_DIRECTORY']) / 'clusters.json'
-        bindings = json.loads(path.read_text())['bindings']
-        if not isinstance(bindings, list) or not 1 <= len(bindings) <= 16:
-            raise ValueError('Invalid cluster binding collection')
-        report(bindings, json.loads(REGISTRY.read_text()))
+        bindings, registry = configuration(json.loads(path.read_text()))
+        report(bindings, registry)
         print('Cluster heartbeats accepted')
     except Exception as error:
         print('Cluster heartbeat failed: ' + type(error).__name__)

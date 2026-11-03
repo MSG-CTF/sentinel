@@ -165,6 +165,20 @@ public sealed class PlatformProbeTests
         Assert.False(options.IsValid());
     }
 
+    [Theory]
+    [InlineData(33, true)]
+    [InlineData(64, true)]
+    [InlineData(65, false)]
+    public void ExpandedNodeMonitoringKeepsABoundedLiveProfile(int count, bool valid)
+    {
+        var options = new PlatformOptions { Targets = Enumerable.Range(0, count).Select(index =>
+            new PlatformTarget { TargetId=$"node-{index}", Name=$"Node {index}", Role="K3S", Track="RUNTIME",
+                Kind="cluster_heartbeat", AuthTokenEnv=$"NODE_{index}_TOKEN",
+                ExpectedFields=new() { ["cluster_target_id"]=$"cluster-{index}" } }).ToList() };
+        Assert.Equal(valid, options.IsValid());
+        if (valid) { options.Targets.Add(options.Targets[0]); Assert.False(options.IsValid()); }
+    }
+
     [Fact]
     public async Task IncidentThresholdDeduplicationRecoveryAndRestartAreEnforced()
     {

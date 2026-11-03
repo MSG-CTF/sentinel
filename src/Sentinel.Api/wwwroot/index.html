@@ -14,6 +14,8 @@
   <link rel="stylesheet" href="/asset-operations.css">
   <script src="/sentinel-core.js" defer></script>
   <script src="/asset-model.js" defer></script>
+  <link rel="stylesheet" href="/asset-groups.css">
+  <script src="/asset-groups.js" defer></script>
   <script src="/architecture-model.js" defer></script>
   <script src="/topology.js" defer></script>
   <script src="/data-recovery.js" defer></script>
@@ -99,11 +101,11 @@
 
         </div>
         <section class="asset-console" aria-labelledby="asset-title">
-          <div class="assets-heading"><h2 id="asset-title">전체 자산 <span id="asset-visible-count"></span></h2><div class="asset-tools"><label class="asset-search"><span class="sr-only">자산 검색</span><input id="asset-search" type="search" placeholder="자산 검색" autocomplete="off"></label><button id="issues-only" class="text-button" type="button" aria-pressed="false">문제만 보기</button></div></div>
+          <div class="assets-heading"><h2 id="asset-title">서비스별 자산 <span id="asset-visible-count"></span></h2><div class="asset-tools"><label class="asset-search"><span class="sr-only">자산 검색</span><input id="asset-search" type="search" placeholder="자산 검색" autocomplete="off"></label><button id="issues-only" class="text-button" type="button" aria-pressed="false">문제만 보기</button></div></div>
           <div id="asset-filter-note" hidden><span id="asset-filter-label"></span><button id="asset-filter-clear" type="button">필터 해제</button></div>
           <div id="asset-groups" class="asset-groups"><p class="loading-message">점검 결과를 불러오는 중</p></div>
           <p id="empty-filter" class="empty-filter" hidden>조건에 맞는 자산이 없습니다</p>
-          <div class="asset-console-footer"><span>자산 선택 → 수치·판정 근거</span><span>DB·Redis는 healthz 간접 점검</span></div>
+          <div class="asset-console-footer"><span>그룹 펼치기 → 자산 선택 → 수치·판정 근거</span><span>DB·Redis는 healthz 간접 점검</span></div>
         </section>
       </div>
     </section>

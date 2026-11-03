@@ -76,6 +76,36 @@ test("blocked integration stays blocked regardless of service health",()=>{
   assert.equal(resolveLink(catalog.links.find(item=>item.id==="internal-create"),readings()).state,"BLOCKED");
   assert.equal(resolveLink(catalog.links.find(item=>item.id==="bundle-poll"),readings()).state,"BLOCKED");
 });
+
+test("explicit external track uses existing public probe IDs once and verifies their own components",()=>{
+  const assets=readings({target_id:"public-backend",track:"EXTERNAL"});
+  assets.push({asset_id:"public-site",track:"EXTERNAL",kind:"http",status:"HEALTHY"});
+  const mapped=resolveNodes(assets);
+  for(const [id,probe] of [["external-frontend","public-site"],["external-backend","public-backend"],
+    ["external-backend-database","public-backend-database"],["external-backend-cache","public-backend-cache"]]) {
+    const node=mapped.find(item=>item.id===id);
+    assert.equal(node.probe_id,probe);
+    assert.equal(node.reading,assets.find(item=>item.asset_id===probe));
+    assert.equal(mapped.filter(item=>item.reading?.asset_id===probe).length,1);
+  }
+  for(const id of ["external-database","external-cache"])
+    assert.equal(resolveLink(catalog.links.find(item=>item.id===id),assets).state,"VERIFIED");
+  assert.equal(mapped.find(item=>item.id==="internal-backend").reading,null);
+});
+
+test("external aliases require the configured track and matching parent evidence",()=>{
+  const link=catalog.links.find(item=>item.id==="external-database");
+  for(const track of ["PUBLIC","INTERNAL"]) {
+    const assets=readings({target_id:"public-backend",track});
+    assert.equal(resolveNodes(assets).find(item=>item.id==="external-backend").reading,null);
+    assert.equal(resolveLink(link,assets).state,"UNKNOWN");
+  }
+  const assets=readings({target_id:"public-backend",track:"EXTERNAL"});
+  assets.find(item=>item.asset_id==="public-backend-database").parent_target_id="internal-backend";
+  assert.equal(resolveLink(link,assets).state,"UNKNOWN");
+  const legacy=readings({target_id:"external-backend",track:"EXTERNAL"});
+  assert.equal(resolveLink(link,legacy).state,"VERIFIED");
+});
 test("all source links point at pinned SHA or the supplied Notion page",()=>{
   for (const [key,source] of Object.entries(catalog.sources)) {const link=sourceLink(key); assert.ok(link.url.startsWith("https://")); if (source.sha) {assert.match(source.sha,/^[a-f0-9]{40}$/); assert.ok(link.url.includes(source.sha));}}
   assert.equal(sourceLink("unknown"),null);

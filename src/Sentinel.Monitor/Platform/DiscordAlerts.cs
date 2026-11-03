@@ -47,7 +47,7 @@ public sealed class DiscordAlerts
 {
     public const int LatencyWarningSeconds = 60;
     public const int LatencyWarningSamples = 3;
-    // The journal retains retired targets across deployments, unlike the 32-target live profile
+    // The journal retains retired targets across deployments beyond the bounded live profile
     private const int MaxJournalTargets = 1024;
     private readonly DiscordAlertOptions _options;
     private readonly TimeProvider _clock;

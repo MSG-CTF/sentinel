@@ -3,7 +3,7 @@ const byId = id => document.getElementById(id);
 const catalog = SentinelArchitecture.catalog;
 const statusNames = {HEALTHY:"정상", DOWN:"장애", DEGRADED:"연결 저하", UNVERIFIED:"확인 불가", UNCONFIGURED:"미연결", PENDING:"점검 대기", STALE:"확인 불가"};
 const stageNames = {VERIFIED:"실측", FAILED:"연결 실패", UNKNOWN:"확인 불가", PENDING:"미연결", CODE:"소스 확인", DESIGN:"설계", BLOCKED:"불일치"};
-const groupNames = {PUBLIC:"배포 사이트", INTERNAL:"내부 트랙", EXTERNAL:"외부 트랙", CONTROL:"공통 제어", RUNTIME:"문제 실행", ACCESS:"대회 진입", SCORING:"KoTH 채점", DELIVERY:"문제 발행", TEST:"실습 기능 점검"};
+const groupNames = {PUBLIC:"배포 사이트", INTERNAL:"내부 트랙", EXTERNAL:"외부 트랙", CONTROL:"공통 제어", RUNTIME:"실행 인프라", KOTH:"KoTH", ACCESS:"대회 진입", SCORING:"KoTH 채점", DELIVERY:"문제 발행", TEST:"실습 기능 점검"};
 const assetLabels = {"internal-backend":["내부 백엔드","백엔드 API"], "external-backend":["외부 백엔드","백엔드 API"], scheduler:["인스턴스 스케줄러","스케줄러"], broker:["리소스 브로커","리소스 브로커"], runtime:["문제 런타임","런타임 API"], koth:["KoTH 서버","KoTH"], windows:["Windows 문제 서버","Windows"]};
 const roleNotes = {SCHEDULER:"생성·만료 관리", BROKER:"자원 후보·예약", RUNTIME:"문제 생성·삭제", KOTH:"전용 문제 서버", WINDOWS:"전용 문제 서버"};
 const reasonNames = {
@@ -61,6 +61,8 @@ let contractsPageSize = innerHeight < 800 ? 5 : 7;
 let view = "architecture", issuesOnly = false, expandedEvents = false, selection = null, opener = null;
 let assetSignature = "", eventSignature = "", detailEventSignature = "";
 const assetRows = new Map(), contractRows = new Map(), relatedRows = new Map();
+const assetGroupRows = new Map();
+let groupFilterSignature = "";
 const detailFields = new Map();
 const time = value => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleTimeString("en-GB", {hour12:false, timeZone:"Asia/Seoul"}) : "미확인";
 const trackLabel = track => groupNames[track] || track || "미지정";
@@ -150,14 +152,23 @@ function icon(role) {
   return svg;
 }
 function rebuildAssets() {
+  const expanded = new Set([...assetGroupRows].filter(([,row])=>row.details.open).map(([id])=>id));
   const root = byId("asset-groups"); root.replaceChildren(); assetRows.clear();
-  const list = node("ul", undefined, "asset-list"); root.append(list);
+  assetGroupRows.clear();
+  for(const group of SentinelAssetGroups.group(assets)) {
+    const details=node("details",undefined,"asset-group"), summary=node("summary",undefined,"asset-group-summary");
+    details.dataset.assetGroup=group.id;details.open=expanded.has(group.id);
+    const copy=node("span",undefined,"asset-group-copy"), title=node("strong",group.name), note=node("span",undefined,"asset-group-note"), state=node("span",undefined,"asset-group-state");
+    copy.append(title,note);summary.append(copy,state);details.append(summary);
+    const list=node("ul",undefined,"asset-list");list.setAttribute("aria-label",`${group.name} 개별 자산`);details.append(list);root.append(details);
+    assetGroupRows.set(group.id,{details,summary,note,state,list});
+  }
   for (const asset of assets) {
     const li = node("li"), button = node("button", undefined, "asset-row"), copy = node("span", undefined, "asset-copy");
     const reading = node("span", undefined, "asset-reading"), state = node("span", undefined, "asset-state");
     button.type = "button"; button.dataset.assetId = asset.asset_id;
     copy.append(node("span", label(asset), "asset-name"), reading); button.append(icon(asset.role), copy, state);
-    button.addEventListener("click", () => inspect({kind:"asset", id:asset.asset_id}, button)); li.append(button); list.append(li);
+    button.addEventListener("click", () => inspect({kind:"asset", id:asset.asset_id}, button)); li.append(button); assetGroupRows.get(asset.track || "UNMAPPED").list.append(li);
     assetRows.set(asset.asset_id, {button, reading, state, li});
   }
 }
@@ -181,9 +192,21 @@ function render(snapshot, events, offline) {
   byId("policy").textContent = `HTTP ${Number(snapshot.poll_interval_seconds) || 15}초 · 화면 5초`;
   byId("measurement-note").textContent = `직접 ${assets.filter(asset=>asset.evidence_type === "DIRECT_PROBE" && !["UNCONFIGURED", "PENDING"].includes(asset.status)).length} · 간접 ${assets.filter(asset=>asset.evidence_type === "HEALTHZ_COMPONENT").length}`;
   byId("status-caption").textContent = disconnected ? "수집 연결을 확인해 주세요" : `위험 수치 · 자산 상태 · 수집 근거를 한곳에서`;
-  const ordered = SentinelConsole.sort(assets), order = ordered.map(a=>a.asset_id).join("|");
-  const list = byId("asset-groups").querySelector("ul");
-  if (list && list.dataset.order !== order) {for (const asset of ordered) list.append(assetRows.get(asset.asset_id).li); list.dataset.order = order;}
+  const filterState=SentinelConsole.filterState(), filterSignature=JSON.stringify([filterState,issuesOnly]);
+  const filtered=filterState.search!=="" || filterState.risk!=="ALL" || issuesOnly;
+  const groups=SentinelAssetGroups.group(assets,a=>SentinelConsole.matches(a) && (!issuesOnly || requiresAttention(a)));
+  for(const group of groups) {
+    const row=assetGroupRows.get(group.id);row.details.hidden=group.visible.length===0;
+    row.details.dataset.level=group.level;row.state.textContent=SentinelAssets.riskNames[group.level];
+    row.note.textContent=[`${group.total}개 자산`,...Object.entries(group.counts).filter(([,n])=>n).map(([level,n])=>`${SentinelAssets.riskNames[level]} ${n}`),filtered?`${group.visible.length}개 표시`:""].filter(Boolean).join(" · ");
+    row.summary.setAttribute("aria-label",`${group.name} · ${row.state.textContent} · ${row.note.textContent}`);
+    if(filterSignature!==groupFilterSignature && filtered && group.visible.length) row.details.open=true;
+    const ordered=SentinelConsole.sort(group.members),order=ordered.map(a=>a.asset_id).join("|");
+    if(row.list.dataset.order!==order) {for(const asset of ordered) row.list.append(assetRows.get(asset.asset_id).li);row.list.dataset.order=order;}
+  }
+  const groupRoot=byId("asset-groups"), groupOrder=groups.map(group=>group.id).join("|");
+  if(groupRoot.dataset.order!==groupOrder) {for(const group of groups) groupRoot.append(assetGroupRows.get(group.id).details);groupRoot.dataset.order=groupOrder;}
+  groupFilterSignature=filterSignature;
   for (const asset of assets) {
     const item = assetRows.get(asset.asset_id); item.button.className = `asset-row status-${statusClass(asset.status)}`; item.button.dataset.level = asset.risk.level;
     item.state.textContent = SentinelAssets.riskNames[asset.risk.level];
@@ -194,7 +217,7 @@ function render(snapshot, events, offline) {
     item.li.hidden = !SentinelConsole.matches(asset) || issuesOnly && !requiresAttention(asset);
   }
   const visibleAssets = assets.filter(a => SentinelConsole.matches(a) && (!issuesOnly || requiresAttention(a))).length;
-  byId("asset-visible-count").textContent = `${visibleAssets} / ${assets.length}`;
+  byId("asset-visible-count").textContent = `${groups.filter(g=>g.visible.length).length}개 그룹 · ${visibleAssets}/${assets.length}개 자산`;
   byId("empty-filter").hidden = visibleAssets > 0;
   byId("issues-only").textContent = issuesOnly ? "전체 보기" : "문제만 보기";
   byId("issues-only").setAttribute("aria-pressed", String(issuesOnly));
