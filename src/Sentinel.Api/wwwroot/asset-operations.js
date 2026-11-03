@@ -65,8 +65,8 @@
       const meter=node("meter"); meter.min=0;meter.max=100;meter.value=Number(value)||0;meter.hidden=value==null;meter.setAttribute("aria-label",`${title} 사용률`);card.append(meter);cards.append(card);
     }
     byId("asset-cpu-model").textContent=parts.cpu_model || "CPU 모델 미수집";
-    byId("asset-resource-source").textContent=direct?"SSH 실측":fresh&&parts.os_name?"서버 보고":"수집 대기";
-    byId("asset-resource-note").textContent=asset.kind==="cluster_heartbeat"&&fresh?`${parts.ready_node_count || 0}/${parts.node_count || 0} 노드 Ready · 배치 가능 ${parts.schedulable_node_count || 0} · 메모리는 Kubernetes working set · 디스크 사용률 미수집`:
+    byId("asset-resource-source").textContent=parts.probe_kind==="rdp_tcp"?fresh?SentinelAssets.connectionReadinessText(asset):"수집 지연":direct?"SSH 실측":fresh&&parts.os_name?"서버 보고":"수집 대기";
+    byId("asset-resource-note").textContent=parts.probe_kind==="rdp_tcp"?"RDP 포트 연결 준비만 점검 · Windows OS 자원·로그인·프로그램 실행은 별도 검증":asset.kind==="cluster_heartbeat"&&fresh?`${parts.ready_node_count || 0}/${parts.node_count || 0} 노드 Ready · 배치 가능 ${parts.schedulable_node_count || 0} · 메모리는 Kubernetes working set · 디스크 사용률 미수집`:
       direct?"SSH 조회 시점의 값 · 경고 판정은 정기 수집 결과를 사용합니다":parts.os_name?`${new Date(asset.checked_at).toLocaleTimeString("ko-KR")} 수신 · 가동 ${Math.floor(Number(parts.uptime_seconds || 0)/86400)}일`:
       asset.status==="STALE"?"오래된 자원 수치는 현재 값으로 표시하지 않습니다":"HTTP 응답만으로 운영체제·서버 자원을 알 수 없어 수집기 연결이 필요합니다";
   }

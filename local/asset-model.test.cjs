@@ -9,6 +9,15 @@ const target = overrides => ({target_id:"internal-backend", name:"내부 백엔�
   http_status_code:200, latency_ms:12, url:"http://backend-internal:8080/healthz", components:{status:"ok", database:"ok", cache:"ok"}, ...overrides});
 const build = (item, options = {}) => buildAssets({targets:[target(item)], poll_interval_seconds:15}, {now, ...options});
 
+test("RDP readiness reports connection counts without creating Windows host resource measurements", () => {
+  const asset=build({kind:"service_heartbeat",role:"WINDOWS",components:{probe_kind:"rdp_tcp",connection_target_count:"7",connection_ready_count:"7"}})[0];
+  assert.equal(globalThis.SentinelAssets.connectionReadinessText(asset),"RDP 7/7");
+  assert.equal(asset.components.cpu_used_percent,undefined);
+  assert.equal(globalThis.SentinelAssets.connectionReadinessText({...asset,components:{...asset.components,connection_ready_count:"0"}}),"RDP 0/7");
+  assert.equal(globalThis.SentinelAssets.connectionReadinessText({...asset,components:{...asset.components,connection_ready_count:"8"}}),"");
+  assert.equal(globalThis.SentinelAssets.connectionReadinessText({components:{}}),"");
+});
+
 test("scheduler response and complete inventory duration have distinct visible meanings", () => {
   const asset = build({kind:"scheduler_inventory", target_id:"scheduler-api", latency_ms:250,
     components:{latency_scope:"max_page_response", inventory_total:"4829", page_count:"25", scan_duration_ms:"6250"}})[0];

@@ -28,6 +28,24 @@ service_heartbeat는 관리 프로세스와 호스트 자원을 확인하며 문
 서비스 HTTP 점검과 스케줄러 전체 목록 조회는 별도의 HTTPS 대상에 연결한다
 런타임 클러스터가 등록되지 않았으면 인스턴스 실행 상태를 정상으로 추정하지 않는다
 
+## KoTH 준비와 Windows 연결 감시
+
+report_koth.py는 고정한 namespace·Deployment·Pod·노드 조건을 읽고 명시된 health 경로만 조회한다
+dependency-hell은 dependency-hell namespace의 frontend·backend·backend-internal을 모두 확인한다
+frontend의 별도 9090 포트에서 GET /healthz의 SUCCESS·healthy·data null 계약을 검증한다
+이 결과는 준비 상태이며 로그인·경기·점수 처리 성공을 의미하지 않는다
+
+report_windows.py는 Runtime의 인증된 Windows 대상 목록을 읽고 등록된 ID 집합과 일치할 때 RDP TCP 포트만 연결한다
+VM 예약·기동·RDP 로그인·프로그램 실행은 하지 않는다
+대상이 누락되거나 목록 조회가 실패하면 보고하지 않으며 마지막 보고가 150초를 넘으면 SLA는 미확인으로 전환한다
+실제 포트 연결 실패는 failed로 보고한다
+
+Windows 자산은 service_heartbeat의 expected_fields에 probe_kind=rdp_tcp와 connection_target_count를 명시한다
+이 모드는 connection_target_count·connection_ready_count와 active 또는 failed의 일치를 검증한다
+호스트 자원 수치와 재시작 횟수는 null이며 Linux 수집기의 자원을 Windows 값으로 보내지 않는다
+일반 service_heartbeat는 기존 호스트 자원 필드를 계속 요구한다
+수집기 설정은 systemd LoadCredential의 windows.json으로 전달하며 Runtime 토큰과 전용 SLA 수신 토큰을 로그에 기록하지 않는다
+
 백엔드 VM은 backend_command.py로 Docker 컨테이너 msg-dev-backend-1의 실제 상태를 확인한다
 Docker 데몬이 실행 중이어도 백엔드 컨테이너가 정지했으면 정상으로 보고하지 않는다
 백엔드 바인딩은 docker:msg-dev-backend-1이며 전용 키는 SENTINEL_SSH_BACKEND_B64를 사용한다
