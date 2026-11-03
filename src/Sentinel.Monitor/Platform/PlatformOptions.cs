@@ -7,6 +7,7 @@ namespace Sentinel.Monitor.Platform;
 public sealed class PlatformOptions
 {
     public const string SectionName = "platform_monitor";
+    public const int MaximumTargets = 64;
     public string Profile { get; set; } = "local";
     [ConfigurationKeyName("poll_interval_seconds")]
     public int PollIntervalSeconds { get; set; } = 15;
@@ -30,7 +31,7 @@ public sealed class PlatformOptions
             && FailureThreshold is >= 1 and <= 10
             && RecoveryThreshold is >= 1 and <= 10
             && !string.IsNullOrWhiteSpace(EventFile) && EventFile.Length <= 500
-            && Targets.Count is > 0 and <= 32
+            && Targets.Count is > 0 and <= MaximumTargets
             && Targets.Select(target => target.TargetId).Distinct().Count() == Targets.Count
             && Targets.All(target => target.IsValid()) && RiskPolicy.IsValid()
             && Targets.Where(t => t.Enabled && t.Kind == "challenge_heartbeat")

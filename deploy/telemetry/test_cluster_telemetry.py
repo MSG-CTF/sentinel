@@ -29,6 +29,28 @@ def metric():
 
 
 class ClusterTelemetryTests(unittest.TestCase):
+    def test_monitoring_registry_is_independent_of_runtime_scheduling_and_never_falls_back_when_invalid(self):
+        explicit={**CLUSTER,'kubeconfig_path':'/etc/sentinel-telemetry/kubeconfigs/cluster-a.json'}
+        with patch.object(reporter,'REGISTRY',Mock()) as registry_path:
+            read=registry_path.read_text
+            bindings, registry=reporter.configuration({'bindings':[BINDING],'clusters':[explicit]})
+            self.assertEqual(registry,{'clusters':[explicit]});self.assertEqual(bindings,[BINDING]);read.assert_not_called()
+            for invalid in ([],None,'bad',[explicit]*17):
+                with self.assertRaises(ValueError):reporter.configuration({'bindings':[BINDING],'clusters':invalid})
+            read.assert_not_called()
+
+    def test_explicit_node_uid_binding_rejects_a_different_cluster_before_reading_metrics(self):
+        expected='11111111-1111-4111-8111-111111111111'
+        cluster={**CLUSTER,'expected_node_uid':expected,'kubeconfig_path':'/etc/sentinel-telemetry/kubeconfigs/node.json'}
+        actual=node();actual['metadata']['uid']=expected
+        with patch.object(reporter,'run_json',side_effect=[{'items':[actual]},{'items':[metric()]}]):
+            self.assertEqual(reporter.observe(cluster,NOW)['ready_node_count'],1)
+        for uid in (None,'22222222-2222-4222-8222-222222222222'):
+            actual['metadata']['uid']=uid
+            with patch.object(reporter,'run_json',return_value={'items':[actual]}) as query:
+                result=reporter.collect_reports([BINDING],{'clusters':[cluster]},NOW)[0][1]
+                self.assertEqual(result['query_state'],'query_failed');self.assertEqual(query.call_count,1)
+
     def test_one_failed_delivery_does_not_prevent_the_other_cluster_report(self):
         first = (BINDING, {'query_state': 'ok'})
         second = ({**BINDING, 'endpoint': 'https://sla.msgctf.kr/ingest/cluster/test-cluster'}, {'query_state': 'ok'})

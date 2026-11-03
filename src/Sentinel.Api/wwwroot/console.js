@@ -98,5 +98,5 @@
       row.append(make("strong",`${SentinelAssets.metricNames[signal.metric]} · ${Number(signal.value.toFixed(1))}${signal.unit}`), make("span",`${signal.pending_level && signal.level === "NORMAL" ? "부하 관찰 중" : SentinelAssets.riskNames[signal.level]}${signal.recovering ? " · 회복 확인 중" : ""}`), make("small",`주의 ≥${signal.warning}${signal.unit} / 위험 ≥${signal.critical}${signal.unit}${signal.recovering ? ` · ${signal.clear_below}${signal.unit} 미만 연속 확인 필요` : ""}`)); panel.append(row);
     }
   }
-  root.SentinelConsole = {mount,render,inspector,matches,sort};
+  root.SentinelConsole = {mount,render,inspector,matches,sort,filterState:()=>({risk:riskFilter,search})};
 })(globalThis);

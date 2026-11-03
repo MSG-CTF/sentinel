@@ -77,17 +77,31 @@
     {name:"운영 복구 연결", owner:"SLA · 각 수신팀", note:"기본 앱 7개와 선택한 로컬 Runtime의 정지 컨테이너 기동 · 운영 호스트 접속·자격 증명·수신 API·상태 보존 계약은 연결 대기"}
   ];
   const catalog = {schema_version:1, verified_at:"2026-10-13T14:34:00+09:00", scope:"10월 13일 KoTH·CI·Registry 소스와 로컬 8개 앱 복구·Runtime Store 격리 복원 재검토 · 실행 소스와 최신 검토 소스는 각각의 SHA로 표시", sources, nodes, links, findings, gates};
+  const externalProbeIds = {
+    "external-frontend":"public-site", "external-backend":"public-backend",
+    "external-backend-database":"public-backend-database", "external-backend-cache":"public-backend-cache"
+  };
+  function probeId(id, readings) {
+    if (readings.has(id)) return id;
+    const alias = externalProbeIds[id];
+    return alias && readings.get(alias)?.track === "EXTERNAL" ? alias : id;
+  }
   function resolveNodes(assets) {
     const readings = new Map(assets.map(asset => [asset.asset_id, asset]));
-    const result = nodes.map(definition => ({...definition, probe_id:definition.probe_id || (readings.has(definition.id) ? definition.id : undefined), reading:readings.get(definition.probe_id || definition.id) || null}));
-    const mapped = new Set(nodes.map(definition => definition.probe_id || definition.id));
+    const result = nodes.map(definition => {
+      const id = probeId(definition.probe_id || definition.id, readings);
+      return {...definition, probe_id:(definition.probe_id || readings.has(id)) ? id : undefined, reading:readings.get(id) || null};
+    });
+    const mapped = new Set(result.map(definition => definition.probe_id || definition.id));
     for (const asset of assets) if (!mapped.has(asset.asset_id)) result.push({id:asset.asset_id, name:asset.name, role:asset.role, track:asset.track, probe_id:asset.asset_id, reading:asset, owner:"감시 대상 설정", note:"프로필에 추가한 실제 감시 대상 · 운영 트랙과 임의로 합치지 않음"});
     return result;
   }
   function resolveLink(link, assets) {
     if (link.stage !== "PROBE") return {...link, state:link.stage, verified:false};
-    const child = assets.find(asset => asset.asset_id === link.evidence_asset);
-    const parent = assets.find(asset => asset.asset_id === link.parent_probe);
+    const readings = new Map(assets.map(asset => [asset.asset_id, asset]));
+    const parentId = probeId(link.parent_probe, readings);
+    const child = readings.get(probeId(link.evidence_asset, readings));
+    const parent = readings.get(parentId);
     if (["runtime-store", "runtime-k3s"].includes(link.id)) {
       const expectedKind = link.id === "runtime-store" ? "runtime_operation" : "runtime_node";
       const reason = link.id === "runtime-store" ? "RUNTIME_STORE_QUERY_READY" : "K3S_NODE_READY";
@@ -101,7 +115,7 @@
     }
     // Only this explicit parent-child healthz relation is a live connection reading.
     const valid = child && parent && parent.kind === "backend_healthz" && ["HEALTHY", "DEGRADED"].includes(parent.status)
-      && child.evidence_type === "HEALTHZ_COMPONENT" && child.parent_target_id === link.parent_probe
+      && child.evidence_type === "HEALTHZ_COMPONENT" && child.parent_target_id === parentId
       && child.checked_at && child.checked_at === parent.checked_at;
     const state = valid && child.status === "HEALTHY" ? "VERIFIED" : valid && child.status === "DOWN" ? "FAILED"
       : child && ["UNCONFIGURED", "PENDING"].includes(child.status) ? "PENDING" : "UNKNOWN";

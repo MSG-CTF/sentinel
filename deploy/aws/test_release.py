@@ -17,6 +17,15 @@ def profile():
 
 
 class ConfigurationTests(unittest.TestCase):
+    def test_live_profile_supports_current_node_pool_but_rejects_more_than_64_targets(self):
+        for count in (33, 64, 65):
+            config=profile()
+            config['platform_monitor']['targets']=[{'target_id': 'node-'+str(i), 'url':'https://example.com/'} for i in range(count)]
+            with self.subTest(count=count):
+                if count<=64: self.assertEqual(release.validate_configuration(config, {}), '')
+                else:
+                    with self.assertRaises(ValueError): release.validate_configuration(config, {})
+
     def test_owned_reporter_requires_a_complete_expiring_identity_and_a_dedicated_credential(self):
         from datetime import datetime, timezone, timedelta
         target = {'target_id': 'owned-notebook', 'kind': 'challenge_heartbeat', 'auth_token_env': 'OWNED_REPORTER',

@@ -127,7 +127,7 @@ def validate_configuration(profile, credentials):
         raise ValueError("Production recovery adapter has not been enabled for deployment")
     names = instance_credentials(profile.get("instance_monitor"))
     targets = monitor.get("targets")
-    if not isinstance(targets, list) or not 1 <= len(targets) <= 32:
+    if not isinstance(targets, list) or not 1 <= len(targets) <= 64:
         raise ValueError("Invalid target collection")
     owned_instances = set()
     for target in targets:
