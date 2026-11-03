@@ -2,6 +2,7 @@
 (function (root) {
   "use strict";
   const sources = {
+    production_audit:{name:"운영 실행 검증 기록",url:"https://sla.msgctf.kr/architecture-execution-evidence.json",version:"2026년 11월 3일 · 검증 범위와 정리 결과"},
     notion:{name:"운영 아키텍처 본문", url:"https://app.notion.com/p/3e20f19c72be80d1a2ebd1c9e8f2a894", version:"10월 10일 재조회 · 반환본 10월 7일"},
     backend:{name:"Backend main 소스", repo:"MSG-CTF/msg-backend", sha:"5896bb52e77a4ab2c4b4ace3718c1c9a73f3428f", reviewed_at:"2026-10-10"},
     backend_review:{name:"Backend KoTH·Registry 재검토", repo:"MSG-CTF/msg-backend", sha:"08be84d46f49c6f51947a871cb0003c49ed531ed", reviewed_at:"2026-10-13"},
@@ -65,10 +66,28 @@
     {id:"bundle-poll", from:"bundle", to:"registry", label:"poller 수집", stage:"BLOCKED", note:"DevSecOps의 공식 입력 계약은 확인 · 현재 Backend main에 poller·release Registry 구현이 없어 이 로컬 기준본으로는 수집 E2E를 진행하지 못함 · 열린 PR과 구분", source:"devsecops", path:"docs/challenge-registry-integration.md", peer_source:"backend", peer_path:"apps/instances/models.py", owner:"백엔드 · DevSecOps"},
     {id:"image-pull", from:"ghcr", to:"linux-pool", label:"digest pull", stage:"CODE", note:"Runtime의 이미지·imagePullSecrets 경로 소스 확인 · private GHCR cold pull과 pull secret 만료는 실제 시험 필요", source:"runtime", path:"internal/k3s/adapter.go", owner:"DevSecOps · Runtime"}
   ];
+  const currentNotes = {
+    "external-create":"운영 Backend의 비공개 관리자 시험으로 생성·요청 중복 방지·gVisor Pod Ready·삭제·예약 반납 확인 · 참가자 로그인과 게이트웨이 게임 실행은 별도",
+    "internal-create":"외부용 검증 계정으로 내부 트랙 로그인 불가 · 내부 관리자 접근으로 생성 요청을 실행한 근거 필요",
+    "candidate-query":"실제 Backend 생성 요청에 따른 Broker 예약과 Runtime 배치, 종료 후 동일 예약 RELEASED 확인",
+    "scheduler-store":"같은 시험 ID의 PROVISIONING·RUNNING·STOPPING·CLEANED 조회와 종료 후 저장된 상태 확인 · 재시작·HA 승격은 별도",
+    "broker-store":"실습 인스턴스에 귀속된 실제 예약 행과 자원량, 삭제 완료 후 RELEASED 확인 · 다른 예약 변경 없음",
+    "runtime-create":"현재 운영 Scheduler → Runtime → 등록된 실제 K3s 노드의 gVisor Pod 생성·Ready·삭제 확인",
+    "runtime-k3s":"Broker 인증서와 Node UID를 대조한 실제 노드에서 실습 Pod UID·승인 digest·gVisor·Ready·namespace 제거 확인",
+    "external-inventory":"실제 외부 Backend 관리자 리소스 API에서 운영 Broker 목록 조회 확인 · 참가자 인스턴스 변경 없음",
+    "scoring-server":"배포된 Backend 수집기로 KoTH 점수 서버 6곳 HTTPS 조회·응답 검증·DB 적용·같은 period 중복 방지 확인 · 검증 쓰기는 전부 되돌림",
+    "external-score-poll":"운영 수집기와 KoTH 서버 6곳의 실제 왕복, 실제 점수가 있는 구간의 적용과 중복 차단 확인 · 공개 예정 상태와 참가자 점수 유지",
+    "external-token":"배포된 게임의 실제 로그인 처리기에서 Backend 토큰 검증 호출과 유효하지 않은 토큰 거절 확인 · 참가자의 정상 로그인 성공은 별도",
+    "internal-inventory":"내부 트랙 관리자 리소스 조회 실행 근거 필요 · 외부 트랙 조회 성공을 공유하지 않음",
+    "internal-score-poll":"내부 트랙의 실제 채점 설정·수집 실행 근거 필요 · 외부 Backend 수집 성공을 공유하지 않음",
+    "internal-token":"내부 트랙의 실제 게임 → Backend 토큰 검증 실행 근거 필요 · 외부 트랙 토큰을 재사용하지 않음"
+  };
+  for (const link of links) if (currentNotes[link.id]) {
+    link.note=currentNotes[link.id];
+    if (link.id==="internal-create") link.stage="CODE";
+  }
   const findings = [
-    {id:"payload", title:"생성 요청 계약 불일치", owner:"백엔드 · 스케줄러", detail:"main 단일 컨테이너 요청과 dev 멀티 컨테이너 계약이 다름", link:"internal-create", severity:"BLOCKED"},
-    {id:"route", title:"운영 healthz JSON 미확인", owner:"프론트 · DevSecOps", detail:"10월 10일 msgctf.kr/healthz는 HTML 200 · 배포 프록시 내부 설정은 미확인", track:"PUBLIC", url:"https://msgctf.kr/healthz", checked_at:"2026-10-10T01:21:42+09:00", severity:"BLOCKED"},
-    {id:"broker-source", title:"Broker 운영 대상 미등록", owner:"리소스 브로커", detail:"staging 99ff5b88 로컬 실행과 인증된 목록 점검 추가 · provider 계정·VM과 운영 실행 기준은 미확정", link:"candidate-query", severity:"PENDING"}
+    {id:"internal-execution",title:"내부 트랙 업무 연결 실행 대기",owner:"내부 트랙 · SLA",detail:"외부용 검증 계정은 내부 로그인이 거부돼 기존 내부 관리 접근이 필요함 · 생성·목록·채점·토큰 결과를 외부 검증으로 대체하지 않음",link:"internal-create",severity:"PENDING"}
   ];
   const gates = [
     {name:"Worker 단일 실행", owner:"스케줄러 · DevSecOps", note:"팀·행 잠금과 프로세스 leader lock은 다름 · Active/Standby 승격 계약과 fencing 미검증"},
@@ -76,7 +95,7 @@
     {name:"문제 inventory · readiness", owner:"Runtime · 스케줄러 · SLA", note:"Scheduler 전체 목록과 등록된 실행 환경의 상태 조회 · 트랙 매핑·대회 문제 기능 점검은 연결 대기"},
     {name:"운영 복구 연결", owner:"SLA · 각 수신팀", note:"기본 앱 7개와 선택한 로컬 Runtime의 정지 컨테이너 기동 · 운영 호스트 접속·자격 증명·수신 API·상태 보존 계약은 연결 대기"}
   ];
-  const catalog = {schema_version:1, verified_at:"2026-10-13T14:34:00+09:00", scope:"10월 13일 KoTH·CI·Registry 소스와 로컬 8개 앱 복구·Runtime Store 격리 복원 재검토 · 실행 소스와 최신 검토 소스는 각각의 SHA로 표시", sources, nodes, links, findings, gates};
+  const catalog = {schema_version:1, verified_at:"2026-10-13T14:34:00+09:00", scope:"기존 고정 SHA 소스 검토와 날짜가 있는 운영 실행 기록을 구분 · 실행 검증은 해당 시험의 범위와 정리 결과이며 현재 연결 상태나 전체 경기 완주를 뜻하지 않음", sources, nodes, links, findings, gates};
   const externalProbeIds = {
     "external-frontend":"public-site", "external-backend":"public-backend",
     "external-backend-database":"public-backend-database", "external-backend-cache":"public-backend-cache"
@@ -136,7 +155,7 @@
         note:"각 감시 자산의 최신 보고 상태 · 실제 자산 추가·삭제를 자동 반영 · 서비스 간 RPC나 문제 실행 성공의 근거로 사용하지 않음"};
     });
   }
-  function resolveLink(link, assets) {
+  function resolveProbeLink(link, assets) {
     if (link.stage !== "PROBE") return {...link, state:link.stage, verified:false};
     const readings = new Map(assets.map(asset => [asset.asset_id, asset]));
     const parentId = probeId(link.parent_probe, readings);
@@ -161,12 +180,28 @@
       : child && ["UNCONFIGURED", "PENDING"].includes(child.status) ? "PENDING" : "UNKNOWN";
     return {...link, state, verified:state === "VERIFIED", checked_at:valid ? child.checked_at : null};
   }
+  function executionFor(link) {
+    const evidence=root.SentinelExecutionEvidence;
+    if (evidence?.schema_version!==1 || !Array.isArray(evidence.runs)) return null;
+    const matches=evidence.runs.filter(run=>run && run.passed===true && run.cleanup_verified===true && run.simulated===false
+      && run.verification_mode==="one_time_production" && /^[a-f0-9]{64}$/.test(run.proof_sha256 || "")
+      && /^\d{4}-\d{2}-\d{2}T/.test(run.checked_at || "") && Number.isFinite(Date.parse(run.checked_at)) && Date.parse(run.checked_at)<=Date.now()+300000
+      && typeof run.summary==="string" && run.summary.length>0 && typeof run.limits==="string" && run.limits.length>0
+      && Array.isArray(run.connections) && run.connections.some(item=>item && item.id===link.id && item.from===link.from && item.to===link.to));
+    return matches.length===1 ? matches[0] : null;
+  }
+  function resolveLink(link, assets) {
+    const current=resolveProbeLink(link,assets),execution=executionFor(link);
+    // A dated execution record never asserts current reachability and never hides a measured failure.
+    if (!execution || ["VERIFIED","FAILED"].includes(current.state)) return current;
+    return {...current,state:"EXECUTED",verified:false,executed:true,checked_at:execution.checked_at,execution};
+  }
   function sourceLink(key, path) {
     const source = sources[key];
     if (!source) return null;
     return {name:source.name, version:source.version || source.sha.slice(0,7), url:source.url || `https://github.com/${source.repo}/blob/${source.sha}/${path || "README.md"}`};
   }
-  const api = {catalog, resolveNodes, resolveLink, sourceLink, monitoringLinks};
+  const api = {catalog, resolveNodes, resolveLink, sourceLink, monitoringLinks, executionFor};
   root.SentinelArchitecture = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

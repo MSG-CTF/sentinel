@@ -1,0 +1,173 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-11-03T11:13:18.511256+00:00",
+  "scope": "dated production execution evidence, separate from continuous asset health",
+  "backend_source_sha": "eefe2630106e088dcbbb312b085fef721f4713d8",
+  "backend_source_files_sha256": {
+    "apps/instances/deployment_tests.py": "4a6e0696c7733e4f93c8a68a8c11a9a4de431eef2260ef5ada3962b7866394a7",
+    "apps/instances/services.py": "3beaeaea44641f4d65f55e8a8fa0fcd273e4d2a77eda69d05c851382f3779de4",
+    "apps/instances/models.py": "ccf8a2db0c15a747044799f83161168a3f7bfbcc015401af6adffcdc7738c00f",
+    "apps/instances/releases.py": "b1edf115d6ccad7bbe77c99d5c241979bc4bb082187fbe17e51de641395b0940",
+    "apps/koth/services.py": "42e2d41cff8e9419a5ce63ef993d9f0efc8940587abdf7013b9a7103b77fcfa2",
+    "apps/koth/views.py": "d798d466f59a709259bc87557e44968e80a30395aa554c1c1fb37ebcdea35721",
+    "apps/koth/models.py": "cea9417ceb19e6bab022df40c413d370ccc79019587f93c7bbce8daadb1906c3",
+    "apps/koth/tokens.py": "10255d07e44ebcf11d44dbd72b8c19f20d150fd9e4b3aa93bec8f179ac6ef712",
+    "apps/koth/urls.py": "ae77376395a96317fe36ef71674073c6fd19ad96d0d2b6dd71dc3fd96459f8f1",
+    "apps/koth/internal_urls.py": "0b33ff25097f3222126b649ce45d6068a46975de9d2d0d6465647804d3cbc91b",
+    "apps/accounts/models.py": "9ccbf7c3d321b1c491c9cb8950de7e562a66ab2896bbdd98f10a6d73f451a817",
+    "apps/adminpanel/urls.py": "3b50e99066587de3b0988a29909d626ee3857d08bdaecc535596721036f3ac10",
+    "apps/adminpanel/resource_broker.py": "99424390cd74a0f3e148e29691d36fab3d9a008b3e29c8400f7614ee929a2c04"
+  },
+  "runtime_artifact_sha256": "41c3e2648141d5807108740521e9818a4dd4c1170f4b28f421610901609ff08a",
+  "runs": [
+    {
+      "run_id": "owned-instance-lifecycle",
+      "verification_mode": "one_time_production",
+      "passed": true,
+      "cleanup_verified": true,
+      "simulated": false,
+      "checked_at": "2026-11-03T11:05:21.630654+00:00",
+      "proof_sha256": "86ae020f8dc544f767fb42557a57a10bf2d570a0e12a12e65ee85dcb97f6e274",
+      "connections": [
+        {
+          "id": "external-create",
+          "from": "external-backend",
+          "to": "scheduler"
+        },
+        {
+          "id": "candidate-query",
+          "from": "scheduler",
+          "to": "broker"
+        },
+        {
+          "id": "runtime-create",
+          "from": "scheduler",
+          "to": "runtime"
+        },
+        {
+          "id": "scheduler-store",
+          "from": "scheduler",
+          "to": "scheduler-db"
+        },
+        {
+          "id": "broker-store",
+          "from": "broker",
+          "to": "broker-db"
+        },
+        {
+          "id": "runtime-k3s",
+          "from": "runtime",
+          "to": "linux-pool"
+        }
+      ],
+      "summary": "운영 Backend에서 실제 인스턴스 생성·중복 요청 재사용·gVisor Pod Ready·삭제·예약 반납 확인",
+      "limits": "비공개 관리자 배포 시험 범위 · 참가자 로그인·게이트웨이 게임 실행·장애 복구·HA 승격은 별도",
+      "checks": {
+        "create_and_running": true,
+        "same_request_reused": true,
+        "pod_uid_observed": true,
+        "image_digest_and_gvisor_verified": true,
+        "namespace_removed": true,
+        "reservation_released": true,
+        "temporary_instances_created": 3,
+        "temporary_instances_cleaned": 3
+      }
+    },
+    {
+      "run_id": "backend-broker-inventory",
+      "verification_mode": "one_time_production",
+      "passed": true,
+      "cleanup_verified": true,
+      "simulated": false,
+      "checked_at": "2026-11-03T11:05:21.630654+00:00",
+      "proof_sha256": "86ae020f8dc544f767fb42557a57a10bf2d570a0e12a12e65ee85dcb97f6e274",
+      "connections": [
+        {
+          "id": "external-inventory",
+          "from": "external-backend",
+          "to": "broker"
+        }
+      ],
+      "summary": "실제 외부 Backend 관리자 API에서 운영 Broker 자원 목록 조회 성공",
+      "limits": "조회 RPC 검증 · 자원 생성·삭제나 계정 권한 변경 없음",
+      "checks": {
+        "authenticated_backend_rpc": true,
+        "read_only": true
+      }
+    },
+    {
+      "run_id": "score-collection",
+      "verification_mode": "one_time_production",
+      "passed": true,
+      "cleanup_verified": true,
+      "simulated": false,
+      "checked_at": "2026-11-03T10:59:48.059069+00:00",
+      "proof_sha256": "e9f183ae7aedea7a3dc2e6f89d8a3ebb9383c6afdc2f649b339dcf3c1dcb70aa",
+      "connections": [
+        {
+          "id": "scoring-server",
+          "from": "koth-score",
+          "to": "koth"
+        },
+        {
+          "id": "external-score-poll",
+          "from": "external-backend",
+          "to": "koth-score"
+        }
+      ],
+      "summary": "운영 수집기에서 KoTH 점수 서버 6곳 HTTPS 조회·검증·DB 적용·같은 period 중복 반영 차단 확인",
+      "limits": "검증 쓰기는 모두 되돌림 · 공개 예정 상태와 참가자 점수 유지 · 정기 수집 타이머·실경기 진행·재시작 내구성은 별도",
+      "checks": {
+        "providers_verified": 6,
+        "actual_provider_result_count": 3,
+        "positive_award_count": 1,
+        "awarded_points_in_rollback_transaction": 40.0,
+        "duplicate_awards": 0,
+        "all_verification_writes_rolled_back": true
+      }
+    },
+    {
+      "run_id": "game-backend-token-verifier",
+      "verification_mode": "one_time_production",
+      "passed": true,
+      "cleanup_verified": true,
+      "simulated": false,
+      "checked_at": "2026-11-03T11:12:24.556114+00:00",
+      "proof_sha256": "8e61b49df43f24f73bb262f1a3ae60b50ea3905aa3e979dd12059ebd7bce747e",
+      "connections": [
+        {
+          "id": "external-token",
+          "from": "koth-score",
+          "to": "external-backend"
+        }
+      ],
+      "summary": "게임 6곳의 실제 로그인 처리기 → Backend 토큰 검증 호출과 잘못된 토큰 거절 확인",
+      "limits": "인증 RPC와 실패 시 차단 검증 · 유효한 참가자 토큰의 로그인·경기 완주는 별도 · 임시 팀·게임 세션 생성 없음",
+      "checks": {
+        "native_game_handlers_verified": 6,
+        "actual_backend_verifier_calls": 6,
+        "invalid_tokens_rejected": 6,
+        "temporary_teams_or_sessions_created": 0
+      }
+    }
+  ],
+  "cleanup": {
+    "temporary_instances_created": 3,
+    "namespaces_removed": 3,
+    "reservations_released": 3,
+    "temporary_admin_accounts_removed": 4,
+    "temporary_hidden_challenges_removed": 4,
+    "temporary_releases_removed": 3,
+    "all_old_admin_access_tokens_rejected_401": true,
+    "participant_points_unchanged": true,
+    "challenge_statuses_unchanged": true,
+    "cloud_vm_power_operations": 0,
+    "new_credentials_or_permissions": 0
+  },
+  "unverified": [
+    "internal_track_business_flow_requires_existing_management_access",
+    "valid_competitor_game_login",
+    "public_owner_gateway_gameplay",
+    "scheduled_scoring_timer_and_restart_durability"
+  ]
+}

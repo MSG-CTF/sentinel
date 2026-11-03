@@ -103,6 +103,7 @@ h1,h2,h3,p {margin:0}
 .connection-legend {display:flex;flex-wrap:wrap;gap:28px;font-size:14px}
 .connection-legend strong {font-weight:600;margin-left:5px;font-variant-numeric:tabular-nums}
 .stage-verified {color:var(--green)}
+.stage-executed {color:#91c7e8}
 .stage-code {color:var(--blue)}
 .stage-design,.stage-unknown {color:var(--muted)}
 .stage-blocked,.stage-failed {color:var(--red)}

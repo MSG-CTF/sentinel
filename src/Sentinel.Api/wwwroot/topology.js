@@ -120,7 +120,7 @@
     for (const [text,x,y] of [["내부 트랙",238,96],["외부 트랙",238,284]]) {const tag = element("span",text,"map-track-label"); Object.assign(tag.style,{left:`${x}px`,top:`${y}px`}); canvas.append(tag);}
     svg = svgElement("svg",{viewBox:`0 0 ${width} ${height}`,class:"map-lines","aria-label":"역할 간 연결 경로"});
     const defs = svgElement("defs");
-    for (const state of ["verified","failed","unknown","design","code","blocked"]) {
+    for (const state of ["verified","executed","failed","unknown","design","code","blocked"]) {
       const marker = svgElement("marker",{id:`arrow-${state}`,viewBox:"0 0 10 10",refX:"9",refY:"5",markerWidth:"6",markerHeight:"6",orient:"auto-start-reverse",class:`map-arrow stage-${state}`});
       marker.append(svgElement("path",{d:"M1 1L9 5L1 9z"})); defs.append(marker);
     }
@@ -158,7 +158,7 @@
     }
     for (const item of paths.values()) {
       const result = item.link.kind === "monitoring" ? monitorLinks.get(item.link.id) : SentinelArchitecture.resolveLink(item.link,assets), cls = options.stageClass(result.state);
-      item.group.classList.remove(...["verified","failed","unknown","design","code","blocked"].map(state=>`link-${state}`)); item.group.classList.add(`link-${cls}`);
+      item.group.classList.remove(...["verified","executed","failed","unknown","design","code","blocked"].map(state=>`link-${state}`)); item.group.classList.add(`link-${cls}`);
       item.stroke.setAttribute("marker-end",`url(#arrow-${cls})`); item.hit.setAttribute("aria-label",`${item.link.label} · ${options.stageNames[result.state]}${item.link.kind === "monitoring" ? ` · ${result.members.length}개 감시 · 상태 수집` : ""}`);
     }
     buttons.get("observer").state.textContent = offline ? "최신 수집 확인 불가" : recovery?.enabled ? "로컬 자동 복구 활성" : "관측 전용 · 복구 명령 없음";

@@ -72,8 +72,8 @@ test("public probes stay PUBLIC and are never assigned an internal or external t
   assert.ok(mapped.filter(item=>item.reading).every(item=>item.track==="PUBLIC"));
   assert.equal(mapped.find(item=>item.id==="internal-backend").reading,null);
 });
-test("blocked integration stays blocked regardless of service health",()=>{
-  assert.equal(resolveLink(catalog.links.find(item=>item.id==="internal-create"),readings()).state,"BLOCKED");
+test("unexecuted internal flow and blocked delivery never inherit service health",()=>{
+  assert.equal(resolveLink(catalog.links.find(item=>item.id==="internal-create"),readings()).state,"CODE");
   assert.equal(resolveLink(catalog.links.find(item=>item.id==="bundle-poll"),readings()).state,"BLOCKED");
 });
 

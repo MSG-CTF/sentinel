@@ -2,7 +2,7 @@
 const byId = id => document.getElementById(id);
 const catalog = SentinelArchitecture.catalog;
 const statusNames = {HEALTHY:"정상", DOWN:"장애", DEGRADED:"연결 저하", UNVERIFIED:"확인 불가", UNCONFIGURED:"미연결", PENDING:"점검 대기", STALE:"확인 불가"};
-const stageNames = {VERIFIED:"실측", FAILED:"연결 실패", UNKNOWN:"확인 불가", PENDING:"미연결", CODE:"소스 확인", DESIGN:"설계", BLOCKED:"불일치"};
+const stageNames = {VERIFIED:"실측", EXECUTED:"실행 검증", FAILED:"연결 실패", UNKNOWN:"확인 불가", PENDING:"미연결", CODE:"소스 확인", DESIGN:"설계", BLOCKED:"불일치"};
 const groupNames = {PUBLIC:"배포 사이트", INTERNAL:"내부 트랙", EXTERNAL:"외부 트랙", CONTROL:"공통 제어", RUNTIME:"실행 인프라", KOTH:"KoTH", ACCESS:"대회 진입", SCORING:"KoTH 채점", DELIVERY:"문제 발행", TEST:"실습 기능 점검"};
 const assetLabels = {"internal-backend":["내부 백엔드","백엔드 API"], "external-backend":["외부 백엔드","백엔드 API"], scheduler:["인스턴스 스케줄러","스케줄러"], broker:["리소스 브로커","리소스 브로커"], runtime:["문제 런타임","런타임 API"], koth:["KoTH 서버","KoTH"], windows:["Windows 문제 서버","Windows"]};
 const roleNotes = {SCHEDULER:"생성·만료 관리", BROKER:"자원 후보·예약", RUNTIME:"문제 생성·삭제", KOTH:"전용 문제 서버", WINDOWS:"전용 문제 서버"};
@@ -70,7 +70,7 @@ const time = value => value && Number.isFinite(Date.parse(value)) ? new Date(val
 const trackLabel = track => groupNames[track] || track || "미지정";
 const label = asset => {const short = assetLabels[asset.asset_id]; return short && short[0] === asset.name ? short[1] : asset.name || asset.asset_id;};
 const statusClass = status => status === "HEALTHY" ? "healthy" : status === "DOWN" ? "down" : status === "DEGRADED" ? "degraded" : ["UNCONFIGURED", "PENDING"].includes(status) ? "pending" : "unknown";
-const stageClass = state => ({VERIFIED:"verified", FAILED:"failed", UNKNOWN:"unknown", PENDING:"design", CODE:"code", DESIGN:"design", BLOCKED:"blocked"}[state] || "design");
+const stageClass = state => ({VERIFIED:"verified", EXECUTED:"executed", FAILED:"failed", UNKNOWN:"unknown", PENDING:"design", CODE:"code", DESIGN:"design", BLOCKED:"blocked"}[state] || "design");
 const requiresAttention = asset => ["CRITICAL", "WARNING", "UNKNOWN"].includes(asset.risk.level);
 const nodeById = id => architectureNodes.find(item => item.id === id);
 const inspectedDefinition = item => {
@@ -237,7 +237,7 @@ function render(snapshot, events, offline) {
   if (byId("inspector").open) renderInspector();
 }
 function renderContracts() {
-  const counts = {VERIFIED:0, CODE:0, BLOCKED:0, other:0};
+  const counts = {VERIFIED:0, EXECUTED:0, CODE:0, BLOCKED:0, other:0};
   const matching = catalog.links.filter(matchesFilter);
   contractsPage = Math.min(contractsPage, Math.max(0, Math.ceil(matching.length / contractsPageSize) - 1));
   const visible = new Set(matching.slice(contractsPage * contractsPageSize, (contractsPage + 1) * contractsPageSize).map(link=>link.id));
@@ -249,7 +249,7 @@ function renderContracts() {
     item.state.textContent = stageNames[resolved.state]; item.state.className = `contract-state stage-${stageClass(resolved.state)}`;
     item.row.dataset.stage = resolved.state; item.row.hidden = !visible.has(link.id);
   }
-  for (const [key, id] of [["VERIFIED","verified-links"], ["CODE","code-links"], ["BLOCKED","blocked-links"], ["other","unverified-links"]]) byId(id).textContent = counts[key];
+  for (const [key, id] of [["VERIFIED","verified-links"], ["EXECUTED","executed-links"], ["CODE","code-links"], ["BLOCKED","blocked-links"], ["other","unverified-links"]]) byId(id).textContent = counts[key];
   for (const [id, item] of relatedRows) {const resolved = SentinelArchitecture.resolveLink(linkById(id), assets); item.textContent = stageNames[resolved.state]; item.className = `stage-${stageClass(resolved.state)}`;}
 }
 function matchesFilter(link) {
@@ -367,7 +367,8 @@ function inspect(next, button) {
     metric("출발", nodeById(link.from)?.name || link.from); metric("도착", nodeById(link.to)?.name || link.to); metric("확인 시각", "", "checked"); metric("실행 검증", "", "execution");
     byId("detail-source").textContent = `${trackLabel(nodeById(link.from)?.track)} · ${nodeById(link.from)?.name} → ${nodeById(link.to)?.name}`;
     byId("detail-source-note").textContent = catalog.scope;
-    sourceAnchor(link.source, link.path); if (link.peer_source) sourceAnchor(link.peer_source, link.peer_path);
+    if (SentinelArchitecture.executionFor(link)) sourceAnchor("production_audit");
+    else {sourceAnchor(link.source, link.path); if (link.peer_source) sourceAnchor(link.peer_source, link.peer_path);}
     }
   } else if (next.kind === "context") {
     const observer = next.id === "observer";
@@ -446,9 +447,10 @@ function renderInspector() {
     const routeFinding = finding?.id === "route";
     byId("detail-status").className = `detail-status stage-${stageClass(routeFinding ? "BLOCKED" : result.state)}`;
     byId("detail-status").textContent = routeFinding ? "불일치" : stageNames[result.state];
-    byId("detail-reason").textContent = routeFinding ? finding.detail : finding ? `${finding.detail} · ${link.note}` : link.note;
-    detailFields.get("checked").textContent = result.checked_at ? time(result.checked_at) : linkDates(link);
-    detailFields.get("execution").textContent = result.verified ? "연결 점검 확인" : result.state === "FAILED" ? "연결 실패 확인" : "미검증";
+    byId("detail-reason").textContent = result.execution ? result.execution.summary : routeFinding ? finding.detail : finding ? `${finding.detail} · ${link.note}` : link.note;
+    detailFields.get("checked").textContent = result.executed ? new Date(result.checked_at).toLocaleString("ko-KR",{timeZone:"Asia/Seoul"}) : result.checked_at ? time(result.checked_at) : linkDates(link);
+    detailFields.get("execution").textContent = result.executed ? "운영에서 1회 검증 · 정리 확인" : result.verified ? "현재 연결 점검 확인" : result.state === "FAILED" ? "연결 실패 확인" : "미검증";
+    byId("detail-source-note").textContent = result.execution ? `${result.execution.limits} · 현재 상태는 자산 감시에서 별도 확인` : catalog.scope;
   }
 }
 function switchView(next) {
