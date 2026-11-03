@@ -61,9 +61,13 @@
 .map-link-label {fill:#a0b4c3;stroke:#0e171f;stroke-width:6px;paint-order:stroke;stroke-linejoin:round;font-family:var(--font);font-size:12px;letter-spacing:0;pointer-events:none}
 .map-arrow path {fill:currentColor;stroke:none}
 .map-arrow.stage-code {color:#7f94a6}
+.map-arrow.stage-executed {color:#91c7e8}
 .map-arrow.stage-design,.map-arrow.stage-unknown {color:#627583}
 .map-arrow.stage-blocked,.map-arrow.stage-failed {color:var(--red)}
 .link-verified .map-link-stroke {stroke:var(--green);stroke-width:1.8}
+.link-executed .map-link-stroke {stroke:#91c7e8;stroke-width:1.8;stroke-dasharray:9 3}
+.link-executed .map-link-label {fill:#b7ddf4}
+.map-legend .legend-executed::before {border-color:#91c7e8;border-top-style:dashed}
 .link-failed .map-link-stroke {stroke:var(--red);stroke-width:2}
 .link-blocked .map-link-stroke {stroke:var(--red);stroke-dasharray:6 4}
 .link-blocked .map-link-label,.link-failed .map-link-label {fill:var(--red)}

@@ -16,6 +16,7 @@
   <script src="/asset-model.js" defer></script>
   <link rel="stylesheet" href="/asset-groups.css">
   <script src="/asset-groups.js" defer></script>
+  <script src="/architecture-evidence.js" defer></script>
   <script src="/architecture-model.js" defer></script>
   <script src="/topology.js" defer></script>
   <script src="/data-recovery.js" defer></script>
@@ -70,7 +71,7 @@
       <div id="deployment-map" class="deployment-map" role="tabpanel" aria-labelledby="deployment-map-tab"></div>
       <div id="design-map" role="tabpanel" aria-labelledby="design-map-tab" hidden>
       <div class="map-toolbar">
-        <div class="map-legend" aria-label="연결선 확인 범위"><span class="legend-live">실측 연결</span><span class="legend-monitor">감시 보고</span><span class="legend-source">소스 확인</span><span class="legend-design">설계</span><span class="legend-blocked">계약 불일치</span></div>
+        <div class="map-legend" aria-label="연결선 확인 범위"><span class="legend-live">실측 연결</span><span class="legend-monitor">감시 보고</span><span class="legend-executed">실행 검증 기록</span><span class="legend-source">소스 확인</span><span class="legend-design">설계</span><span class="legend-blocked">계약 불일치</span></div>
         <div class="map-tools">
           <button id="map-secondary" class="text-button" type="button" aria-pressed="false">보조 연결</button>
           <div class="map-zoom" role="group" aria-label="구조도 확대 축소"><button id="map-minus" type="button" aria-label="구조도 축소">−</button><button id="map-fit" type="button" aria-label="구조도 기본 배율로 돌아가기" title="데스크톱은 전체 구조 맞춤 · 확대해서 세부 연결 확인">맞춤</button><button id="map-plus" type="button" aria-label="구조도 확대">+</button></div>
@@ -78,7 +79,7 @@
       </div>
       <p class="map-pan-hint">지도를 좌우로 밀어서 전체 구조 보기</p>
       <div id="map-viewport" class="map-viewport" tabindex="0" role="region" aria-label="MSG CTF 전체 아키텍처 지도 · 자산과 연결선을 눌러 상세 확인"><div id="map-size" class="map-size"><div id="architecture-map" class="architecture-map"></div></div></div>
-      <div class="map-caption"><span>역할별 상자를 눌러 연결된 감시 자산 확인 · 상태 수집 선은 최신 보고 결과를 표시</span><span>소스·설계 연결은 고정 검토 기준 · RPC·생성·채점 성공은 각 연결 근거로 확인</span></div>
+      <div class="map-caption"><span>상태 수집 선은 최신 보고 결과 · 실행 검증 선은 해당 날짜의 시험·정리 기록</span><span>상자와 연결선을 눌러 자산·검증 범위 확인 · 현재 상태는 자산 감시에서 별도 확인</span></div>
       </div>
     </section>
     <section id="status-view" role="tabpanel" aria-labelledby="status-tab">
@@ -156,7 +157,7 @@
     <section id="connections-view" role="tabpanel" aria-labelledby="connections-tab" hidden>
       <div class="section-heading connections-heading"><h2>역할별 연결 근거</h2><span id="audit-date" class="audit-date"></span></div>
       <div class="connections-toolbar">
-        <div class="connection-legend"><span class="stage-verified">실측 <strong id="verified-links">-</strong></span><span class="stage-code">소스 확인 <strong id="code-links">-</strong></span><span class="stage-design">설계·미확인 <strong id="unverified-links">-</strong></span><span class="stage-blocked">불일치 <strong id="blocked-links">-</strong></span></div>
+        <div class="connection-legend"><span class="stage-verified">실측 <strong id="verified-links">-</strong></span><span class="stage-executed">실행 검증 <strong id="executed-links">-</strong></span><span class="stage-code">소스 확인 <strong id="code-links">-</strong></span><span class="stage-design">설계·미확인 <strong id="unverified-links">-</strong></span><span class="stage-blocked">불일치 <strong id="blocked-links">-</strong></span></div>
         <label class="connection-filter">영역 <select id="connection-filter"><option value="ALL">전체</option><option value="INTERNAL">내부 트랙</option><option value="EXTERNAL">외부 트랙</option><option value="CONTROL">공통 제어</option><option value="RUNTIME">문제 실행·채점</option><option value="DELIVERY">문제 발행</option></select></label>
       </div>
       <div class="connections-layout"><aside class="connections-notes">
