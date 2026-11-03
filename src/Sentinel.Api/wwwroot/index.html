@@ -70,7 +70,7 @@
       <div id="deployment-map" class="deployment-map" role="tabpanel" aria-labelledby="deployment-map-tab"></div>
       <div id="design-map" role="tabpanel" aria-labelledby="design-map-tab" hidden>
       <div class="map-toolbar">
-        <div class="map-legend" aria-label="연결선 확인 범위"><span class="legend-live">실측 연결</span><span class="legend-source">소스 확인</span><span class="legend-design">설계</span><span class="legend-blocked">계약 불일치</span></div>
+        <div class="map-legend" aria-label="연결선 확인 범위"><span class="legend-live">실측 연결</span><span class="legend-monitor">감시 보고</span><span class="legend-source">소스 확인</span><span class="legend-design">설계</span><span class="legend-blocked">계약 불일치</span></div>
         <div class="map-tools">
           <button id="map-secondary" class="text-button" type="button" aria-pressed="false">보조 연결</button>
           <div class="map-zoom" role="group" aria-label="구조도 확대 축소"><button id="map-minus" type="button" aria-label="구조도 축소">−</button><button id="map-fit" type="button" aria-label="구조도 기본 배율로 돌아가기" title="데스크톱은 전체 구조 맞춤 · 확대해서 세부 연결 확인">맞춤</button><button id="map-plus" type="button" aria-label="구조도 확대">+</button></div>
@@ -78,7 +78,7 @@
       </div>
       <p class="map-pan-hint">지도를 좌우로 밀어서 전체 구조 보기</p>
       <div id="map-viewport" class="map-viewport" tabindex="0" role="region" aria-label="MSG CTF 전체 아키텍처 지도 · 자산과 연결선을 눌러 상세 확인"><div id="map-size" class="map-size"><div id="architecture-map" class="architecture-map"></div></div></div>
-      <div class="map-caption"><span>내부·외부 데이터 분리 · 보조 연결: 관리자 리소스 목록과 트랙별 팀 토큰 검증</span><span>운영 배치안 · 로컬은 컨테이너 실행 · 소스 확인은 실연동 성공을 뜻하지 않음</span></div>
+      <div class="map-caption"><span>역할별 상자를 눌러 연결된 감시 자산 확인 · 상태 수집 선은 최신 보고 결과를 표시</span><span>소스·설계 연결은 고정 검토 기준 · RPC·생성·채점 성공은 각 연결 근거로 확인</span></div>
       </div>
     </section>
     <section id="status-view" role="tabpanel" aria-labelledby="status-tab">
@@ -184,6 +184,7 @@
       <dl id="detail-metrics" class="detail-metrics"></dl>
       <details id="detail-access-section" class="detail-source" hidden><summary>접속·복구 설계 근거</summary><p id="detail-access-state"></p><dl id="detail-access" class="detail-metrics"></dl><p id="detail-access-note"></p></details>
       <details class="detail-source"><summary>점검 근거와 출처</summary><p id="detail-source"></p><p id="detail-source-note"></p><div id="detail-links" class="detail-links"></div></details>
+      <section id="detail-members-section" class="detail-members-section" hidden aria-labelledby="detail-members-title"><h3 id="detail-members-title">연결된 감시 자산</h3><div id="detail-members" class="detail-members"></div><p id="detail-members-empty" hidden>현재 연결된 감시 대상이 없습니다</p></section>
       <details id="related-section" class="related-section"><summary id="related-title">연결 관계</summary><div id="related-links"></div></details>
       <section id="detail-events-section" class="detail-events"><h3 id="detail-events-title">이 자산의 상태 변경</h3><ol id="detail-events"></ol></section>
     </div>

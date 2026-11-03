@@ -60,6 +60,11 @@
     "image-pull":{p:[[662,634],[735,634],[735,552],[1634,552],[1634,171],[1618,171]], label:[1445,544,"image digest pull"]}
   };
   const names = {"internal-backend":"Backend API", "external-backend":"Backend API", broker:"Broker", "runtime-db":"Runtime Store", "koth-score":"Scoring", ghcr:"GHCR", bundle:"Actions Bundle", registry:"Challenge Registry", "linux-pool":"Linux / K3s"};
+  const monitorRoutes = {
+    "monitor-linux-pool":{p:[[1606,210],[1626,210],[1626,572],[1562,572],[1562,644]]},
+    "monitor-koth":{p:[[1362,490],[1362,644]],label:[1399,566,"상태 수집"]},
+    "monitor-windows":{p:[[1548,490],[1548,536],[1482,536],[1482,644]]}
+  };
   let options, canvas, svg, viewport, size, scale = 1, fitted = true, secondary = false;
   const buttons = new Map(), paths = new Map();
   const element = (tag,text,className) => {const item = document.createElement(tag); if (text !== undefined) item.textContent = text; if (className) item.className = className; return item;};
@@ -71,23 +76,24 @@
   }
   function addButton(id,title,role,context = false) {
     const button = element("button",undefined,`map-node${context ? " map-context" : ""}`); button.type = "button"; button.dataset.nodeId = id; position(button,positions[id]);
-    const copy = element("span",undefined,"map-node-copy"), state = element("span",undefined,"map-node-state");
-    copy.append(element("strong",title,"map-node-name"),state); button.append(options.icon(role),copy);
-    button.addEventListener("click",()=>options.inspect({kind:context ? "context" : "asset",id},button));
+    const copy = element("span",undefined,"map-node-copy"), state = element("span",undefined,"map-node-state"), count = element("span",undefined,"map-node-count");
+    copy.append(element("strong",title,"map-node-name"),state,count); button.append(options.icon(role),copy);
+    button.addEventListener("click",()=>options.inspect({kind:context ? "context" : "asset",id,diagram:true},button));
     button.addEventListener("mouseenter",()=>focusNode(id)); button.addEventListener("mouseleave",()=>focusNode(null));
     button.addEventListener("focus",()=>focusNode(id)); button.addEventListener("blur",()=>focusNode(null));
-    canvas.append(button); buttons.set(id,{button,state,title}); return button;
+    canvas.append(button); buttons.set(id,{button,state,count,title}); return button;
   }
   function focusNode(id) {
     canvas.classList.toggle("map-focused",Boolean(id));
     for (const [key,item] of paths) item.group.classList.toggle("connected",Boolean(id && (item.link.from === id || item.link.to === id)));
   }
   function buildLine(link,route) {
-    const group = svgElement("g",{"data-map-link":link.id,class:`map-link${route.secondary ? " secondary-link" : ""}`});
+    const group = svgElement("g",{"data-map-link":link.id,class:`map-link${route.secondary ? " secondary-link" : ""}${link.kind === "monitoring" ? " monitoring-link" : ""}`});
     const d = route.p.map((point,index)=>`${index ? "L" : "M"}${point.join(" ")}`).join(" ");
     const stroke = svgElement("path",{d,class:"map-link-stroke"}), hit = svgElement("path",{d,class:"map-link-hit",tabindex:"0",role:"button"});
-    hit.addEventListener("click",()=>options.inspect({kind:"link",id:link.id},hit));
-    hit.addEventListener("keydown",event=>{if (["Enter"," "].includes(event.key)) {event.preventDefault(); options.inspect({kind:"link",id:link.id},hit);}});
+    const inspect = ()=>options.inspect({kind:link.kind === "monitoring" ? "monitoring" : "link",id:link.id},hit);
+    hit.addEventListener("click",inspect);
+    hit.addEventListener("keydown",event=>{if (["Enter"," "].includes(event.key)) {event.preventDefault(); inspect();}});
     group.append(stroke,hit);
     if (route.label) {const [x,y,text] = route.label, label = svgElement("text",{x,y,class:"map-link-label","text-anchor":"middle"}); label.textContent = text; group.append(label);}
     svg.append(group); paths.set(link.id,{group,stroke,hit,link});
@@ -122,6 +128,7 @@
     addButton("participant","참가자","USER",true); buttons.get("participant").state.textContent = "HTTPS 접속";
     const entry = svgElement("path",{d:"M114 176V253",class:"map-entry-line","marker-end":"url(#arrow-design)"}); svg.append(entry);
     for (const link of options.catalog.links) {const route = routes[link.id]; if (route) buildLine(link,route);}
+    for (const link of SentinelArchitecture.monitoringLinks([])) buildLine(link,monitorRoutes[link.id]);
     for (const definition of options.catalog.nodes) if (positions[definition.id]) addButton(definition.id,names[definition.id] || definition.name,definition.role);
     const observer = addButton("observer","SLA / Sentinel","MONITOR",true); observer.classList.add("map-observer");
     const reading = element("span",undefined,"map-observer-reading"); reading.append(element("span","실측: 수집 대기"),element("span","알림 · 자동 복구 미연결")); observer.append(reading);
@@ -137,19 +144,22 @@
     requestAnimationFrame(fit);
   }
   function render(definitions, assets, offline, ready = true, recovery = null) {
+    const monitorLinks = new Map(SentinelArchitecture.monitoringLinks(assets).map(link=>[link.id,link]));
     for (const definition of definitions) {
       const item = buttons.get(definition.id); if (!item) continue;
-      const reading = definition.reading, cls = reading ? options.statusClass(reading.status) : definition.probe_id ? "pending" : "planned";
+      const reading = definition.reading, cls = reading ? ({CRITICAL:"down",WARNING:"degraded",UNKNOWN:"unknown",PENDING:"pending",NORMAL:"healthy"}[reading.risk?.level] || options.statusClass(reading.status)) : definition.probe_id ? "pending" : "planned";
       item.button.className = `map-node status-${cls}`;
       item.button.dataset.level = reading?.risk?.level || "PENDING";
       item.state.textContent = reading ? SentinelAssets.riskNames[reading.risk?.level] || options.statusNames[reading.status] : definition.probe_id ? ready ? "감시 제외" : "점검 대기" : definition.stage === "CODE" ? "소스 확인" : "설계";
-      item.button.setAttribute("aria-label",`${options.trackLabel(definition.track)} ${definition.name} · ${item.state.textContent}`);
-      item.button.title = reading ? `${reading.name} · ${item.state.textContent}` : definition.note || "실행 상태 미확인";
+      if (definition.grouped && !reading) item.state.textContent = "감시 대상 없음";
+      item.count.textContent = definition.grouped ? definition.summary : "";
+      item.button.setAttribute("aria-label",`${options.trackLabel(definition.track)} ${definition.name} · ${item.state.textContent}${definition.grouped ? ` · ${definition.members.length}개 감시 · ${definition.summary}` : ""}`);
+      item.button.title = definition.grouped ? `${definition.members.length}개 감시 · ${definition.summary} · 상자를 눌러 개별 자산 확인` : reading ? `${reading.name} · ${item.state.textContent}` : definition.note || "실행 상태 미확인";
     }
     for (const item of paths.values()) {
-      const result = SentinelArchitecture.resolveLink(item.link,assets), cls = options.stageClass(result.state);
+      const result = item.link.kind === "monitoring" ? monitorLinks.get(item.link.id) : SentinelArchitecture.resolveLink(item.link,assets), cls = options.stageClass(result.state);
       item.group.classList.remove(...["verified","failed","unknown","design","code","blocked"].map(state=>`link-${state}`)); item.group.classList.add(`link-${cls}`);
-      item.stroke.setAttribute("marker-end",`url(#arrow-${cls})`); item.hit.setAttribute("aria-label",`${item.link.label} · ${options.stageNames[result.state]}`);
+      item.stroke.setAttribute("marker-end",`url(#arrow-${cls})`); item.hit.setAttribute("aria-label",`${item.link.label} · ${options.stageNames[result.state]}${item.link.kind === "monitoring" ? ` · ${result.members.length}개 감시 · 상태 수집` : ""}`);
     }
     buttons.get("observer").state.textContent = offline ? "최신 수집 확인 불가" : recovery?.enabled ? "로컬 자동 복구 활성" : "관측 전용 · 복구 명령 없음";
     const direct = assets.filter(asset => asset.evidence_type === "DIRECT_PROBE" && !["UNCONFIGURED", "PENDING", "STALE"].includes(asset.status)).length;
@@ -159,5 +169,5 @@
     buttons.get("observer").button.classList.toggle("status-unknown",offline);
     canvas.dataset.measuredCount = assets.length;
   }
-  root.SentinelTopology = {mount,render,fit,positions,routes,width,height};
+  root.SentinelTopology = {mount,render,fit,positions,routes,monitorRoutes,width,height};
 })(globalThis);

@@ -73,6 +73,14 @@ const statusClass = status => status === "HEALTHY" ? "healthy" : status === "DOW
 const stageClass = state => ({VERIFIED:"verified", FAILED:"failed", UNKNOWN:"unknown", PENDING:"design", CODE:"code", DESIGN:"design", BLOCKED:"blocked"}[state] || "design");
 const requiresAttention = asset => ["CRITICAL", "WARNING", "UNKNOWN"].includes(asset.risk.level);
 const nodeById = id => architectureNodes.find(item => item.id === id);
+const inspectedDefinition = item => {
+  if (item?.direct) {
+    const reading = assets.find(asset=>asset.asset_id === item.id);
+    return reading ? {id:item.id,name:reading.name,role:reading.role,track:reading.track,probe_id:item.id,reading} : null;
+  }
+  return nodeById(item?.id);
+};
+const memberRows = new Map();
 const linkById = id => catalog.links.find(item => item.id === id);
 const sourceDate = key => catalog.sources[key]?.reviewed_at || "2026-10-07";
 const linkDates = link => [...new Set([link.source, link.peer_source].filter(Boolean).map(sourceDate))].sort().join(" · ");
@@ -179,7 +187,7 @@ function render(snapshot, events, offline) {
   const updatedAt = Date.parse(snapshot.updated_at), maxAge = (Number(snapshot.stale_after_seconds) || 2 * (Number(snapshot.poll_interval_seconds) || 15) + 35) * 1000;
   disconnected = Boolean(offline) || Number.isFinite(updatedAt) && (Date.now() - updatedAt > maxAge || updatedAt - Date.now() > 30000);
   assets = SentinelAssets.buildAssets(snapshot, {offline:disconnected}); architectureNodes = SentinelArchitecture.resolveNodes(assets);
-  if(selection?.kind === "asset" && !assets.some(asset => asset.asset_id === selection.id)) byId("inspector").close();
+  if(selection?.kind === "asset" && !inspectedDefinition(selection)) byId("inspector").close();
   SentinelConsole.render(snapshot, disconnected, assets);
   SentinelOperations.render(snapshot, disconnected, assets);
   SentinelTopology.render(architectureNodes,assets,disconnected,true,snapshot.recovery);
@@ -304,17 +312,28 @@ function sourceAnchor(key, path) {
   const anchor = node("a", `${source.name} · ${source.version} ↗`); anchor.href = source.url; anchor.target = "_blank"; anchor.rel = "noopener noreferrer"; byId("detail-links").append(anchor);
 }
 function inspect(next, button) {
+  if (next.kind === "monitoring") {
+    const link = SentinelArchitecture.monitoringLinks(assets).find(item=>item.id === next.id);
+    if (!link) return;
+    next = {kind:"asset",id:link.from,diagram:true};
+  }
+  if (next.kind === "asset" && !next.diagram && assets.some(asset=>asset.asset_id === next.id)) next = {...next,direct:true};
   const dialog = byId("inspector"); const wasOpen = dialog.open;
   if (!wasOpen) opener = button || document.activeElement;
   selection = next; detailFields.clear(); relatedRows.clear(); detailEventSignature = "";
   delete byId("detail-status").dataset.level;
   byId("detail-metrics").replaceChildren(); byId("detail-links").replaceChildren(); byId("related-links").replaceChildren(); byId("detail-icon").replaceChildren();
   byId("related-section").open = false; byId("related-section").hidden = true; byId("detail-events-section").hidden = true;
+  byId("detail-members-section").hidden = true; byId("detail-members").replaceChildren(); memberRows.clear();
   if (next.kind === "asset") {
-    const definition = nodeById(next.id), asset = definition?.reading;
+    const definition = inspectedDefinition(next), asset = definition?.reading;
     if (!definition) return;
     byId("detail-group").textContent = trackLabel(definition.track); byId("detail-title").textContent = asset ? label(asset) : definition.name; byId("detail-icon").append(icon(definition.role));
-    if (asset || definition.probe_id) {
+    if (definition.grouped) {
+      metric("감시 자산","대기","members"); metric("정상","대기","normal"); metric("대표 판정","대기","group-state"); metric("가장 오래된 보고","대기","group-checked");
+      byId("detail-source").textContent = "현재 SLA 감시 목록 · /api/status";
+      byId("detail-source-note").textContent = "개별 자산의 실제 관측을 집계 · 상태 수집 경로는 서비스 간 RPC·생성·채점 경로와 별도";
+    } else if (asset || definition.probe_id) {
       metric("점검 시각", "대기", "checked"); metric("HTTP", "미확인", "http"); metric("응답 시간", "미확인", "latency"); metric("점검 방식", asset ? asset.evidence_type === "HEALTHZ_COMPONENT" ? "백엔드 healthz" : "직접 HTTP 점검" : "점검 결과 대기", "method");
       byId("detail-source").textContent = asset?.source_url || "점검 주소 미확인";
       byId("detail-source-note").textContent = asset?.evidence_type === "HEALTHZ_COMPONENT" ? "백엔드의 연결 결과 · 이 DB나 Redis를 따로 직접 점검한 것은 아님" : "API 응답 점검 · VM 전원이나 문제 풀이 기능 전체 판정은 아님";
@@ -324,7 +343,7 @@ function inspect(next, button) {
       byId("detail-source").textContent = definition.source === "notion" ? "운영 아키텍처 본문" : "고정 SHA 기준 소스";
       byId("detail-source-note").textContent = "구조에 포함된 역할 · 실제 점검 미연결이며 정상 자산 수에 포함하지 않음";
     }
-    sourceAnchor(definition.source, definition.path);
+    if (!definition.grouped) sourceAnchor(definition.source, definition.path);
     const links = catalog.links.filter(link=>link.from === next.id || link.to === next.id);
     if (links.length) {byId("related-section").hidden = false; byId("related-title").textContent = `연결 관계 ${links.length}`;
       for (const link of links) {const button = node("button", undefined, "related-link"), state = node("span"); button.type = "button";
@@ -368,12 +387,38 @@ function inspect(next, button) {
   if (!wasOpen) {dialog.showModal(); document.body.classList.add("dialog-open");} else byId("detail-close").focus();
   renderInspector(); renderContracts();
 }
+function renderGroupInspector(definition) {
+  const members = definition.members, level = definition.reading?.risk?.level || "PENDING";
+  byId("detail-access-section").hidden = true; byId("detail-events-section").hidden = true;
+  byId("detail-title").textContent = definition.name; byId("detail-status").dataset.level = level;
+  byId("detail-status").textContent = SentinelAssets.riskNames[level];
+  byId("detail-status").className = `detail-status status-${statusClass(definition.reading?.status || "PENDING")}`;
+  byId("detail-reason").textContent = `${definition.summary} · ${members.length}개 감시 · 개별 자산 중 가장 높은 위험을 대표 판정으로 표시`;
+  detailFields.get("members").textContent = String(members.length); detailFields.get("normal").textContent = String(definition.counts.NORMAL);
+  detailFields.get("group-state").textContent = SentinelAssets.riskNames[level]; detailFields.get("group-checked").textContent = time(definition.reading?.checked_at);
+  byId("detail-members-section").hidden = false;
+  const wanted = new Set(members.map(asset=>asset.asset_id));
+  for (const [id,row] of memberRows) if (!wanted.has(id)) {row.button.remove(); memberRows.delete(id);}
+  byId("detail-members-empty").hidden = members.length > 0;
+  for (const asset of members) {
+    let row = memberRows.get(asset.asset_id);
+    if (!row) {
+      const button = node("button",undefined,"detail-member"), name = node("span"), state = node("span"), checked = node("small");
+      button.type = "button"; button.append(name,state,checked); button.addEventListener("click",()=>inspect({kind:"asset",id:asset.asset_id,direct:true},button));
+      byId("detail-members").append(button); row = {button,name,state,checked}; memberRows.set(asset.asset_id,row);
+    }
+    row.name.textContent = asset.name; row.state.textContent = SentinelAssets.riskNames[asset.risk?.level] || "미확인";
+    row.checked.textContent = `보고 ${time(asset.checked_at)}`; row.button.dataset.level = asset.risk?.level || "UNKNOWN";
+  }
+}
 function renderInspector() {
   renderAccessDetail();
-  SentinelConsole.inspector(selection?.kind === "asset" ? assets.find(a=>a.asset_id === selection.id) : null);
+  const selected = selection?.kind === "asset" ? inspectedDefinition(selection) : null;
+  SentinelConsole.inspector(selected?.grouped ? null : selected?.reading || null);
   if (!selection) return;
   if (selection.kind === "asset") {
-    const definition = nodeById(selection.id), asset = assets.find(item=>item.asset_id === selection.id);
+    const definition = selected, asset = definition?.reading;
+    if (definition?.grouped) {renderGroupInspector(definition); return;}
     if (!asset && definition && !definition.probe_id) {
       byId("detail-status").className = "detail-status stage-design"; byId("detail-status").textContent = definition.stage === "CODE" ? "소스 확인 · 실행 미확인" : "설계 · 실행 미확인";
       byId("detail-reason").textContent = definition.note || "점검 연결 전 · 실제 실행 상태는 아직 확인하지 않음"; return;

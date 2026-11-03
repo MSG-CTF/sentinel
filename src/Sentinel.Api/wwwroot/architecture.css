@@ -1,4 +1,15 @@
 /* The map shares one coordinate system: nodes, borders and links pan together. */
+.map-node-count {font-size:10px;color:var(--muted);line-height:1.3}
+.map-node-count:empty {display:none}
+.monitoring-link .map-link-stroke {stroke-dasharray:3 5}
+.map-legend .legend-monitor::before {border-color:var(--green);border-top-style:dotted}
+.detail-members-section {margin-block:18px}
+.detail-members {display:grid;gap:8px}
+.detail-member {display:grid;grid-template-columns:1fr auto;gap:5px 12px;width:100%;padding:12px;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:6px;min-height:48px}
+.detail-member small {grid-column:1/-1;color:var(--muted)}
+.detail-member[data-level="NORMAL"]>span:nth-child(2) {color:var(--green)}
+.detail-member[data-level="CRITICAL"]>span:nth-child(2) {color:var(--red)}
+.detail-member[data-level="WARNING"]>span:nth-child(2),.detail-member[data-level="UNKNOWN"]>span:nth-child(2) {color:var(--amber)}
 .header-inner,.main,.site-footer {max-width:1840px}
 .header-inner {min-height:74px;gap:45px}
 .view-tabs {gap:27px}
