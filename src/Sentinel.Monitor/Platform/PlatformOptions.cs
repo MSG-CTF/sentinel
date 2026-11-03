@@ -64,6 +64,9 @@ public sealed class PlatformTarget
 
     public bool IsValid()
     {
+        if (Kind == "service_heartbeat" && ExpectedFields.TryGetValue("probe_kind", out var probe)
+            && (probe != "rdp_tcp" || !int.TryParse(ExpectedFields.GetValueOrDefault("connection_target_count"), out var count)
+                || count is < 1 or > 32)) return false;
         if (!Regex.IsMatch(TargetId, "^[a-z][a-z0-9_-]{0,63}$")
             || Name.Length is 0 or > 100 || Role.Length is 0 or > 32 || Track.Length is 0 or > 32
             || Kind is not ("backend_healthz" or "runtime_healthz" or "http" or "json_fields" or "scheduler_inventory" or "broker_inventory" or "runtime_status" or "runtime_node" or "runtime_operation" or "service_heartbeat" or "cluster_heartbeat" or "challenge_heartbeat" or "auth_boundary")

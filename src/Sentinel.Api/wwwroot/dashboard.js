@@ -7,6 +7,8 @@ const groupNames = {PUBLIC:"배포 사이트", INTERNAL:"내부 트랙", EXTERNA
 const assetLabels = {"internal-backend":["내부 백엔드","백엔드 API"], "external-backend":["외부 백엔드","백엔드 API"], scheduler:["인스턴스 스케줄러","스케줄러"], broker:["리소스 브로커","리소스 브로커"], runtime:["문제 런타임","런타임 API"], koth:["KoTH 서버","KoTH"], windows:["Windows 문제 서버","Windows"]};
 const roleNotes = {SCHEDULER:"생성·만료 관리", BROKER:"자원 후보·예약", RUNTIME:"문제 생성·삭제", KOTH:"전용 문제 서버", WINDOWS:"전용 문제 서버"};
 const reasonNames = {
+  RDP_CONNECTIONS_READY:"등록된 Windows RDP 포트 접속 가능 · 로그인·프로그램 실행은 별도 확인",
+  RDP_CONNECTIONS_UNREACHABLE:"일부 Windows RDP 포트 연결 실패 · VM·네트워크 확인 필요",
   FUNCTION_UNAVAILABLE:"실습 문제 기능에서 HTTP 5xx 오류 발생",
   DATABASE_LOGIN_AND_ACCESS_RULES_CONFIRMED:"실습 문제의 DB 로그인 조회·접근 제한 정상 확인", NOTICE_DATABASE_READ_CONFIRMED:"실습 문제의 DB 조회 정상 확인",
   FUNCTION_RESPONSE_MISMATCH:"실습 문제 기능의 실제 응답 불일치", FUNCTION_UNREACHABLE:"실습 문제 기능 연결 실패", FUNCTION_TIMEOUT:"실습 문제 기능 응답 시간 초과",
@@ -185,7 +187,7 @@ function render(snapshot, events, offline) {
   for (const asset of assets) {
     const item = assetRows.get(asset.asset_id); item.button.className = `asset-row status-${statusClass(asset.status)}`; item.button.dataset.level = asset.risk.level;
     item.state.textContent = SentinelAssets.riskNames[asset.risk.level];
-    const note = asset.evidence_type === "HEALTHZ_COMPONENT" ? "healthz 간접 점검" : asset.status === "STALE" ? "수집 지연" : ["UNCONFIGURED", "PENDING"].includes(asset.status) ? "연결 대기" : ["service_heartbeat", "cluster_heartbeat", "challenge_heartbeat"].includes(asset.kind) && asset.checked_at ? `보고 ${time(asset.checked_at)}` : asset.http_status_code != null ? `HTTP ${asset.http_status_code}${asset.latency_ms != null ? ` · ${SentinelAssets.responseTimeText(asset)}` : ""}` : "응답 없음";
+    const note = asset.evidence_type === "HEALTHZ_COMPONENT" ? "healthz 간접 점검" : asset.status === "STALE" ? "수집 지연" : ["UNCONFIGURED", "PENDING"].includes(asset.status) ? "연결 대기" : ["service_heartbeat", "cluster_heartbeat", "challenge_heartbeat"].includes(asset.kind) && asset.checked_at ? [SentinelAssets.connectionReadinessText(asset),`보고 ${time(asset.checked_at)}`].filter(Boolean).join(" · ") : asset.http_status_code != null ? `HTTP ${asset.http_status_code}${asset.latency_ms != null ? ` · ${SentinelAssets.responseTimeText(asset)}` : ""}` : "응답 없음";
     item.reading.textContent = SentinelAssets.riskText(asset) || `${trackLabel(asset.track)} · ${note}`;
     item.button.setAttribute("aria-label", `${trackLabel(asset.track)} ${label(asset)} · ${SentinelAssets.riskNames[asset.risk.level]}`);
     item.button.title = `${label(asset)} · ${SentinelAssets.riskText(asset) || reasonNames[asset.reason_code] || asset.reason_code}`;

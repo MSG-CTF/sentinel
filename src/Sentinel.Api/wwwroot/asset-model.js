@@ -101,13 +101,18 @@
     const scope = asset.kind === "scheduler_inventory" && asset.components?.latency_scope === "max_page_response" ? " · 페이지 최대" : "";
     return `${Math.round(asset.latency_ms)} ms${scope}`;
   }
+  function connectionReadinessText(asset) {
+    const parts=asset.components || {}, total=Number(parts.connection_target_count), ready=Number(parts.connection_ready_count);
+    return parts.probe_kind==="rdp_tcp" && Number.isInteger(total) && total>0 && total<=32
+      && Number.isInteger(ready) && ready>=0 && ready<=total ? `RDP ${ready}/${total}` : "";
+  }
   function inventoryScanText(asset) {
     if (asset.kind !== "scheduler_inventory" || asset.components?.latency_scope !== "max_page_response") return "";
     const parts = asset.components;
     if (![parts.inventory_total, parts.page_count, parts.scan_duration_ms].every(value => typeof value === "string" && value.trim() && Number.isFinite(Number(value)) && Number(value) >= 0)) return "";
     return `전체 ${Number(parts.inventory_total).toLocaleString("ko-KR")}개 · ${Number(parts.page_count)}페이지 · 수집 ${Math.round(Number(parts.scan_duration_ms)).toLocaleString("ko-KR")} ms`;
   }
-  const api = {buildAssets, summarize, trustedComponents, resolveRisk, riskCounts, riskNames, metricNames, riskText, responseTimeText, inventoryScanText};
+  const api = {buildAssets, summarize, trustedComponents, resolveRisk, riskCounts, riskNames, metricNames, riskText, responseTimeText, inventoryScanText, connectionReadinessText};
   root.SentinelAssets = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
