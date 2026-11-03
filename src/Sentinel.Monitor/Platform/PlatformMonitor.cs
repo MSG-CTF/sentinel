@@ -22,11 +22,13 @@ public sealed class PlatformMonitor
     private DateTimeOffset? _updatedAt;
     private bool _storageHealthy = true;
     private readonly RiskEvaluator _risk;
+    private readonly BrokerFleetStore? _fleet;
 
     public PlatformMonitor(IOptions<PlatformOptions> options, PlatformProbeClient probe, ILogger<PlatformMonitor> logger,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null, BrokerFleetStore? brokerFleetStore = null)
     {
         _options = options.Value;
+        _fleet = brokerFleetStore;
         _risk = new RiskEvaluator(_options.RiskPolicy, 2 * _options.PollIntervalSeconds + _options.TimeoutSeconds + 5);
         _probe = probe;
         _logger = logger;
@@ -45,7 +47,7 @@ public sealed class PlatformMonitor
         try
         {
             using var concurrency = new SemaphoreSlim(4, 4);
-            var results = await Task.WhenAll(_options.Targets.Select(async target =>
+            var polled = await Task.WhenAll(_options.Targets.Select(async target =>
             {
                 await concurrency.WaitAsync(cancellationToken);
                 try { return await _probe.CheckAsync(target, _options.TimeoutSeconds, cancellationToken); }
@@ -53,12 +55,18 @@ public sealed class PlatformMonitor
             }));
             lock (_gate)
             {
+                var fleetTargets = _fleet?.Targets() ?? [];
+                var activeIds = _options.Targets.Concat(fleetTargets).Select(t => t.TargetId).ToHashSet();
+                foreach (var removed in _observations.Keys.Where(id => !activeIds.Contains(id)).ToArray())
+                { _observations.Remove(removed); _streaks.Remove(removed); _risk.Forget(removed); }
+                var results = polled.Concat(_fleet?.Observations() ?? []).Where(result => activeIds.Contains(result.TargetId)).ToArray();
                 foreach (var result in results)
                 {
-                    var previous = _observations[result.TargetId];
+                    var previous = _observations.GetValueOrDefault(result.TargetId);
                     _observations[result.TargetId] = result with { Risk = _risk.Evaluate(result) };
                     // A cached readiness response is one measurement, including in event history.
-                    if (result.Kind is not ("runtime_healthz" or "challenge_heartbeat") || previous.CheckedAt is null || result.CheckedAt > previous.CheckedAt)
+                    if (result.Kind is not ("runtime_healthz" or "challenge_heartbeat" or "cluster_heartbeat" or "service_heartbeat")
+                        || previous?.CheckedAt is null || result.CheckedAt > previous.CheckedAt)
                         ObserveTransition(result);
                 }
                 _updatedAt = _clock.GetUtcNow();
@@ -74,16 +82,19 @@ public sealed class PlatformMonitor
     {
         lock (_gate) return new(_options.Profile, "observe_only", _startedAt, _updatedAt,
             _options.PollIntervalSeconds, _options.FailureThreshold, _storageHealthy,
-            _options.Targets.Select(target => CurrentObservation(target.TargetId)).ToArray(),
+            _options.Targets.Concat(_fleet?.Targets() ?? []).Select(target => CurrentObservation(target)).ToArray(),
             RiskPolicy: _options.RiskPolicy, StaleAfterSeconds: 2 * _options.PollIntervalSeconds + _options.TimeoutSeconds + 5);
     }
 
-    private ProbeObservation CurrentObservation(string targetId)
+    private ProbeObservation CurrentObservation(PlatformTarget target)
     {
-        var result = _observations[targetId];
+        var previous = _observations.GetValueOrDefault(target.TargetId);
+        var result = BrokerFleetStore.ReservedId(target.TargetId) && _fleet is not null
+            ? _fleet.Project(target, previous)
+            : previous ?? PlatformProbeClient.Result(target, "PENDING", "NOT_CHECKED_YET", null, null, null);
         var collectorDeadline = 2 * _options.PollIntervalSeconds + _options.TimeoutSeconds + 5;
         var staleAfter = result.Kind == "challenge_heartbeat" ? ChallengeHeartbeatStore.FreshSeconds
-            : result.Kind is "service_heartbeat" or "cluster_heartbeat" ? 150 : collectorDeadline;
+            : result.Kind is "service_heartbeat" or "cluster_heartbeat" ? 150 : result.Kind == "broker_fleet" ? BrokerFleetStore.FreshSeconds : collectorDeadline;
         var collectorStale = _updatedAt is { } updated && (_clock.GetUtcNow() - updated).TotalSeconds > collectorDeadline;
         return result.CheckedAt is { } at && (collectorStale || (_clock.GetUtcNow() - at).TotalSeconds > staleAfter)
             ? result with { Status = "STALE", ReasonCode = "MONITOR_REFRESH_STALE", Risk = RiskEvaluator.Unmeasured("STALE") }

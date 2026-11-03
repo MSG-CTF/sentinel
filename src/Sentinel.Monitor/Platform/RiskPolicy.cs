@@ -57,6 +57,10 @@ public sealed class RiskEvaluator(RiskPolicy policy, int probeGapSeconds = 39)
         "UNCONFIGURED" or "PENDING" => "PENDING", _ => "UNKNOWN",
     };
     public static RiskAssessment Unmeasured(string status) => new(BaseLevel(status), []);
+    public void Forget(string targetId)
+    {
+        foreach (var key in _states.Keys.Where(key => key.Target == targetId).ToArray()) _states.Remove(key);
+    }
 
     public RiskAssessment Evaluate(ProbeObservation observation)
     {

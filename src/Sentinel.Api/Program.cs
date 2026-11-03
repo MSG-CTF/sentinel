@@ -36,6 +36,12 @@ builder.Services.AddSingleton<AssetOperations>(sp => new(AssetOperations.Load(),
 var app = builder.Build();
 app.Use(async (context, next) =>
 {
+    if (context.Request.Path.StartsWithSegments("/ingest/fleet") && context.Request.Method == "POST")
+    {
+        var size = context.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>();
+        if (size is { IsReadOnly: false }) size.MaxRequestBodySize = 262144;
+        if (context.Request.ContentLength > 262144) { context.Response.StatusCode = 413; return; }
+    }
     context.Response.Headers["X-Content-Type-Options"] = "nosniff";
     context.Response.Headers["X-Frame-Options"] = "DENY";
     context.Response.Headers["Content-Security-Policy"] =
@@ -86,6 +92,26 @@ app.MapPost("/ingest/challenge/{target_id}", (string target_id, ChallengeHeartbe
         return Results.Unauthorized();
     return store.Accept(target_id, body) ? Results.Ok(new { accepted = true }) : Results.BadRequest();
 });
+app.MapPost("/ingest/fleet/roster", (FleetRoster body, HttpContext context, BrokerFleetStore store) =>
+{
+    if (context.Request.Headers.Authorization.Count != 1 || !store.Authorize(context.Request.Headers.Authorization.ToString(), true))
+        return Results.Unauthorized();
+    var result = store.AcceptRoster(body);
+    return result == "ACCEPTED" ? Results.Ok(new { accepted = true, roster_version = store.Version })
+        : Results.Json(new { accepted = false, code = result }, statusCode: result == "REPLAY" ? 409 : result == "STORAGE_UNAVAILABLE" ? 503 : 400);
+});
+app.MapGet("/ingest/fleet/desired", (HttpContext context, BrokerFleetStore store) =>
+    context.Request.Headers.Authorization.Count == 1 && store.Authorize(context.Request.Headers.Authorization.ToString(), false)
+        ? Results.Ok(store.Desired()) : Results.Unauthorized());
+app.MapPost("/ingest/fleet/observations", (FleetBatch body, HttpContext context, BrokerFleetStore store) =>
+{
+    if (context.Request.Headers.Authorization.Count != 1 || !store.Authorize(context.Request.Headers.Authorization.ToString(), false))
+        return Results.Unauthorized();
+    var result = store.AcceptBatch(body);
+    return result == "ACCEPTED" ? Results.Ok(new { accepted = true })
+        : Results.Json(new { accepted = false, code = result }, statusCode: result is "REPLAY" or "ROSTER_CHANGED" ? 409 : 400);
+});
+app.MapGet("/api/fleet", (BrokerFleetStore store) => Results.Ok(store.Desired()));
 app.MapGet("/health", (RecoveryCoordinator recovery) => Results.Ok(new
 {
     service = "sentinel", status = "ok", mode = recovery.Mode, checked_at = DateTimeOffset.UtcNow,

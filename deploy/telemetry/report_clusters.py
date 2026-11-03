@@ -14,12 +14,13 @@ from report_service import send
 
 REGISTRY = Path('/etc/secure-provisioner/registry.json')
 KUBECTL = '/usr/local/bin/kubectl'
+CACHE_DIRECTORY = '/run/sentinel-cluster-report/cache'
 COUNTERS = ('node_count', 'ready_node_count', 'schedulable_node_count', 'memory_pressure_node_count',
             'disk_pressure_node_count', 'pid_pressure_node_count', 'unknown_condition_node_count')
 
 
 def run_json(config_path, args):
-    result = subprocess.run([KUBECTL, '--cache-dir=/run/sentinel-cluster-report/cache',
+    result = subprocess.run([KUBECTL, '--cache-dir=' + CACHE_DIRECTORY,
                              '--kubeconfig=' + config_path, '--request-timeout=6s', 'get'] + args,
                             capture_output=True, text=True, check=True, timeout=9)
     if len(result.stdout) > 2 * 1024 * 1024:
@@ -45,7 +46,8 @@ def observe(cluster, now):
     target = cluster['target_id']
     config_path = PurePosixPath(cluster['kubeconfig_path'])
     if (not config_path.is_absolute() or config_path.parent not in {
-            PurePosixPath('/etc/secure-provisioner/kubeconfigs'), PurePosixPath('/etc/sentinel-telemetry/kubeconfigs')}
+            PurePosixPath('/etc/secure-provisioner/kubeconfigs'), PurePosixPath('/etc/sentinel-telemetry/kubeconfigs'),
+            PurePosixPath('/run/sentinel-fleet-report/kubeconfigs')}
             or config_path.suffix not in {'.yaml', '.yml', '.json'}):
         raise ValueError('Kubeconfig is outside the fixed configuration directory')
     document = run_json(str(config_path), ['nodes', '-o', 'json'])

@@ -6,7 +6,7 @@ using Sentinel.Monitor.Instances;
 namespace Sentinel.Monitor.Platform;
 
 public sealed class PlatformProbeClient(HttpClient httpClient, HeartbeatStore? heartbeatStore = null, ClusterHeartbeatStore? clusterHeartbeatStore = null,
-    TimeProvider? timeProvider = null, ChallengeHeartbeatStore? challengeHeartbeatStore = null)
+    TimeProvider? timeProvider = null, ChallengeHeartbeatStore? challengeHeartbeatStore = null, BrokerFleetStore? brokerFleetStore = null)
 {
     private const int MaxBodyBytes = 65536;
     private DateTimeOffset Now => (timeProvider ?? TimeProvider.System).GetUtcNow();
@@ -24,6 +24,8 @@ public sealed class PlatformProbeClient(HttpClient httpClient, HeartbeatStore? h
             return clusterHeartbeatStore?.Read(target) ?? Result(target, "UNCONFIGURED", "HEARTBEAT_PENDING", null, null, null);
         if (target.Kind == "challenge_heartbeat")
             return challengeHeartbeatStore?.Read(target) ?? Result(target, "PENDING", "FUNCTIONAL_REPORT_PENDING", null, null, null);
+        if (target.Kind == "broker_fleet")
+            return brokerFleetStore?.ReadStatus(target) ?? Result(target, "UNVERIFIED", "FLEET_ROSTER_STALE", null, null, null);
 
         if (target.Kind == "scheduler_inventory")
         {

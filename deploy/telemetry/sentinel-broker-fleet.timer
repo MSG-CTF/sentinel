@@ -1,0 +1,10 @@
+[Unit]
+Description=Synchronize Broker monitoring registrations every thirty seconds
+[Timer]
+OnBootSec=15s
+OnUnitActiveSec=30s
+RandomizedDelaySec=2s
+AccuracySec=1s
+Unit=sentinel-broker-fleet.service
+[Install]
+WantedBy=timers.target

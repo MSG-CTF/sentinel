@@ -126,14 +126,35 @@ def validate_configuration(profile, credentials):
     if profile.get("platform_recovery", {}).get("enabled") is not False:
         raise ValueError("Production recovery adapter has not been enabled for deployment")
     names = instance_credentials(profile.get("instance_monitor"))
+    fleet = profile.get("broker_fleet", {"enabled": False})
+    if not isinstance(fleet, dict) or type(fleet.get("enabled")) is not bool:
+        raise ValueError("Invalid Broker fleet configuration")
+    fleet_enabled = fleet["enabled"]
+    if fleet_enabled:
+        if fleet.get("state_file") != "data/broker-fleet.json":
+            raise ValueError("Invalid fleet state file")
+        fleet_names = [token_name(fleet.get(field)) for field in ("publisher_token_env", "observer_token_env")]
+        if len(set(fleet_names)) != 2 or any(not isinstance(credentials.get(name), str) or len(credentials[name]) < 32 for name in fleet_names):
+            raise ValueError("Fleet publisher and observer require dedicated credentials")
+        if credentials[fleet_names[0]] == credentials[fleet_names[1]]:
+            raise ValueError("Fleet publisher and observer credentials must differ")
+        names.update(fleet_names)
     targets = monitor.get("targets")
     if not isinstance(targets, list) or not 1 <= len(targets) <= 64:
         raise ValueError("Invalid target collection")
     owned_instances = set()
+    if fleet_enabled and (sum(t.get("kind") == "broker_fleet" for t in targets) != 1
+            or any(t.get("target_id", "").startswith(("fleet-node-", "fleet-windows-")) for t in targets)):
+        raise ValueError("Fleet requires one source status target and its own dynamic namespace")
     for target in targets:
         if not isinstance(target, dict):
             raise ValueError("Invalid target definition")
         if target.get("enabled", True):
+            if target.get("kind") == "broker_fleet":
+                if (not fleet_enabled or target.get("target_id") != "broker-fleet" or target.get("role") != "BROKER"
+                        or target.get("track") != "CONTROL" or target.get("url") or target.get("auth_token_env") or target.get("expected_fields")):
+                    raise ValueError("Invalid Broker fleet status target")
+                continue
             if target.get("kind") in {"service_heartbeat", "cluster_heartbeat", "challenge_heartbeat"}:
                 if target.get("url") or not target.get("auth_token_env"):
                     raise ValueError("Heartbeat requires a dedicated token and no probe URL")
