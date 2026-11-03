@@ -1,0 +1,29 @@
+[Unit]
+Description=Observe Broker registered nodes and Windows RDP listeners
+Wants=network-online.target
+After=network-online.target
+[Service]
+Type=oneshot
+User=provisioner
+Group=provisioner
+LoadCredential=fleet.json:/etc/sentinel-telemetry/fleet.json
+LoadCredential=broker-token:/etc/secure-provisioner/secrets/gateway-runtime-token
+ExecStart=/usr/bin/python3 /opt/sentinel-telemetry/report_fleet.py
+StateDirectory=sentinel-fleet-report
+StateDirectoryMode=0700
+RuntimeDirectory=sentinel-fleet-report
+RuntimeDirectoryMode=0700
+Environment=HOME=/run/sentinel-fleet-report
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+UMask=0077
+TimeoutStartSec=55
+MemoryMax=256M
+CPUQuota=15%

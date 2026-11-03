@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Complete Broker monitoring roster v1",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "checked_at", "complete", "nodes", "windows"],
+  "properties": {
+    "schema_version": {"const": 1}, "checked_at": {"type": "string", "format": "date-time"},
+    "complete": {"const": true},
+    "nodes": {"type": "array", "maxItems": 64, "items": {"$ref": "#/$defs/node"}},
+    "windows": {"type": "array", "maxItems": 64, "items": {"$ref": "#/$defs/windows"}}
+  },
+  "$defs": {
+    "node": {
+      "type": "object", "additionalProperties": false,
+      "required": ["resource_target_id", "node_uid", "name", "scope_id", "server_url"],
+      "properties": {
+        "resource_target_id": {"type": "string", "format": "uuid"},
+        "node_uid": {"type": ["string", "null"], "format": "uuid"},
+        "name": {"type": "string", "minLength": 1, "maxLength": 80},
+        "scope_id": {"type": "string", "minLength": 1, "maxLength": 80},
+        "server_url": {"type": ["string", "null"], "format": "uri"}
+      }
+    },
+    "windows": {
+      "type": "object", "additionalProperties": false,
+      "required": ["resource_target_id", "name", "host", "port"],
+      "properties": {
+        "resource_target_id": {"type": "string", "format": "uuid"},
+        "name": {"type": "string", "minLength": 1, "maxLength": 80},
+        "host": {"type": "string"}, "port": {"type": "integer", "minimum": 1, "maximum": 65535}
+      }
+    }
+  }
+}

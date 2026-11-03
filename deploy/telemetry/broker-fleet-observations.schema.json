@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Broker fleet observation batch v1",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "roster_version", "checked_at", "reports"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "roster_version": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "checked_at": {"type": "string", "format": "date-time"},
+    "reports": {"type": "array", "maxItems": 64, "items": {
+      "type": "object", "additionalProperties": false, "required": ["resource_target_id"],
+      "properties": {
+        "resource_target_id": {"type": "string", "format": "uuid"},
+        "node": {"$ref": "cluster-heartbeat.schema.json"},
+        "windows": {"type": "object", "additionalProperties": false,
+          "required": ["checked_at", "reachable"],
+          "properties": {"checked_at": {"type": "string", "format": "date-time"}, "reachable": {"type": "boolean"}}}
+      },
+      "oneOf": [{"required": ["node"], "not": {"required": ["windows"]}}, {"required": ["windows"], "not": {"required": ["node"]}}]
+    }}
+  }
+}

@@ -1,0 +1,10 @@
+[Unit]
+Description=Observe the current Broker monitoring roster every thirty seconds
+[Timer]
+OnBootSec=20s
+OnUnitActiveSec=30s
+RandomizedDelaySec=2s
+AccuracySec=1s
+Unit=sentinel-fleet-report.service
+[Install]
+WantedBy=timers.target

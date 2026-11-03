@@ -118,7 +118,7 @@ public static class AdminAccessRegistration
             var publicFile = path.Value is "/login" or "/login.html" || IsPublicStaticAsset(path);
             var ownAuthentication = path.Value is "/auth/csrf" or "/auth/login" or "/internal/readiness" or "/internal/metrics" or "/internal/grafana-auth"
                 || path.StartsWithSegments("/internal/recovery") || path.StartsWithSegments("/ingest/heartbeat") || path.StartsWithSegments("/ingest/cluster")
-                || path.StartsWithSegments("/ingest/challenge");
+                || path.StartsWithSegments("/ingest/challenge") || path.StartsWithSegments("/ingest/fleet");
             if (access.Enabled && !publicFile && !ownAuthentication && context.User.Identity?.IsAuthenticated != true)
             {
                 if (path.Value is "/" or "/index.html") context.Response.Redirect("/login");

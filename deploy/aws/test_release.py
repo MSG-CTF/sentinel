@@ -17,6 +17,22 @@ def profile():
 
 
 class ConfigurationTests(unittest.TestCase):
+    def test_fleet_requires_distinct_scoped_tokens_and_no_static_dynamic_namespace(self):
+        config=profile();config['broker_fleet']={'enabled':True,'state_file':'data/broker-fleet.json',
+          'publisher_token_env':'FLEET_PUB','observer_token_env':'FLEET_OBS'}
+        config['platform_monitor']['targets'].append({'target_id':'broker-fleet','name':'Fleet','role':'BROKER','track':'CONTROL','kind':'broker_fleet'})
+        credentials={'FLEET_PUB':'p'*48,'FLEET_OBS':'o'*48}
+        self.assertIn('FLEET_PUB=',release.validate_configuration(config,credentials))
+        for bad in ({'FLEET_PUB':'p'*48},{'FLEET_PUB':'p'*48,'FLEET_OBS':'p'*48}):
+            with self.assertRaises(ValueError):release.validate_configuration(config,bad)
+        for invalid in ('data/../secrets.json','/etc/passwd'):
+            changed=json.loads(json.dumps(config));changed['broker_fleet']['state_file']=invalid
+            with self.assertRaises(ValueError):release.validate_configuration(changed,credentials)
+        changed=json.loads(json.dumps(config));changed['platform_monitor']['targets'].append({'target_id':'fleet-node-spoof','url':'https://example.com'})
+        with self.assertRaises(ValueError):release.validate_configuration(changed,credentials)
+        changed=json.loads(json.dumps(config));changed.pop('broker_fleet')
+        with self.assertRaises(ValueError):release.validate_configuration(changed,{})
+
     def test_live_profile_supports_current_node_pool_but_rejects_more_than_64_targets(self):
         for count in (33, 64, 65):
             config=profile()

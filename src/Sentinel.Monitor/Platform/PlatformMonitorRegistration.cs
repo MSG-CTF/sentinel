@@ -27,6 +27,15 @@ public static class PlatformMonitorRegistration
         services.AddSingleton<HeartbeatStore>();
         services.AddSingleton<ClusterHeartbeatStore>();
         services.AddSingleton<ChallengeHeartbeatStore>();
+        services.AddOptions<BrokerFleetOptions>().Bind(configuration.GetSection(BrokerFleetOptions.SectionName))
+            .Validate(options => options.IsValid(), "Invalid broker_fleet configuration").ValidateOnStart();
+        services.AddSingleton<BrokerFleetStore>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<BrokerFleetOptions>>();
+            if (options.Value.Enabled && sp.GetRequiredService<IOptions<PlatformOptions>>().Value.Targets.Any(t => BrokerFleetStore.ReservedId(t.TargetId)))
+                throw new InvalidOperationException("Static targets cannot use the Broker fleet namespace");
+            return new(options);
+        });
         services.AddHostedService<PlatformMonitorWorker>();
         return services;
     }
