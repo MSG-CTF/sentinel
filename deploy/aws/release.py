@@ -223,6 +223,11 @@ def build_manifest(directory, revision, run_id, attempt):
     info = json.loads(run(["docker", "image", "inspect", image]).stdout)[0]
     manifest = {"revision": revision, "release_id": revision + "-" + run_id + "-" + attempt,
                 "image_id": info["Id"]}
+    telemetry = os.environ.get('SENTINEL_RUNTIME_TELEMETRY_DEPLOY_ENABLED', 'false')
+    if telemetry not in {'true', 'false'}:
+        raise ValueError('Invalid runtime telemetry deployment setting')
+    if telemetry == 'true':
+        manifest['runtime_telemetry'] = True
     (directory / "release.json").write_text(json.dumps(manifest) + "\n", encoding="utf-8")
 
 
@@ -427,6 +432,12 @@ def deploy(directory):
             if result.returncode == 0:
                 state = json.loads(result.stdout)
                 if state["Status"] == "Success":
+                    for line in state.get('StandardOutputContent', '').splitlines():
+                        if line.startswith('SENTINEL_RUNTIME_TELEMETRY '):
+                            receipt = json.loads(line[len('SENTINEL_RUNTIME_TELEMETRY '):])
+                            print('Runtime telemetry installed and natively observed: ' + json.dumps({
+                                k: receipt[k] for k in ['revision', 'run_id', 'run_attempt', 'kubectl_version',
+                                    'kubectl_sha256', 'cpu_quota_percent', 'installed_at']}))
                     print("Deployment and health checks passed for " + manifest["revision"])
                     summary = os.environ.get("GITHUB_STEP_SUMMARY")
                     if summary:
