@@ -7,9 +7,9 @@ const copy=value=>JSON.parse(JSON.stringify(value));
 function load(proof=evidence){const context={SentinelExecutionEvidence:copy(proof)};vm.runInNewContext(source,context);return context.SentinelArchitecture;}
 function link(api,id){return api.catalog.links.find(l=>l.id===id);}
 
-test("published records bind ten actual connections and contain full cleanup and source provenance",()=>{
+test("published records bind twelve actual connections and contain full cleanup and source provenance",()=>{
   const api=load(),ids=evidence.runs.flatMap(r=>r.connections.map(l=>l.id));
-  assert.equal(ids.length,10);assert.equal(new Set(ids).size,10);
+  assert.equal(ids.length,12);assert.equal(new Set(ids).size,12);
   assert.equal(evidence.cleanup.namespaces_removed,evidence.cleanup.temporary_instances_created);
   assert.equal(evidence.cleanup.reservations_released,evidence.cleanup.temporary_instances_created);
   assert.equal(evidence.cleanup.participant_points_unchanged,true);
@@ -27,11 +27,23 @@ test("a dated execution does not claim current reachability or invent a monitore
   assert.ok(api.resolveLink(link(api,"external-token"),assets).execution.limits.includes("로그인"));
 });
 
-test("external evidence cannot verify internal creation, inventory, score or team-token RPC",()=>{
+test("internal evidence stays scoped to its six games and does not credit ordinary instance creation",()=>{
   const api=load();
-  for(const id of ["internal-create","internal-inventory","internal-score-poll","internal-token"]){const result=api.resolveLink(link(api,id),[]);assert.equal(result.executed,undefined,id);assert.equal(result.verified,false,id);}
+  for(const id of ["internal-create","internal-inventory"]){const result=api.resolveLink(link(api,id),[]);assert.equal(result.executed,undefined,id);assert.equal(result.verified,false,id);}
+  for(const id of ["internal-score-poll","internal-token"]){const result=api.resolveLink(link(api,id),[]);assert.equal(result.state,"EXECUTED",id);assert.equal(result.execution.track,"INTERNAL");assert.equal(result.execution.game_results.length,6);}
   const changed=copy(evidence),record=changed.runs.find(r=>r.run_id==="backend-broker-inventory");record.connections[0].id="internal-inventory";
   const altered=load(changed);assert.equal(altered.executionFor(link(altered,"internal-inventory")),null);
+});
+
+test("wrong track, external origin, missing or duplicated internal game results fail closed",()=>{
+  for(const patch of [{track:"EXTERNAL"},{backend_origin:"https://msgctf.kr"},{game_results:[]},{cleanup_verified:false}]){
+    const proof=copy(evidence),record=proof.runs.find(r=>r.run_id==="internal-koth-native-games");Object.assign(record,patch);const api=load(proof);
+    assert.equal(api.executionFor(link(api,"internal-token")),null);
+  }
+  for(const change of [games=>games[0].passed=false,games=>games[0].name=games[1].name]){
+    const proof=copy(evidence);change(proof.runs.find(r=>r.run_id==="internal-koth-native-games").game_results);const api=load(proof);
+    assert.equal(api.executionFor(link(api,"internal-token")),null);
+  }
 });
 
 test("incomplete cleanup, simulated tests, missing digest or future evidence fail closed",()=>{

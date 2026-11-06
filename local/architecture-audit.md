@@ -460,3 +460,20 @@ SLA는 장애를 판단하고 복구를 요청하되 실제 자산 복구 동작
     python local/verify_real.py
 
 이 문서는 로컬 구현과 연결 검수 기록이며 운영 배포 완료 보고서가 아니다
+
+## 내부 KoTH 실행 근거 추가 · 2026년 11월 6일
+
+내부 Backend와 내부 KoTH 6곳에서 실제 로그인, 로그인 이후 토큰 재검증, 게임 요청과 제출 처리, HTTPS 점수 수집을 실행했다
+Card는 공유 왕좌를 변경하지 않는 공격 주문, Jenga는 배치와 동일 요청 재사용, Swanopoly는 시험 경기와 봇 제출, Pixel은 PNG 제출, Grand는 봇 검증과 연습 경기 12개, Dependency는 gVisor 채점 PASS를 확인했다
+
+Backend에서 완료된 점수 구간 6개를 각각 적용한 뒤 같은 구간의 두 번째 호출이 반영되지 않는 것을 확인했고 모든 시험 쓰기를 바깥 트랜잭션에서 되돌렸다
+Jenga·Swanopoly·Pixel·Dependency는 실제 검증 팀 결과에 각각 40점이 계산됐고 Card·Grand는 결과가 없는 구간의 정상 응답 처리를 확인했다
+Grand의 공식 토너먼트 활성화와 Swanopoly 라이선스 퍼즐 풀이 자체는 검증 범위 밖이다
+
+임시 팀 6개와 계정 7개를 제거하고 각 토큰의 401 응답, 게임 세션 제거, 진행 중인 검증 작업 0개를 확인했다
+삭제 금지된 제출·경기·리플레이와 기존 점수 스냅샷은 원래 보호 규칙을 유지했으며 비활성 팀과 재채점 제외 감사 ID로만 남긴다
+참가자 점수와 문제 공개 예정 상태를 유지했고 별도 VM·namespace·예약은 만들지 않았다
+
+실행 근거는 local/artifacts/internal-koth-execution-20261106.json과 공개 architecture-execution-evidence.json에 같은 해시로 연결한다
+내부 팀 토큰 RPC와 내부 점수 수집 연결만 날짜가 있는 실행 완료로 표시한다
+일반 Scheduler 인스턴스 생성·Broker 목록, 정기 채점 타이머·재시작 내구성·HA는 별도 검증 대상으로 유지한다

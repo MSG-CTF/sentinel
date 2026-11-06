@@ -2,7 +2,7 @@
 (function (root) {
   "use strict";
   const sources = {
-    production_audit:{name:"운영 실행 검증 기록",url:"https://sla.msgctf.kr/architecture-execution-evidence.json",version:"2026년 11월 3일 · 검증 범위와 정리 결과"},
+    production_audit:{name:"운영 실행 검증 기록",url:"https://sla.msgctf.kr/architecture-execution-evidence.json",version:"2026년 11월 6일 · 내부 KoTH 6개 실행과 정리 결과"},
     notion:{name:"운영 아키텍처 본문", url:"https://app.notion.com/p/3e20f19c72be80d1a2ebd1c9e8f2a894", version:"10월 10일 재조회 · 반환본 10월 7일"},
     backend:{name:"Backend main 소스", repo:"MSG-CTF/msg-backend", sha:"5896bb52e77a4ab2c4b4ace3718c1c9a73f3428f", reviewed_at:"2026-10-10"},
     backend_review:{name:"Backend KoTH·Registry 재검토", repo:"MSG-CTF/msg-backend", sha:"08be84d46f49c6f51947a871cb0003c49ed531ed", reviewed_at:"2026-10-13"},
@@ -68,7 +68,7 @@
   ];
   const currentNotes = {
     "external-create":"운영 Backend의 비공개 관리자 시험으로 생성·요청 중복 방지·gVisor Pod Ready·삭제·예약 반납 확인 · 참가자 로그인과 게이트웨이 게임 실행은 별도",
-    "internal-create":"외부용 검증 계정으로 내부 트랙 로그인 불가 · 내부 관리자 접근으로 생성 요청을 실행한 근거 필요",
+    "internal-create":"내부 KoTH 게임 내 경기 생성과 별개인 일반 실습 Scheduler 인스턴스 생성 경로 · 이번 내부 KoTH 시험 범위 밖",
     "candidate-query":"실제 Backend 생성 요청에 따른 Broker 예약과 Runtime 배치, 종료 후 동일 예약 RELEASED 확인",
     "scheduler-store":"같은 시험 ID의 PROVISIONING·RUNNING·STOPPING·CLEANED 조회와 종료 후 저장된 상태 확인 · 재시작·HA 승격은 별도",
     "broker-store":"실습 인스턴스에 귀속된 실제 예약 행과 자원량, 삭제 완료 후 RELEASED 확인 · 다른 예약 변경 없음",
@@ -79,15 +79,15 @@
     "external-score-poll":"운영 수집기와 KoTH 서버 6곳의 실제 왕복, 실제 점수가 있는 구간의 적용과 중복 차단 확인 · 공개 예정 상태와 참가자 점수 유지",
     "external-token":"배포된 게임의 실제 로그인 처리기에서 Backend 토큰 검증 호출과 유효하지 않은 토큰 거절 확인 · 참가자의 정상 로그인 성공은 별도",
     "internal-inventory":"내부 트랙 관리자 리소스 조회 실행 근거 필요 · 외부 트랙 조회 성공을 공유하지 않음",
-    "internal-score-poll":"내부 트랙의 실제 채점 설정·수집 실행 근거 필요 · 외부 Backend 수집 성공을 공유하지 않음",
-    "internal-token":"내부 트랙의 실제 게임 → Backend 토큰 검증 실행 근거 필요 · 외부 트랙 토큰을 재사용하지 않음"
+    "internal-score-poll":"내부 Backend → 내부 KoTH 6곳의 실제 HTTPS 점수 수집·DB 적용·동일 구간 중복 차단 확인 · 시험 점수 쓰기 전부 되돌림",
+    "internal-token":"내부 KoTH 6곳의 실제 로그인·로그인 이후 토큰 재검증·게임 요청과 채점 처리 확인 · 내부 트랙 전용 검증 계정 정리 확인"
   };
   for (const link of links) if (currentNotes[link.id]) {
     link.note=currentNotes[link.id];
     if (link.id==="internal-create") link.stage="CODE";
   }
   const findings = [
-    {id:"internal-execution",title:"내부 트랙 업무 연결 실행 대기",owner:"내부 트랙 · SLA",detail:"외부용 검증 계정은 내부 로그인이 거부돼 기존 내부 관리 접근이 필요함 · 생성·목록·채점·토큰 결과를 외부 검증으로 대체하지 않음",link:"internal-create",severity:"PENDING"}
+    {id:"internal-execution",title:"내부 일반 실습 생성 경로는 별도 검증 필요",owner:"내부 트랙 · SLA",detail:"내부 KoTH 6개 게임의 인증·경기·제출·채점 연결은 날짜가 있는 실행 근거에 반영 · 일반 실습 Scheduler 생성·Broker 목록 경로에 그 결과를 전파하지 않음",link:"internal-create",severity:"PENDING"}
   ];
   const gates = [
     {name:"Worker 단일 실행", owner:"스케줄러 · DevSecOps", note:"팀·행 잠금과 프로세스 leader lock은 다름 · Active/Standby 승격 계약과 fencing 미검증"},
@@ -183,7 +183,10 @@
   function executionFor(link) {
     const evidence=root.SentinelExecutionEvidence;
     if (evidence?.schema_version!==1 || !Array.isArray(evidence.runs)) return null;
-    const matches=evidence.runs.filter(run=>run && run.passed===true && run.cleanup_verified===true && run.simulated===false
+    const internalGames=["card-battle-arena","jenga","swanopoly","pixel-smuggler","grand-tour-duel","dependency-hell"];
+    const internalProof=run=>!link.id.startsWith("internal-") || (run.track==="INTERNAL" && run.backend_origin==="https://internal.msgctf.kr"
+      && Array.isArray(run.game_results) && run.game_results.length===6 && internalGames.every(name=>run.game_results.filter(game=>game?.name===name && game.passed===true).length===1));
+    const matches=evidence.runs.filter(run=>run && run.passed===true && run.cleanup_verified===true && run.simulated===false && internalProof(run)
       && run.verification_mode==="one_time_production" && /^[a-f0-9]{64}$/.test(run.proof_sha256 || "")
       && /^\d{4}-\d{2}-\d{2}T/.test(run.checked_at || "") && Number.isFinite(Date.parse(run.checked_at)) && Date.parse(run.checked_at)<=Date.now()+300000
       && typeof run.summary==="string" && run.summary.length>0 && typeof run.limits==="string" && run.limits.length>0
