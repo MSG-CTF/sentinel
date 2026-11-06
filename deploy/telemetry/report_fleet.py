@@ -193,6 +193,21 @@ def run(config):
             'node_count': len(nodes), 'windows_count': len(windows), 'guest_changes': 0}
 
 
+def observation_receipt(config):
+    # Capture our own invocation while this oneshot still owns the unit. Reading
+    # the unit later can identify its successor instead of this accepted report.
+    invocation = os.environ.get('INVOCATION_ID', '')
+    if len(invocation) != 32 or uuid.UUID(invocation).hex != invocation:
+        raise ValueError('A systemd collector invocation is required')
+    properties = subprocess.check_output(['systemctl', 'show', 'sentinel-fleet-report.service',
+        '--property=InvocationID', '--property=ExecMainStartTimestampMonotonic'], text=True, timeout=8)
+    values = dict(line.split('=', 1) for line in properties.splitlines() if '=' in line)
+    started = int(values['ExecMainStartTimestampMonotonic']) / 1_000_000
+    if values.get('InvocationID') != invocation or started <= 0:
+        raise ValueError('Collector invocation identity did not match')
+    return {**run(config), 'collector_started_monotonic': started, 'collector_invocation_id': invocation}
+
+
 if __name__ == '__main__':
     try:
         directory = Path(os.environ['CREDENTIALS_DIRECTORY'])
@@ -200,7 +215,7 @@ if __name__ == '__main__':
         if set(config) != {'observer_token'}:
             raise ValueError('Invalid observer configuration')
         config['broker_runtime_token'] = (directory / 'broker-token').read_text().strip()
-        result = run(config)
+        result = observation_receipt(config)
         path = Path('/var/lib/sentinel-fleet-report/last-observation.json')
         temporary = path.with_suffix('.tmp'); temporary.write_text(json.dumps(result) + '\n'); temporary.chmod(0o600)
         os.replace(temporary, path); print(json.dumps(result), flush=True)

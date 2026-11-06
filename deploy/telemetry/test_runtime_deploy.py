@@ -99,19 +99,25 @@ class ReleaseAuthorityTests(unittest.TestCase):
             installer.fetch('https://api.github.com/file')
 
     def test_acceptance_must_belong_to_a_process_started_after_installation(self):
-        value={'accepted':True,'checked_at':datetime.fromtimestamp(997,timezone.utc).isoformat(),'node_count':10}
+        value={'accepted':True,'checked_at':datetime.fromtimestamp(997,timezone.utc).isoformat(),'node_count':10,
+               'collector_started_monotonic':15,'collector_invocation_id':'a'*32}
         # Monotonic 15 corresponds to epoch 995 at the sampled clock pair.
-        self.assertTrue(installer.fresh_native_observation(value,15,10,1000,20))
+        self.assertTrue(installer.fresh_native_observation(value,10,1000,20))
         # An old process can finish after installation; its acceptance is insufficient.
-        self.assertFalse(installer.fresh_native_observation(value,9,10,1000,20))
-        # The next invocation may already have started while the file still contains its predecessor's report.
-        self.assertFalse(installer.fresh_native_observation(value,19,10,1000,20))
+        self.assertFalse(installer.fresh_native_observation({**value,'collector_started_monotonic':9},10,1000,20))
+        # A successor starting at monotonic 19 cannot invalidate this report:
+        # it carries its own immutable invocation start, rather than the unit's latest start.
+        with patch.object(installer,'command',side_effect=AssertionError('must not read the successor unit')):
+            self.assertTrue(installer.fresh_native_observation(value,10,1000,20))
         for changed in [{'accepted':False},{'node_count':True},{'node_count':0},
             {'checked_at':datetime.fromtimestamp(800,timezone.utc).isoformat()},
             {'checked_at':datetime.fromtimestamp(1005,timezone.utc).isoformat()},
-            {'checked_at':'2026-11-06T00:00:00'}]:
+            {'checked_at':'2026-11-06T00:00:00'}, {'collector_started_monotonic':True},
+            {'collector_started_monotonic':None}, {'collector_started_monotonic':21},
+            {'collector_started_monotonic':float('nan')}, {'collector_started_monotonic':float('inf')},
+            {'collector_invocation_id':''}, {'collector_invocation_id':'bad'}]:
             with self.subTest(changed=changed):
-                self.assertFalse(installer.fresh_native_observation({**value,**changed},15,10,1000,20))
+                self.assertFalse(installer.fresh_native_observation({**value,**changed},10,1000,20))
 
     @unittest.skipUnless(shutil.which('sh'), 'requires a POSIX shell')
     def test_forced_entry_rejects_shell_syntax_and_deployer_arguments(self):
@@ -120,6 +126,15 @@ class ReleaseAuthorityTests(unittest.TestCase):
             with self.subTest(command=command):
                 result=subprocess.run(['sh',str(script)],env={**os.environ,'SSH_ORIGINAL_COMMAND':command},capture_output=True,timeout=5)
                 self.assertEqual(result.returncode,1)
+
+    def test_an_immediate_successor_cannot_hide_a_fresh_accepted_predecessor(self):
+        value={'accepted':True,'checked_at':datetime.fromtimestamp(997,timezone.utc).isoformat(),
+            'node_count':32,'windows_count':31,'roster_version':'fixture','guest_changes':0,
+            'collector_started_monotonic':15,'collector_invocation_id':'a'*32}
+        path=Mock();path.read_bytes.return_value=json.dumps(value).encode()
+        with patch.object(installer,'Path',return_value=path),patch.object(installer.time,'monotonic',return_value=20),patch.object(installer.time,'time',return_value=1000),patch.object(installer,'command',side_effect=AssertionError('successor unit must not be queried')):
+            result=installer.wait_for_native_observation(10)
+        self.assertEqual(result,value)
 
 
 @unittest.skipUnless(hasattr(os,'fchmod'), 'requires POSIX atomic file modes')

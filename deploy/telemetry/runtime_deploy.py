@@ -171,24 +171,28 @@ def deployment_lock():
         os.close(descriptor)
 
 
-def fresh_native_observation(value, unit_started, installed_after, epoch, monotonic):
+def fresh_native_observation(value, installed_after, epoch, monotonic):
     at = datetime.fromisoformat(value['checked_at'].replace('Z', '+00:00'))
-    unit_epoch = epoch - (monotonic - unit_started)
+    started = value.get('collector_started_monotonic')
+    invocation = value.get('collector_invocation_id')
+    if (type(started) not in (int, float) or not installed_after <= started <= monotonic
+            or not isinstance(invocation, str) or not re.fullmatch('[0-9a-f]{32}', invocation)):
+        return False
+    unit_epoch = epoch - (monotonic - started)
     return (value.get('accepted') is True and at.tzinfo is not None
-        and unit_started >= installed_after and unit_epoch <= at.timestamp() <= epoch+1
+        and unit_epoch <= at.timestamp() <= epoch+1
         and 0 <= epoch-at.timestamp() < 150
         and type(value.get('node_count')) is int and value['node_count'] > 0)
 
 
-def wait_for_native_observation(installed_after, timeout=110):
+def wait_for_native_observation(installed_after, timeout=180):
     deadline = time.monotonic()+timeout
     while time.monotonic() < deadline:
         try:
             value = unique_json(Path('/var/lib/sentinel-fleet-report/last-observation.json').read_bytes())
-            started = int(command(['systemctl', 'show', 'sentinel-fleet-report.service',
-                '--property=ExecMainStartTimestampMonotonic', '--value'])) / 1_000_000
-            if fresh_native_observation(value, started, installed_after, time.time(), time.monotonic()):
-                return {k: value[k] for k in ['accepted', 'checked_at', 'roster_version', 'node_count', 'windows_count', 'guest_changes']}
+            if fresh_native_observation(value, installed_after, time.time(), time.monotonic()):
+                return {k: value[k] for k in ['accepted', 'checked_at', 'roster_version', 'node_count', 'windows_count', 'guest_changes',
+                    'collector_started_monotonic', 'collector_invocation_id']}
         except (OSError, ValueError, KeyError, TypeError):
             pass
         time.sleep(2)

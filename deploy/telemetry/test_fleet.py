@@ -114,4 +114,20 @@ class FleetObserverTests(unittest.TestCase):
         with self.assertRaises(ValueError):observer.unique_json('{"key":1,"key":2}')
 
 
+class CollectorInvocationReceiptTests(unittest.TestCase):
+    def test_receipt_captures_the_collectors_own_systemd_invocation_before_work(self):
+        invocation='a'*32;properties='InvocationID='+invocation+'\nExecMainStartTimestampMonotonic=15000000\n'
+        with patch.dict(observer.os.environ,{'INVOCATION_ID':invocation}),patch.object(observer.subprocess,'check_output',return_value=properties),patch.object(observer,'run',return_value={'accepted':True,'node_count':32}) as collect:
+            result=observer.observation_receipt({'observer_token':'test-only'})
+        self.assertEqual(result['collector_started_monotonic'],15)
+        self.assertEqual(result['collector_invocation_id'],invocation)
+        self.assertTrue(result['accepted']);collect.assert_called_once()
+
+    def test_missing_or_mismatched_invocation_never_stamps_an_acceptance(self):
+        for identity in ['', 'not-an-invocation', 'a'*32]:
+            with self.subTest(identity=identity),patch.dict(observer.os.environ,{'INVOCATION_ID':identity}),patch.object(observer.subprocess,'check_output',return_value='InvocationID='+('b'*32)+'\nExecMainStartTimestampMonotonic=15000000\n'),patch.object(observer,'run') as collect,self.assertRaises(ValueError):
+                observer.observation_receipt({})
+            collect.assert_not_called()
+
+
 if __name__=='__main__':unittest.main()
