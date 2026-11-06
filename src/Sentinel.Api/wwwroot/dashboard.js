@@ -450,7 +450,9 @@ function renderInspector() {
     byId("detail-reason").textContent = result.execution ? result.execution.summary : routeFinding ? finding.detail : finding ? `${finding.detail} · ${link.note}` : link.note;
     detailFields.get("checked").textContent = result.executed ? new Date(result.checked_at).toLocaleString("ko-KR",{timeZone:"Asia/Seoul"}) : result.checked_at ? time(result.checked_at) : linkDates(link);
     detailFields.get("execution").textContent = result.executed ? "운영에서 1회 검증 · 정리 확인" : result.verified ? "현재 연결 점검 확인" : result.state === "FAILED" ? "연결 실패 확인" : "미검증";
-    byId("detail-source-note").textContent = result.execution ? `${result.execution.limits} · 현재 상태는 자산 감시에서 별도 확인` : catalog.scope;
+    const gameResults = result.execution?.game_results;
+    const gameDetail = Array.isArray(gameResults) ? gameResults.map(game=>`${game.display_name || game.name}: ${game.action_summary}`).join(" / ") : "";
+    byId("detail-source-note").textContent = result.execution ? [gameDetail, result.execution.limits, "현재 상태는 자산 감시에서 별도 확인"].filter(Boolean).join(" · ") : catalog.scope;
   }
 }
 function switchView(next) {
