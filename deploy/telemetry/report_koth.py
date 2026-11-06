@@ -12,9 +12,11 @@ import subprocess
 import report_service as core
 
 HEALTH_CHECKS = {
+    'pixel-smuggler': [{'port': 8080, 'path': '/healthz', 'status': 200, 'kind': 'empty_health'}],
+    'grand-tour-duel': [{'port': 9090, 'path': '/healthz', 'status': 200, 'kind': 'ok_json'}],
     'dependency-hell': [{'port': 9090, 'path': '/healthz', 'status': 200, 'kind': 'dependency_health'}],
     'card-battle-arena': [{'port': 9090, 'path': '/healthz', 'status': 200, 'kind': 'ok_text'}],
-    'jenga': [{'port': 8080, 'path': '/healthz', 'status': 200, 'kind': 'ok_json'}],
+    'jenga': [{'port': 8080, 'path': '/healthz', 'status': 200, 'kind': 'jenga_healthz'}],
     'swanopoly': [{'port': 8080, 'path': '/', 'status': 200, 'kind': 'html'},
                  {'port': 8080, 'path': '/api/me', 'status': 401, 'kind': 'auth_json'}],
 }
@@ -32,14 +34,18 @@ def stamp():
 def validate(config):
     assert config['name'] in NAMES and config['hostname'] == platform.node()
     name = config['name']
-    assert config['service'] == ('ssh.service' if name == 'dependency-hell-runner' else 'k3s.service')
-    assert config['host']['endpoint'] == 'https://sla.msgctf.kr/ingest/heartbeat/koth-host-' + name
+    track = config.get('track', 'KOTH')
+    assert track in {'KOTH', 'INTERNAL'}
+    prefix = 'internal-koth-' if track == 'INTERNAL' else 'koth-'
+    runner_service = 'k3s-agent.service' if track == 'INTERNAL' else 'ssh.service'
+    assert config['service'] == (runner_service if name == 'dependency-hell-runner' else 'k3s.service')
+    assert config['host']['endpoint'] == 'https://sla.msgctf.kr/ingest/heartbeat/' + prefix + 'host-' + name
     assert isinstance(config['host']['token'], str) and len(config['host']['token']) >= 32
     if name == 'dependency-hell-runner':
         assert config['application'] is None
     else:
         assert config['namespace'] == NAMESPACES[name]
-        assert config['application']['endpoint'] == 'https://sla.msgctf.kr/ingest/heartbeat/koth-app-' + name
+        assert config['application']['endpoint'] == 'https://sla.msgctf.kr/ingest/heartbeat/' + prefix + 'app-' + name
         assert isinstance(config['application']['token'], str) and len(config['application']['token']) >= 32
         assert config['application']['token'] != config['host']['token']
 
@@ -70,6 +76,8 @@ def response_matches(check, status, content_type, body):
         return 'text/plain' in content_type and body.strip().lower() == b'ok'
     if check['kind'] == 'html':
         return 'text/html' in content_type and (b'<!doctype html' in body.lower() or b'<html' in body.lower())
+    if check['kind'] == 'empty_health':
+        return content_type.split(';', 1)[0].strip() == 'text/html' and body == b''
     try:
         value = json.loads(body)
     except (ValueError, UnicodeError):
@@ -77,6 +85,15 @@ def response_matches(check, status, content_type, body):
     if 'application/json' not in content_type or not isinstance(value, dict):
         return False
     if check['kind'] == 'ok_json':
+        return value.get('status') == 'ok'
+    if check['kind'] == 'jenga_healthz':
+        if content_type.split(';', 1)[0].strip() != 'application/json':
+            return False
+        if 'code' in value or 'data' in value:
+            data = value.get('data')
+            return (set(value) == {'code', 'message', 'data'} and value['code'] == 'SUCCESS'
+                and isinstance(value['message'], str) and isinstance(data, dict)
+                and data.get('status') == 'ok' and isinstance(data.get('match_id'), str))
         return value.get('status') == 'ok'
     if check['kind'] == 'dependency_health':
         return value == {'code': 'SUCCESS', 'message': 'healthy', 'data': None}

@@ -51,6 +51,18 @@ Docker 데몬이 실행 중이어도 백엔드 컨테이너가 정지했으면 �
 백엔드 바인딩은 docker:msg-dev-backend-1이며 전용 키는 SENTINEL_SSH_BACKEND_B64를 사용한다
 report_backend.py는 60초 주기의 sentinel-backend-report.timer에서 실행하며 backend-host로 자원을 보고한다
 보고 서비스는 root로 실행하는 고정된 Docker 조회 도우미이며 Docker 소켓 권한을 별도 사용자에게 부여하지 않는다
+
+## KoTH 내부·외부 트랙
+
+report_koth.py는 기존 K3s 서비스와 VM 자원, 게임의 Deployment·Pod·Node Ready 및 읽기 전용 HTTP 준비 응답을 60초마다 수집한다
+내부 트랙은 track=INTERNAL과 internal-koth-host- / internal-koth-app- 대상 ID를 사용하며 외부 트랙의 koth-host- / koth-app- ID와 토큰을 공유하지 않는다
+수신 대상의 expected_fields.hostname은 실제 VM 이름으로 고정한다
+각 서버의 observer.json은 root 전용이며 systemd LoadCredential로 읽는다
+내부 Dependency Hell runner는 실제 k3s-agent.service 상태와 자원을 보고하며 별도 게임 준비 대상으로 세지 않는다
+Dependency Hell은 frontend·backend·backend-internal 세 Deployment와 각 Pod·Node를 함께 확인한다
+Pixel의 빈 본문 /healthz, Grand의 JSON /healthz, Jenga의 SUCCESS 응답 계약을 각각 검증한다
+보고기는 게임 요청·경기 생성·채점·서비스 재시작을 실행하지 않으며 준비 상태를 이 기능들의 성공으로 표시하지 않는다
+대시보드는 트랙별 자산을 유지하고 설계 구조의 KoTH 묶음에 내부·외부 구성원을 함께 표시한다
 DB·Redis는 공개 HTTPS /healthz가 반환하는 실제 연결 점검으로 확인하고 호스트 자원과 분리해 표시한다
 start 작업은 created·exited 상태의 백엔드 컨테이너 하나만 기동하며 실행 중·일시 정지·재기동 중인 컨테이너에는 실행하지 않는다
 백엔드 컨테이너의 healthcheck 실패를 Docker 재시작으로 자동 처리하지 않는다

@@ -110,7 +110,7 @@
     broker:a=>a.track === "CONTROL" && ["broker","broker-console","broker-fleet"].includes(a.asset_id),
     runtime:a=>a.track === "RUNTIME" && ["runtime","runtime-api"].includes(a.asset_id),
     "linux-pool":a=>a.track === "RUNTIME" && a.role === "K3S" && a.kind === "cluster_heartbeat",
-    koth:a=>a.track === "KOTH" && a.role === "KOTH" && ["service_heartbeat","challenge_heartbeat"].includes(a.kind),
+    koth:a=>["KOTH","INTERNAL"].includes(a.track) && a.role === "KOTH" && ["service_heartbeat","challenge_heartbeat"].includes(a.kind),
     windows:a=>a.track === "RUNTIME" && a.role === "WINDOWS" && a.kind === "service_heartbeat"
   };
   const rank = {CRITICAL:0,WARNING:1,UNKNOWN:2,PENDING:3,NORMAL:4};
@@ -125,7 +125,7 @@
     const counts = {NORMAL:0,WARNING:0,CRITICAL:0,UNKNOWN:0,PENDING:0};
     for (const member of members) counts[Object.hasOwn(counts,member.risk?.level) ? member.risk.level : "UNKNOWN"]++;
     const timestamps = members.map(a=>a.checked_at).filter(at=>Number.isFinite(Date.parse(at))).sort((a,b)=>Date.parse(a)-Date.parse(b));
-    const summary = definition.id === "koth" ? `서버 ${members.filter(a=>a.asset_id.startsWith("koth-host-")).length} · 준비 ${members.filter(a=>a.asset_id.startsWith("koth-app-")).length}`
+    const summary = definition.id === "koth" ? `서버 ${members.filter(a=>a.asset_id.startsWith("koth-host-")||a.asset_id.startsWith("internal-koth-host-")).length} · 준비 ${members.filter(a=>a.asset_id.startsWith("koth-app-")||a.asset_id.startsWith("internal-koth-app-")).length}`
       : ["linux-pool","windows"].includes(definition.id) ? `${members.length}대` : `${members.length}개 감시`;
     const reading = worst ? {asset_id:definition.id,name:definition.name,role:definition.role,track:definition.track,
       kind:"monitor_group",evidence_type:"GROUP_SUMMARY",status:worst.status,risk:{level:worst.risk?.level || "UNKNOWN",signals:[]},

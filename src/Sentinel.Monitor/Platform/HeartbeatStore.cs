@@ -32,6 +32,8 @@ public sealed class HeartbeatStore(IOptions<PlatformOptions> options, TimeProvid
         var target = options.Value.Targets.Find(t => t.TargetId == id && t.Kind == "service_heartbeat" && t.Enabled);
         var connections = target?.ExpectedFields.GetValueOrDefault("probe_kind") == "rdp_tcp";
         if (target is null
+            || target.ExpectedFields.TryGetValue("hostname", out var hostname)
+                && !string.Equals(hostname, value.Hostname, StringComparison.Ordinal)
             || Math.Abs((_clock.GetUtcNow() - value.CheckedAt).TotalSeconds) > 90
             || value.ServiceState is not ("active" or "inactive" or "failed" or "activating" or "deactivating")
             || value.GatewayState is not ("unverified" or "connected" or "disconnected")

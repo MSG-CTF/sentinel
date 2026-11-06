@@ -9,6 +9,33 @@ import report_koth as reporter
 
 
 class KothReadinessTests(unittest.TestCase):
+    def test_internal_and_external_routes_are_distinct_and_runner_uses_its_actual_agent(self):
+        config={'name':'jenga','hostname':'expected','namespace':'koth-jenga','service':'k3s.service','track':'INTERNAL',
+            'host':{'endpoint':'https://sla.msgctf.kr/ingest/heartbeat/internal-koth-host-jenga','token':'h'*48},
+            'application':{'endpoint':'https://sla.msgctf.kr/ingest/heartbeat/internal-koth-app-jenga','token':'a'*48}}
+        with patch.object(reporter.platform,'node',return_value='expected'):
+            reporter.validate(config)
+            for mutation in [{'track':'KOTH'},{'track':'PUBLIC'},{'hostname':'other'},
+                {'host':{**config['host'],'endpoint':'https://sla.msgctf.kr/ingest/heartbeat/koth-host-jenga'}},
+                {'application':{**config['application'],'token':'h'*48}}]:
+                with self.subTest(mutation=mutation),self.assertRaises(AssertionError):reporter.validate({**config,**mutation})
+            runner={**config,'name':'dependency-hell-runner','service':'k3s-agent.service','application':None,
+                'host':{'endpoint':'https://sla.msgctf.kr/ingest/heartbeat/internal-koth-host-dependency-hell-runner','token':'r'*48}}
+            reporter.validate(runner)
+            with self.assertRaises(AssertionError):reporter.validate({**runner,'service':'ssh.service'})
+
+    def test_new_internal_health_contracts_require_the_actual_empty_response_and_jenga_envelope(self):
+        pixel=reporter.HEALTH_CHECKS['pixel-smuggler'][0]
+        self.assertTrue(reporter.response_matches(pixel,200,'text/html; charset=utf-8',b''))
+        for status,media,body in [(500,'text/html',b''),(200,'text/html',b'<html>error</html>'),(200,'application/json',b'{}')]:
+            self.assertFalse(reporter.response_matches(pixel,status,media,body))
+        jenga=reporter.HEALTH_CHECKS['jenga'][0]
+        healthy=b'{"code":"SUCCESS","message":"healthy","data":{"status":"ok","match_id":"test-only"}}'
+        self.assertTrue(reporter.response_matches(jenga,200,'application/json',healthy))
+        for body in [healthy.replace(b'SUCCESS',b'ERROR'),healthy.replace(b'"ok"',b'"down"'),
+            b'{"code":"SUCCESS","message":"healthy","data":{"status":"ok"}}',b'{}']:
+            self.assertFalse(reporter.response_matches(jenga,200,'application/json',body))
+
     def dependency(self):
         items = []; nodes = self.fixtures()[1]
         for name in reporter.DEPENDENCY_WORKLOADS:
