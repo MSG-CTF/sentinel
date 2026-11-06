@@ -13,6 +13,19 @@ function fleet() {return [
 const assets=rows=>SentinelAssets.buildAssets({targets:rows,updated_at:at,poll_interval_seconds:15});
 const node=(rows,id)=>resolveNodes(assets(rows)).find(n=>n.id===id);
 
+test('internal KoTH joins the dedicated pool while retaining separate track and asset identities',()=>{
+ const internal=[...Array.from({length:7},(_,i)=>target('internal-koth-host-'+i,'KOTH','INTERNAL')),
+   ...Array.from({length:6},(_,i)=>target('internal-koth-app-'+i,'KOTH','INTERNAL'))];
+ const external=fleet().filter(r=>r.track==='KOTH'),rows=[...external,...internal];
+ const group=node(rows,'koth');assert.equal(group.members.length,26);assert.equal(group.summary,'서버 14 · 준비 12');
+ assert.equal(group.members.filter(m=>m.track==='INTERNAL').length,13);assert.equal(group.members.filter(m=>m.track==='KOTH').length,13);
+ assert.equal(new Set(group.members.map(m=>m.asset_id)).size,26);assert.equal(SentinelAssets.summarize(assets(rows)).total,26);
+ const failed=rows.map(r=>r.target_id==='internal-koth-app-0'?{...r,status:'DOWN',risk:{level:'CRITICAL'}}:r);
+ assert.equal(node(failed,'koth').reading.risk.level,'CRITICAL');
+ assert.ok(node(failed,'koth').members.filter(m=>m.track==='KOTH').every(m=>m.status==='HEALTHY'));
+ assert.equal(monitoringLinks(assets(rows)).find(l=>l.from==='koth').state,'VERIFIED');
+});
+
 test('the production roster populates the three fixed diagram roles without inflating health counts',()=>{
  const rows=fleet(),readings=assets(rows),before=SentinelAssets.summarize(readings),mapped=resolveNodes(readings);
  for(const [id,count] of [['koth',13],['windows',7],['linux-pool',5]]) {

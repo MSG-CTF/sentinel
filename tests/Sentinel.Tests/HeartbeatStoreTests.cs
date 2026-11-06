@@ -8,6 +8,23 @@ namespace Sentinel.Tests;
 public sealed class HeartbeatStoreTests
 {
     [Fact]
+    public void BoundHostnameRejectsMissingOrOtherHostsWithoutReplacingTheAcceptedSample()
+    {
+        var clock = new Clock();
+        var target = new PlatformTarget { TargetId="internal-koth-host-jenga",Name="Internal Jenga",Role="KOTH",Track="INTERNAL",
+            Kind="service_heartbeat",AuthTokenEnv="TEST_INTERNAL_KOTH_TOKEN",ExpectedFields=new() { ["hostname"]="internal-jenga" } };
+        var store = new HeartbeatStore(Options.Create(new PlatformOptions { Targets=[target] }),clock);
+        var value = new ServiceHeartbeat(clock.Now,"active",0,25,50,.1,"unverified",Hostname:"internal-jenga");
+        Assert.False(store.Accept(target.TargetId,value with { Hostname=null }));
+        Assert.False(store.Accept(target.TargetId,value with { Hostname="external-jenga" }));
+        Assert.True(store.Accept(target.TargetId,value));
+        clock.Now += TimeSpan.FromSeconds(1);
+        Assert.False(store.Accept(target.TargetId,value with { CheckedAt=clock.Now,Hostname="internal-jenga.example" }));
+        Assert.Equal("internal-jenga",store.Read(target).Components["hostname"]);
+        Assert.True(store.Accept(target.TargetId,value with { CheckedAt=clock.Now }));
+    }
+
+    [Fact]
     public void HostResourcesRemainOptionalAndRejectInvalidCapacities()
     {
         var clock=new Clock(); var target=new PlatformTarget {TargetId="bot",Name="Bot",Role="DISCORD",Track="CONTROL",Kind="service_heartbeat",AuthTokenEnv="TEST_TOKEN"};
