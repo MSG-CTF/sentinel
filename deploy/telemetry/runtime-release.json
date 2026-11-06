@@ -6,10 +6,10 @@
     "url": "https://dl.k8s.io/release/v1.36.5/bin/linux/amd64/kubectl"
   },
   "files": {
-    "report_fleet.py": "67dbb7c43c4d9136ea775a1d8ae1cf058dc6f4043dd4e0d03657944838b514a0",
+    "report_fleet.py": "90b48cca82f6b92878135c2a182c92724d6e2d0152a08f72825008174539e174",
     "report_clusters.py": "3aaeeeed78e258338442342dbba462f90305c2713af838aa06816a8b469b4ace",
     "report_service.py": "1c45d316b1aae4b54f1c66e7952f9cbebd08719ce89c7c060c09dc6358ff6acc",
-    "sentinel-fleet-report.service": "27046fef13b9a51d8dcd427df7059569f064c1fa14462106260121c23f11b717",
+    "sentinel-fleet-report.service": "b69fb2cd161ff81ae180699d5f315e0b3456e65c152c3334f72aebdac74e34f0",
     "sentinel-fleet-report.timer": "b49d21fc3ac42cf07c41033aa36a5b33194382383b36fe25627f48ca9881f077",
     "runtime_deploy.py": "eee7d373da5495b803ca3c6ae3e40089e449df339683c017f3018b1495c3c4c7"
   }

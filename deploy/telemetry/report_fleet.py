@@ -178,9 +178,11 @@ def run(config):
     if status != 200:
         raise ValueError('Fleet discovery unavailable')
     validate_desired(desired)
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        nodes = [pool.submit(node_report, member, config) for member in desired['nodes']]
-        windows = [pool.submit(windows_report, member) for member in desired['windows']]
+    # A slow node queue must not consume every slot needed for independent RDP
+    # observations. Both pools stay bounded under the unit's CPU and memory caps.
+    with ThreadPoolExecutor(max_workers=8) as node_pool, ThreadPoolExecutor(max_workers=8) as windows_pool:
+        nodes = [node_pool.submit(node_report, member, config) for member in desired['nodes']]
+        windows = [windows_pool.submit(windows_report, member) for member in desired['windows']]
         reports = [future.result() for future in nodes + windows]
     body = {'schema_version': 1, 'roster_version': desired['roster_version'],
             'checked_at': datetime.now(timezone.utc).isoformat(), 'reports': reports}

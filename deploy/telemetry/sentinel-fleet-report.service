@@ -24,6 +24,6 @@ ProtectControlGroups=true
 RestrictSUIDSGID=true
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 UMask=0077
-TimeoutStartSec=55
+TimeoutStartSec=75
 MemoryMax=256M
 CPUQuota=30%

@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import socket
 import tempfile
+import threading
 import unittest
 from unittest.mock import Mock,patch
 import uuid
@@ -115,6 +116,28 @@ class FleetObserverTests(unittest.TestCase):
 
 
 class CollectorInvocationReceiptTests(unittest.TestCase):
+    def test_a_saturated_node_pool_does_not_delay_independent_windows_observations(self):
+        started=threading.Event();nodes=[{'resource_target_id':str(uuid.uuid4())} for _ in range(8)];windows=[{'resource_target_id':str(uuid.uuid4())}]
+        desired={'roster_version':'parallel-fixture','nodes':nodes,'windows':windows}
+        def node(member,config):
+            self.assertTrue(started.wait(2),'Windows work was queued behind every blocked node')
+            return {'resource_target_id':member['resource_target_id'],'node':{}}
+        def window(member):
+            started.set();return {'resource_target_id':member['resource_target_id'],'windows':{'reachable':False}}
+        with patch.object(observer,'request',side_effect=[(200,desired),(200,{'accepted':True})]) as request,patch.object(observer,'validate_desired'),patch.object(observer,'node_report',side_effect=node),patch.object(observer,'windows_report',side_effect=window):
+            result=observer.run({'observer_token':'test-only-'*4,'broker_runtime_token':'test-only-'*4})
+        self.assertTrue(result['accepted']);self.assertEqual((result['node_count'],result['windows_count']),(8,1))
+        reports=request.call_args.args[3]['reports']
+        self.assertEqual([v['resource_target_id'] for v in reports],[v['resource_target_id'] for v in nodes+windows])
+        self.assertFalse(reports[-1]['windows']['reachable'])
+
+    def test_batch_timeout_keeps_cpu_memory_and_two_cycle_acceptance_bounds(self):
+        unit=Path(observer.__file__).with_name('sentinel-fleet-report.service').read_text()
+        fields=dict(line.split('=',1) for line in unit.splitlines() if '=' in line)
+        self.assertEqual(fields['CPUQuota'],'30%');self.assertEqual(fields['MemoryMax'],'256M')
+        self.assertEqual(int(fields['TimeoutStartSec']),75)
+        self.assertLess(2*int(fields['TimeoutStartSec']),180)
+
     def test_receipt_captures_the_collectors_own_systemd_invocation_before_work(self):
         invocation='a'*32;properties='InvocationID='+invocation+'\nExecMainStartTimestampMonotonic=15000000\n'
         with patch.dict(observer.os.environ,{'INVOCATION_ID':invocation}),patch.object(observer.subprocess,'check_output',return_value=properties),patch.object(observer,'run',return_value={'accepted':True,'node_count':32}) as collect:
