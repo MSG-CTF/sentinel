@@ -1,4 +1,5 @@
 import copy
+from datetime import datetime, timezone
 import hashlib
 import json
 import os
@@ -96,6 +97,21 @@ class ReleaseAuthorityTests(unittest.TestCase):
         response.__enter__=Mock(return_value=response);response.__exit__=Mock(return_value=False)
         with patch.object(installer.urllib.request,'urlopen',return_value=response),self.assertRaises(ValueError):
             installer.fetch('https://api.github.com/file')
+
+    def test_acceptance_must_belong_to_a_process_started_after_installation(self):
+        value={'accepted':True,'checked_at':datetime.fromtimestamp(997,timezone.utc).isoformat(),'node_count':10}
+        # Monotonic 15 corresponds to epoch 995 at the sampled clock pair.
+        self.assertTrue(installer.fresh_native_observation(value,15,10,1000,20))
+        # An old process can finish after installation; its acceptance is insufficient.
+        self.assertFalse(installer.fresh_native_observation(value,9,10,1000,20))
+        # The next invocation may already have started while the file still contains its predecessor's report.
+        self.assertFalse(installer.fresh_native_observation(value,19,10,1000,20))
+        for changed in [{'accepted':False},{'node_count':True},{'node_count':0},
+            {'checked_at':datetime.fromtimestamp(800,timezone.utc).isoformat()},
+            {'checked_at':datetime.fromtimestamp(1005,timezone.utc).isoformat()},
+            {'checked_at':'2026-11-06T00:00:00'}]:
+            with self.subTest(changed=changed):
+                self.assertFalse(installer.fresh_native_observation({**value,**changed},15,10,1000,20))
 
     @unittest.skipUnless(shutil.which('sh'), 'requires a POSIX shell')
     def test_forced_entry_rejects_shell_syntax_and_deployer_arguments(self):

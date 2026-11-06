@@ -171,14 +171,23 @@ def deployment_lock():
         os.close(descriptor)
 
 
-def wait_for_native_observation(after, timeout=110):
+def fresh_native_observation(value, unit_started, installed_after, epoch, monotonic):
+    at = datetime.fromisoformat(value['checked_at'].replace('Z', '+00:00'))
+    unit_epoch = epoch - (monotonic - unit_started)
+    return (value.get('accepted') is True and at.tzinfo is not None
+        and unit_started >= installed_after and unit_epoch <= at.timestamp() <= epoch+1
+        and 0 <= epoch-at.timestamp() < 150
+        and type(value.get('node_count')) is int and value['node_count'] > 0)
+
+
+def wait_for_native_observation(installed_after, timeout=110):
     deadline = time.monotonic()+timeout
     while time.monotonic() < deadline:
         try:
             value = unique_json(Path('/var/lib/sentinel-fleet-report/last-observation.json').read_bytes())
-            at = datetime.fromisoformat(value['checked_at'].replace('Z', '+00:00'))
-            if (value.get('accepted') is True and at.tzinfo and at.timestamp() >= after
-                    and type(value.get('node_count')) is int and value['node_count'] > 0):
+            started = int(command(['systemctl', 'show', 'sentinel-fleet-report.service',
+                '--property=ExecMainStartTimestampMonotonic', '--value'])) / 1_000_000
+            if fresh_native_observation(value, started, installed_after, time.time(), time.monotonic()):
                 return {k: value[k] for k in ['accepted', 'checked_at', 'roster_version', 'node_count', 'windows_count', 'guest_changes']}
         except (OSError, ValueError, KeyError, TypeError):
             pass
@@ -202,7 +211,6 @@ def install(identity, sources, binary):
     if CLIENT.exists() or CLIENT.is_symlink():
         trusted(CLIENT)
         backups[CLIENT] = (CLIENT.read_bytes(), stat.S_IMODE(CLIENT.stat().st_mode))
-    started = time.time()
     try:
         # Fixed module interfaces remain compatible across these atomic replacements.
         # No timer, application service, Pod or participant workload is stopped.
@@ -217,7 +225,7 @@ def install(identity, sources, binary):
         command(['systemctl', 'enable', '--now', 'sentinel-fleet-report.timer'])
         if command(['systemctl', 'show', 'sentinel-fleet-report.service', '--property=CPUQuotaPerSecUSec', '--value']) != '300ms':
             raise ValueError('Unexpected telemetry CPU quota override')
-        observation = wait_for_native_observation(started)
+        observation = wait_for_native_observation(time.monotonic())
         if before != app_state() or hashlib.sha256(registry.read_bytes()).hexdigest() != registry_digest:
             raise ValueError('Runtime application or registry changed during deployment')
     except BaseException:
