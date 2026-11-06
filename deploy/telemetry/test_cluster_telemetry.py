@@ -2,6 +2,8 @@ import copy
 import datetime
 import json
 import subprocess
+import stat
+from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
@@ -131,7 +133,7 @@ class ClusterTelemetryTests(unittest.TestCase):
             reporter.observe(CLUSTER, NOW)
             args = command.call_args.args[0]
             self.assertEqual(args[0], reporter.KUBECTL)
-            self.assertEqual(args[-4:], ['get', 'nodes', '-o', 'json'])
+            self.assertEqual(args[-3:], ['get', '--raw', '/api/v1/nodes'])
             self.assertNotIn('shell', command.call_args.kwargs)
         for path in ['/tmp/untrusted.yaml', '../kubeconfig', '/etc/secure-provisioner/kubeconfigs/../../bad.json']:
             with patch.object(reporter, 'run_json') as query, self.assertRaises(ValueError):
@@ -139,6 +141,29 @@ class ClusterTelemetryTests(unittest.TestCase):
                 query.assert_not_called()
         with self.assertRaises(ValueError):
             reporter.collect_reports([{**BINDING, 'endpoint': 'https://example.com/ingest/cluster/runtime-cluster'}], {'clusters': []}, NOW)
+
+    def test_standalone_client_is_optional_and_requires_root_managed_files(self):
+        candidate=Mock();parent=Mock();candidate.parents=[parent]
+        candidate.lstat.side_effect=FileNotFoundError
+        with patch.object(reporter,'Path',return_value=candidate):
+            self.assertEqual(reporter.kubectl_executable(),'/usr/local/bin/kubectl')
+        candidate.lstat.side_effect=None
+        candidate.lstat.return_value=SimpleNamespace(st_uid=0,st_mode=stat.S_IFREG|0o755)
+        parent.lstat.return_value=SimpleNamespace(st_uid=0,st_mode=stat.S_IFDIR|0o755)
+        with patch.object(reporter,'Path',return_value=candidate):
+            self.assertEqual(reporter.kubectl_executable(),str(candidate))
+        for owner,mode in [(1001,stat.S_IFREG|0o755),(0,stat.S_IFREG|0o775),(0,stat.S_IFLNK|0o777)]:
+            candidate.lstat.return_value=SimpleNamespace(st_uid=owner,st_mode=mode)
+            with self.subTest(owner=owner,mode=mode),patch.object(reporter,'Path',return_value=candidate),self.assertRaises(ValueError):
+                reporter.kubectl_executable()
+
+    def test_standalone_client_rejects_untrusted_parent_directory(self):
+        candidate=Mock();parent=Mock();candidate.parents=[parent]
+        candidate.lstat.return_value=SimpleNamespace(st_uid=0,st_mode=stat.S_IFREG|0o755)
+        for owner,mode in [(1001,stat.S_IFDIR|0o755),(0,stat.S_IFDIR|0o777),(0,stat.S_IFLNK|0o777)]:
+            parent.lstat.return_value=SimpleNamespace(st_uid=owner,st_mode=mode)
+            with self.subTest(owner=owner,mode=mode),patch.object(reporter,'Path',return_value=candidate),self.assertRaises(ValueError):
+                reporter.kubectl_executable()
 
     def test_multiple_nodes_have_no_single_node_resources(self):
         second = copy.deepcopy(node()); second['metadata']['name'] = 'node-two'

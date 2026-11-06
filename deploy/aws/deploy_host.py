@@ -2,6 +2,7 @@
 
 import argparse
 import base64
+import hashlib
 import secrets
 import http.client
 import ipaddress
@@ -11,6 +12,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -573,6 +575,92 @@ def prune_releases():
             command(["docker", "image", "rm", short_id], optional=True)
 
 
+def deploy_runtime_telemetry(release, manifest):
+    """Use the existing pinned, source-restricted operations key from the SLA host."""
+    enabled = manifest.get('runtime_telemetry', False)
+    if type(enabled) is not bool:
+        raise DeploymentError('Invalid runtime telemetry deployment setting')
+    if not enabled:
+        return None
+    values = {}
+    for line in (release / 'probe.env').read_text().splitlines():
+        name, separator, value = line.partition('=')
+        if name in {'SENTINEL_OPERATIONS_JSON', 'SENTINEL_SSH_RUNTIME_B64'}:
+            if not separator or name in values:
+                raise DeploymentError('Ambiguous runtime deployment credential')
+            values[name] = value
+    assets = json.loads(values.get('SENTINEL_OPERATIONS_JSON', '[]'))
+    if not isinstance(assets, list):
+        raise DeploymentError('Invalid runtime deployment binding')
+    matches = [a for a in assets if isinstance(a, dict) and a.get('asset_id') == 'runtime']
+    if len(matches) != 1:
+        raise DeploymentError('Exactly one runtime deployment binding is required')
+    binding = matches[0]
+    if (not isinstance(binding.get('host'), str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9.-]{0,252}', binding['host'])
+            or binding.get('port') != 22 or binding.get('username') != 'sentinel-ops'
+            or binding.get('service') != 'secure-provisioner.service'
+            or binding.get('private_key_env') != 'SENTINEL_SSH_RUNTIME_B64'):
+        raise DeploymentError('Runtime deployment binding is outside its fixed scope')
+    expected_pin = base64.b64decode(binding['host_key_sha256'], validate=True)
+    private_key = base64.b64decode(values.get('SENTINEL_SSH_RUNTIME_B64', ''), validate=True)
+    if len(expected_pin) != 32 or not 100 <= len(private_key) <= 8192 or b'PRIVATE KEY-----' not in private_key:
+        raise DeploymentError('Runtime deployment requires the existing dedicated key and host pin')
+    identity = manifest['release_id'].split('-')
+    if len(identity) != 3 or identity[0] != manifest['revision'] or not all(v.isdecimal() for v in identity[1:]):
+        raise DeploymentError('Invalid runtime deployment workflow identity')
+    request = {'revision': identity[0], 'run_id': int(identity[1]), 'run_attempt': int(identity[2])}
+    scan = command(['ssh-keyscan', '-T', '5', '-p', '22', '-t', 'ed25519', binding['host']])
+    verified = []
+    for line in scan.stdout.splitlines():
+        fields = line.split()
+        if len(fields) != 3 or fields[1] != 'ssh-ed25519':
+            continue
+        if hashlib.sha256(base64.b64decode(fields[2], validate=True)).digest() == expected_pin:
+            verified.append(binding['host'] + ' ' + fields[1] + ' ' + fields[2])
+    if len(set(verified)) != 1:
+        raise DeploymentError('Runtime SSH host key did not match its configured pin')
+    with tempfile.TemporaryDirectory(prefix='sentinel-runtime-ssh-') as temp:
+        root = Path(temp)
+        os.chmod(root, 0o700)
+        key = root / 'key'
+        hosts = root / 'known_hosts'
+        key.write_bytes(private_key)
+        hosts.write_text(verified[0]+'\n')
+        os.chmod(key, 0o600)
+        os.chmod(hosts, 0o600)
+        args = ['ssh', '-T', '-F', '/dev/null', '-i', str(key), '-p', '22',
+            '-o', 'BatchMode=yes', '-o', 'IdentitiesOnly=yes', '-o', 'StrictHostKeyChecking=yes',
+            '-o', 'GlobalKnownHostsFile=/dev/null', '-o', 'UserKnownHostsFile='+str(hosts),
+            '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=10', '-o', 'ServerAliveCountMax=2',
+            'sentinel-ops@'+binding['host'], 'telemetry-deploy']
+        try:
+            process = subprocess.run(args, input=json.dumps(request), capture_output=True, text=True, timeout=270)
+        except subprocess.SubprocessError as error:
+            raise DeploymentError('Runtime telemetry installation did not complete') from error
+        if len(process.stdout) > 32768:
+            raise DeploymentError('Runtime telemetry installation failed')
+        if process.returncode:
+            try:
+                failure = json.loads(process.stdout)
+            except (ValueError, TypeError):
+                failure = {}
+            stage = failure.get('stage') if isinstance(failure, dict) else None
+            if stage in {'request', 'approval', 'source_manifest', 'client_download', 'activation'}:
+                raise DeploymentError('Runtime telemetry installation failed during ' + stage)
+            raise DeploymentError('Runtime telemetry installation failed')
+        receipt = json.loads(process.stdout)
+    if (receipt.get('accepted') is not True or any(receipt.get(k) != v for k, v in request.items())
+            or receipt.get('kubectl_sha256') != '33bc88a24c3b09cf55bfd59e6ca977881b61fc3f25ab65bc80c65b430248648e'
+            or receipt.get('cpu_quota_percent') != 30
+            or receipt.get('native_observation', {}).get('accepted') is not True
+            or receipt.get('application_restarts') != 0 or receipt.get('participant_resource_changes') != 0):
+        raise DeploymentError('Runtime telemetry installation receipt did not verify')
+    (release / 'runtime-telemetry.json').write_text(json.dumps(receipt)+'\n')
+    os.chmod(release / 'runtime-telemetry.json', 0o600)
+    print('SENTINEL_RUNTIME_TELEMETRY ' + json.dumps(receipt), flush=True)
+    return receipt
+
+
 def deploy(source):
     manifest = json.loads((source / "release.json").read_text())
     web_config = validate_web_config(manifest.get("public_web"))
@@ -611,6 +699,7 @@ def deploy(source):
         "MetricsToken": token}) + "\n", encoding="utf-8")
     os.chmod(auth_path, 0o400)
     os.chown(auth_path, 1654, 1654)
+    deploy_runtime_telemetry(release, manifest)
     prepare_web(release, web_config)
     prepare_monitoring(image, release, web_config, token)
     activate(image, release, profile["platform_monitor"]["profile"],

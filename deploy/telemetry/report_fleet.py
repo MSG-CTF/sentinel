@@ -108,7 +108,7 @@ def verified_kubeconfig(credential, member):
             or credential.get('target_id') != member['node_uid'] or credential.get('server_url') != member['server_url']):
         raise ValueError('Broker credential identity differs from roster')
     raw = decoded(credential['kubeconfig_base64'])
-    config = unique_json(command(['/usr/local/bin/kubectl', '--kubeconfig=/dev/stdin', 'config', 'view', '--raw', '-o', 'json'], raw))
+    config = unique_json(command([report_clusters.KUBECTL, '--kubeconfig=/dev/stdin', 'config', 'view', '--raw', '-o', 'json'], raw))
     if any(len(config.get(key, [])) != 1 for key in ('clusters', 'users', 'contexts')):
         raise ValueError('Ambiguous kubeconfig')
     cluster = config['clusters'][0]['cluster']; user = config['users'][0]['user']; context = config['contexts'][0]

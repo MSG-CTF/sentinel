@@ -30,6 +30,7 @@ jobs:
       - name: Build tested image
         env:
           REVISION: ${{ github.sha }}
+          SENTINEL_RUNTIME_TELEMETRY_DEPLOY_ENABLED: ${{ github.ref == 'refs/heads/dev' && 'true' || 'false' }}
         run: |
           docker build --label "org.opencontainers.image.revision=$REVISION" \
             --label org.opencontainers.image.source=https://github.com/MSG-CTF/sentinel \

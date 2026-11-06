@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "kubectl": {
+    "version": "v1.36.5",
+    "sha256": "33bc88a24c3b09cf55bfd59e6ca977881b61fc3f25ab65bc80c65b430248648e",
+    "url": "https://dl.k8s.io/release/v1.36.5/bin/linux/amd64/kubectl"
+  },
+  "files": {
+    "report_fleet.py": "7db92a929c5f053295c99e2d4d99db08e277f09de4a6b0f0f870ac145b3214ee",
+    "report_clusters.py": "3aaeeeed78e258338442342dbba462f90305c2713af838aa06816a8b469b4ace",
+    "report_service.py": "1c45d316b1aae4b54f1c66e7952f9cbebd08719ce89c7c060c09dc6358ff6acc",
+    "sentinel-fleet-report.service": "27046fef13b9a51d8dcd427df7059569f064c1fa14462106260121c23f11b717",
+    "sentinel-fleet-report.timer": "b49d21fc3ac42cf07c41033aa36a5b33194382383b36fe25627f48ca9881f077",
+    "runtime_deploy.py": "ce23ca9ed3756bd369be4a6082fd8e0c9c320c470f42f68474a1b021e6a3bbb3"
+  }
+}

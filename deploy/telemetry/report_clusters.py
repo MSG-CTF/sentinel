@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import stat
 import subprocess
 from uuid import UUID
 from urllib.parse import urlsplit
@@ -13,7 +14,25 @@ from urllib.parse import urlsplit
 from report_service import send
 
 REGISTRY = Path('/etc/secure-provisioner/registry.json')
-KUBECTL = '/usr/local/bin/kubectl'
+def kubectl_executable():
+    """Use the verified, root-managed client where it has been installed."""
+    candidate = Path('/opt/sentinel-telemetry/bin/kubectl-v1.36.5')
+    try:
+        metadata = candidate.lstat()
+    except FileNotFoundError:
+        return '/usr/local/bin/kubectl'
+    if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
+            or metadata.st_mode & 0o022):
+        raise ValueError('Unsafe telemetry Kubernetes client')
+    for parent in candidate.parents:
+        metadata = parent.lstat()
+        if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0
+                or metadata.st_mode & 0o022):
+            raise ValueError('Unsafe telemetry Kubernetes client directory')
+    return str(candidate)
+
+
+KUBECTL = kubectl_executable()
 CACHE_DIRECTORY = '/run/sentinel-cluster-report/cache'
 COUNTERS = ('node_count', 'ready_node_count', 'schedulable_node_count', 'memory_pressure_node_count',
             'disk_pressure_node_count', 'pid_pressure_node_count', 'unknown_condition_node_count')
@@ -50,7 +69,7 @@ def observe(cluster, now):
             PurePosixPath('/run/sentinel-fleet-report/kubeconfigs')}
             or config_path.suffix not in {'.yaml', '.yml', '.json'}):
         raise ValueError('Kubeconfig is outside the fixed configuration directory')
-    document = run_json(str(config_path), ['nodes', '-o', 'json'])
+    document = run_json(str(config_path), ['--raw', '/api/v1/nodes'])
     nodes = document['items']
     if not isinstance(nodes, list) or len(nodes) > 100 or len({node['metadata']['name'] for node in nodes}) != len(nodes):
         raise ValueError('Invalid node inventory')
