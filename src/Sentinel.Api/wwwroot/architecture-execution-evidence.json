@@ -159,7 +159,7 @@
       "cleanup_verified": true,
       "simulated": false,
       "checked_at": "2026-11-06T11:06:28.016606+00:00",
-      "proof_sha256": "5bd6688a8f5881f35b3f55f4c885bed5089bf3ed8e8228c158bfe2e36c3377f9",
+      "proof_sha256": "c0e12cef6e0b59027def5d851f3d3a8ec1a75c70fa2d1c91d121ce5823cf0ebd",
       "proof_path": "local/artifacts/internal-koth-execution-20261106.json",
       "backend_patch_source_sha": "0fe2329854eed73bd7814eb48f12405a2a0ea558",
       "live_backend_source_sha256": {
@@ -388,7 +388,8 @@
         "duplicate_periods_applied": 0,
         "score_transactions_rolled_back": 6,
         "participant_points_unchanged": true
-      }
+      },
+      "proof_encoding": "utf-8-lf"
     },
     {
       "run_id": "internal-koth-score-collection",
@@ -399,7 +400,7 @@
       "cleanup_verified": true,
       "simulated": false,
       "checked_at": "2026-11-06T11:06:28.016606+00:00",
-      "proof_sha256": "5bd6688a8f5881f35b3f55f4c885bed5089bf3ed8e8228c158bfe2e36c3377f9",
+      "proof_sha256": "c0e12cef6e0b59027def5d851f3d3a8ec1a75c70fa2d1c91d121ce5823cf0ebd",
       "proof_path": "local/artifacts/internal-koth-execution-20261106.json",
       "backend_patch_source_sha": "0fe2329854eed73bd7814eb48f12405a2a0ea558",
       "live_backend_source_sha256": {
@@ -628,7 +629,8 @@
         "duplicate_periods_applied": 0,
         "score_transactions_rolled_back": 6,
         "participant_points_unchanged": true
-      }
+      },
+      "proof_encoding": "utf-8-lf"
     }
   ],
   "cleanup": {

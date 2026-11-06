@@ -89,3 +89,11 @@ test("delivered execution module matches the public JSON and loads before the mo
   const html=fs.readFileSync(path.join(folder,"index.html"),"utf8");assert.ok(html.indexOf('/architecture-evidence.js')<html.indexOf('/architecture-model.js'));
   for(const id of ["executed-links","verified-links"])assert.ok(html.includes(`id="${id}"`));
 });
+
+test("internal proof digest binds the published UTF-8 LF artifact on Windows and Linux",()=>{
+  for(const record of evidence.runs.filter(r=>r.track==="INTERNAL")){
+    const canonical=fs.readFileSync(path.join(__dirname,"..",record.proof_path),"utf8").replace(/\r\n/g,"\n");
+    assert.equal(record.proof_encoding,"utf-8-lf");
+    assert.equal(require("node:crypto").createHash("sha256").update(canonical,"utf8").digest("hex"),record.proof_sha256);
+  }
+});
