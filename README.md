@@ -6,12 +6,30 @@
 
 <h2 align="center">Overview</h2>
 
+<p align="center"><a href="docs/showcase/screens/dashboard.jpg"><img src="docs/showcase/screens/dashboard.jpg" width="840" alt="Sentinel 관제 현황: 서비스별 상태와 위험 신호"></a><br><sub>Dashboard · 서비스별 상태 · 위험 신호</sub></p>
+
+<table align="center">
+<tr><th width="400">KOTH Monitoring</th><th width="400">Nodes</th></tr>
+<tr><td><a href="docs/showcase/screens/koth.jpg"><img src="docs/showcase/screens/koth.jpg" width="400" alt="KOTH Monitoring: 게임 서버 · 실행 준비 상태"></a><br><sub>게임 서버 · 실행 준비 상태</sub></td><td><a href="docs/showcase/screens/nodes.jpg"><img src="docs/showcase/screens/nodes.jpg" width="400" alt="Nodes: K3s 노드 상태 · CPU · 메모리"></a><br><sub>K3s 노드 상태 · CPU · 메모리</sub></td></tr>
+<tr><th width="400">Integration</th><th width="400">Grafana</th></tr>
+<tr><td><a href="docs/showcase/screens/integration.jpg"><img src="docs/showcase/screens/integration.jpg" width="400" alt="Integration: 연결 경로 · 실행 검증 기록"></a><br><sub>연결 경로 · 실행 검증 기록</sub></td><td><a href="docs/showcase/screens/grafana.jpg"><img src="docs/showcase/screens/grafana.jpg" width="400" alt="Grafana: 응답 시간 · 상태 이력 · 메트릭 수집"></a><br><sub>응답 시간 · 상태 이력 · 메트릭 수집</sub></td></tr>
+</table>
+
+<p align="center"><sub>운영 당시 캡처 · 2026.11.03 / Grafana 2026.10.14 · 이미지를 누르면 크게 볼 수 있습니다</sub></p>
+
+[웹에서 둘러보기](https://msg-ctf.github.io/platform.html#panel-sla)
+
+<details>
+<summary>수집·알림 흐름</summary>
+
 ![서비스·인스턴스·노드 상태 수집과 대시보드·Discord·메트릭 연결](docs/showcase/sla-flow.svg)
 
 인스턴스 생성·종료와 별도로 상태를 수집합니다
 장애·복구 알림은 Sentinel이 Discord로 보내고, Prometheus가 메트릭을 수집합니다
 
-[수집·알림 구현](docs/showcase/README.md) · [메트릭 수집 설정](monitoring/README.md)
+[수집·알림 구현과 화면 기록](docs/showcase/README.md) · [메트릭 수집 설정](monitoring/README.md)
+
+</details>
 
 <h2 align="center">Contributors</h2>
 
