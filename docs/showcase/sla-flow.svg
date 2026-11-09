@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="405" viewBox="0 0 1120 405" role="img" aria-labelledby="title desc">
+<title id="title">SLA / Sentinel 상태 수집과 알림</title>
+<desc id="desc">서비스 API, Scheduler 전체 인스턴스 목록과 Runtime 상태, 노드 수집 데이터를 Sentinel이 주기적으로 확인합니다 결과는 운영 대시보드와 Discord 알림에 반영하며, Prometheus가 메트릭을 수집해 Grafana에서 조회합니다 화살표는 데이터 흐름입니다</desc>
+<rect width="1120" height="405" rx="14" fill="#201b16"/>
+<g transform="translate(40 24)"><g font-family="Segoe UI, Malgun Gothic, Apple SD Gothic Neo, sans-serif">
+<defs><marker id="sla-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M1 1 7 4 1 7" fill="none" stroke="#bd955f" stroke-width="1.5"/></marker></defs>
+<text x="0" y="24" font-size="23" fill="#f4ede0" font-weight="600" text-anchor="start">SLA / 상시 점검</text>
+<text x="1040" y="24" font-size="15" fill="#c7bbae" font-weight="400" text-anchor="end">화살표: 수집 데이터·결과</text>
+<rect x="0" y="52" width="292" height="88" rx="9" fill="#25211b" stroke="#655442"/>
+<text x="18" y="79" font-size="19" fill="#f4ede0" font-weight="600" text-anchor="start">서비스 API</text>
+<text x="18" y="103" font-size="16" fill="#c7bbae" font-weight="400" text-anchor="start">Frontend · Backend</text>
+<text x="18" y="125" font-size="16" fill="#c7bbae" font-weight="400" text-anchor="start">Scheduler · Broker · Runtime</text>
+<rect x="0" y="156" width="292" height="88" rx="9" fill="#25211b" stroke="#655442"/>
+<text x="18" y="183" font-size="19" fill="#f4ede0" font-weight="600" text-anchor="start">인스턴스 목록</text>
+<text x="18" y="207" font-size="16" fill="#c7bbae" font-weight="400" text-anchor="start">Scheduler 전체 목록</text>
+<text x="18" y="229" font-size="16" fill="#c7bbae" font-weight="400" text-anchor="start">Runtime 상태 대조</text>
+<rect x="0" y="260" width="292" height="88" rx="9" fill="#25211b" stroke="#655442"/>
+<text x="18" y="287" font-size="19" fill="#f4ede0" font-weight="600" text-anchor="start">노드 수집기</text>
+<text x="18" y="311" font-size="16" fill="#c7bbae" font-weight="400" text-anchor="start">CPU · 메모리 · 디스크</text>
+<text x="18" y="333" font-size="16" fill="#c7bbae" font-weight="400" text-anchor="start">K3s · Windows · 서비스 상태</text>
+<path d="M292 96H326V200H370" fill="none" stroke="#bd955f" stroke-width="1.8" marker-end="url(#sla-arrow)"/>
+<path d="M292 200H370" fill="none" stroke="#bd955f" stroke-width="1.8" marker-end="url(#sla-arrow)"/>
+<path d="M292 304H326V200H370" fill="none" stroke="#bd955f" stroke-width="1.8" marker-end="url(#sla-arrow)"/>
+<rect x="370" y="135" width="285" height="130" rx="9" fill="#34291e" stroke="#bf995f"/>
+<text x="512.5" y="179" font-size="24" fill="#f4ede0" font-weight="600" text-anchor="middle">SLA / Sentinel</text>
+<text x="512.5" y="212" font-size="18" fill="#c7bbae" font-weight="400" text-anchor="middle">상태 판정</text>
+<text x="512.5" y="238" font-size="18" fill="#c7bbae" font-weight="400" text-anchor="middle">장애·복구 기록</text>
+<path d="M655 200H697V96H740" fill="none" stroke="#bd955f" stroke-width="1.8" marker-end="url(#sla-arrow)"/>
+<path d="M655 200H740" fill="none" stroke="#bd955f" stroke-width="1.8" marker-end="url(#sla-arrow)"/>
+<path d="M655 200H697V304H740" fill="none" stroke="#bd955f" stroke-width="1.8" marker-end="url(#sla-arrow)"/>
+<rect x="740" y="52" width="300" height="88" rx="9" fill="#25211b" stroke="#655442"/>
+<text x="758" y="86" font-size="19" fill="#f4ede0" font-weight="600" text-anchor="start">운영 대시보드</text>
+<text x="758" y="116" font-size="17" fill="#c7bbae" font-weight="400" text-anchor="start">현재 상태 · 수집 시각 · 이력</text>
+<rect x="740" y="156" width="300" height="88" rx="9" fill="#25211b" stroke="#655442"/>
+<text x="758" y="190" font-size="19" fill="#f4ede0" font-weight="600" text-anchor="start">Discord</text>
+<text x="758" y="220" font-size="17" fill="#c7bbae" font-weight="400" text-anchor="start">장애·복구 알림</text>
+<rect x="740" y="260" width="300" height="88" rx="9" fill="#25211b" stroke="#655442"/>
+<text x="758" y="294" font-size="19" fill="#f4ede0" font-weight="600" text-anchor="start">Prometheus → Grafana</text>
+<text x="758" y="324" font-size="17" fill="#c7bbae" font-weight="400" text-anchor="start">메트릭 저장 · 조회</text>
+</g></g>
+</svg>

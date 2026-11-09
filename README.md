@@ -1,15 +1,17 @@
 <div align="center">
 <h1>MSG CTF · SLA / Sentinel</h1>
-<p>서비스·실행 노드·문제 인스턴스의 상태와 장애·복구 이력을 보는 운영 대시보드</p>
+<p>서비스·인스턴스·노드 감시 · 장애·복구 알림</p>
 <p><a href="https://msg-ctf.github.io/platform.html">플랫폼</a> · <a href="#development">개발 문서</a></p>
 </div>
 
 <h2 align="center">Overview</h2>
 
-<table align="center">
-<tr><th width="260">상태 수집</th><th width="260">전체 관측</th><th width="260">장애·복구</th></tr>
-<tr><td align="center">HTTP · DB·Redis · 노드</td><td align="center">내부·외부 트랙·인스턴스 목록</td><td align="center">이벤트 기록·대시보드·알림</td></tr>
-</table>
+![서비스·인스턴스·노드 상태 수집과 대시보드·Discord·메트릭 연결](docs/showcase/sla-flow.svg)
+
+인스턴스 생성·종료와 별도로 상태를 수집합니다
+장애·복구 알림은 Sentinel이 Discord로 보내고, Prometheus가 메트릭을 수집합니다
+
+[수집·알림 구현](docs/showcase/README.md) · [메트릭 수집 설정](monitoring/README.md)
 
 <h2 align="center">Contributors</h2>
 
